@@ -1,0 +1,21 @@
+replicaCount: 1
+
+podAnnotations: {}
+
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: draw.home
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: draw-server-tls
+      hosts:
+        - draw.home

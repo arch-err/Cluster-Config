@@ -1,0 +1,88 @@
+{{- range .Values.apps }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: argocd
+spec:
+  project: default
+
+  sources:
+    - repoURL: git@github.com:{{ $.Values.sourceRepo }}.git
+      targetRevision: HEAD
+      ref: reporoot
+
+    - chart: {{ .chart.name }}
+      repoURL: {{ .chart.url }}
+      targetRevision: {{ .chart.version }}
+
+      helm:
+        valueFiles:
+          - $reporoot/values/{{ .name }}.yaml
+          {{- if .secrets.enabled }}
+          - secrets://https://raw.githubusercontent.com/{{ $.Values.sourceRepo }}/main/secrets/{{ .name }}.yaml
+          {{- end }}
+
+        valuesObject:
+        {{- if .ingress.valuesSection }}
+          {{ .ingress.valuesSection }}:
+            {{- if (or .ingress.homepage.enabled .ingress.enabled) }}
+            ingress:
+            {{- end}}
+            {{- if .ingress.homepage.enabled }}
+              annotations:
+                gethomepage.dev/enabled: "true"
+                gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+                gethomepage.dev/description: {{ default "" .ingress.homepage.description | quote }}
+                gethomepage.dev/group: {{ default (.namespace | title) }}
+                gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+            {{- end }}
+            {{- if .ingress.enabled }}
+              {{- if  (not .ingress.homepage.enabled) }}
+              annotations:
+              {{- end }}
+                nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+                nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+                cert-manager.io/cluster-issuer: "selfsign-clusterissuer"
+            {{- end }}
+        {{- else }}
+          {{- if (or .ingress.homepage.enabled .ingress.enabled) }}
+          ingress:
+          {{- end}}
+          {{- if .ingress.homepage.enabled }}
+            annotations:
+              gethomepage.dev/enabled: "true"
+              gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+              gethomepage.dev/description: {{ default "" .ingress.homepage.description | quote }}
+              gethomepage.dev/group: {{ default (.namespace | title) .ingress.homepage.group | quote }}
+              gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+          {{- end }}
+          {{- if .ingress.enabled }}
+            {{- if  (not .ingress.homepage.enabled) }}
+            annotations:
+            {{- end }}
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+              cert-manager.io/cluster-issuer: "selfsign-clusterissuer"
+          {{- end }}
+        {{- end }}
+
+
+  destination:
+     server: https://kubernetes.default.svc
+     namespace: {{ .namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+	{{- if .privileged }}
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
+        pod-security.kubernetes.io/enforce-version: latest
+    {{- end}}
+
+    syncOptions:
+      - CreateNamespace=true
+---
+{{ end }}

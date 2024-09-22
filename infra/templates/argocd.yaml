@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+
+  sources:
+    - chart: argo-cd
+      repoURL: https://argoproj.github.io/argo-helm
+      targetRevision: 7.4.4
+
+      helm:
+        valueFiles:
+          - $values/values/argocd.yaml
+          - secrets://https://raw.githubusercontent.com/arch-err/Cluster-Config/main/secrets/argocd.yaml
+
+    - repoURL: git@github.com:arch-err/Cluster-Config.git
+      targetRevision: HEAD
+      ref: values
+
+  destination:
+     server: https://kubernetes.default.svc
+     namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

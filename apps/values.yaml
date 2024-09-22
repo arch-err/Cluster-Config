@@ -1,0 +1,137 @@
+# Default values for apps.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+sourceRepo: arch-err/Cluster-Config
+
+sourceRepoUrl:
+sourceRepoRevision: HEAD
+
+apps:
+  - name: grafana
+    namespace: monitoring
+    chart:
+      url: https://grafana.github.io/helm-charts
+      name: grafana
+      version: 8.5.1
+    secrets:
+      enabled: true
+    ingress:
+      enabled: false
+      homepage:
+        enabled: true
+        description: "Platform for data analytics and monitoring"
+  - name: influxdb
+    namespace: monitoring
+    chart:
+      url: https://helm.influxdata.com/
+      name: influxdb2
+      version: 2.1.2
+    secrets:
+      enabled: true
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+  - name: prometheus
+    namespace: monitoring
+    privileged: true
+    chart:
+      url: https://prometheus-community.github.io/helm-charts
+      name: prometheus
+      version: 25.27.0
+    secrets:
+      enabled: false
+    ingress:
+      valuesSection: server
+      enabled: false
+      homepage:
+        enabled: true
+  - name: homepage
+    namespace: homepage
+    chart:
+      url: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.0.1
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
+  - name: portainer
+    namespace: portainer
+    chart:
+      url: https://portainer.github.io/k8s/
+      name: portainer
+      version: 1.0.53
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: true
+        group: "Cluster Management"
+  - name: home-assistant
+    namespace: home-automation
+    chart:
+      url: http://pajikos.github.io/home-assistant-helm-chart
+      name: home-assistant
+      version: 0.2.78
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+  - name: excalidraw
+    namespace: excalidraw
+    chart:
+      url: https://pmoscode-helm.github.io/excalidraw/
+      name: excalidraw
+      version: 0.1.1
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+  - name: authentik
+    namespace: authentication
+    privileged: true
+    chart:
+      url: https://charts.goauthentik.io/
+      name: authentik
+      version: 2024.8.2
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      valuesSection: server
+      homepage:
+        enabled: true
+  # - name: unifi
+  #   namespace: unifi
+  #   chart:
+  #     url: ghcr.io/mkilchhofer/unifi-char
+  #     name: unifi
+  #     version: 1.10.8
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: false
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true

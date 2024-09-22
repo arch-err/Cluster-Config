@@ -1,0 +1,35 @@
+authentik:
+    secret_key: "PleaseGenerateASecureKey"
+    # This sends anonymous usage-data, stack traces on errors and
+    # performance data to sentry.io, and is fully opt-in
+    error_reporting:
+        enabled: false
+    postgresql:
+        password: "ThisIsNotASecurePassword"
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    rules:
+      - host: auth.home
+        http:
+          paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: authentik-server
+                port:
+                  name: http
+        tls:
+          - hosts:
+            - auth.home
+            secretName: authentik-server-tls # as expected by argocd-server
+
+postgresql:
+    enabled: true
+    auth:
+        password: "ThisIsNotASecurePassword"
+redis:
+    enabled: true
