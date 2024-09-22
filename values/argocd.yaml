@@ -11,7 +11,7 @@ extraObjects:
       project: default
 
       source:
-        repoURL: git@github.com:arch-err/Cluster-POC.git
+        repoURL: git@github.com:arch-err/Cluster-Config.git
         targetRevision: HEAD
         path: infra
 
