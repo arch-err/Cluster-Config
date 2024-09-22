@@ -18,7 +18,7 @@ apps:
     secrets:
       enabled: true
     ingress:
-      enabled: false
+      enabled: true
       homepage:
         enabled: true
         description: "Platform for data analytics and monitoring"
@@ -45,7 +45,7 @@ apps:
       enabled: false
     ingress:
       valuesSection: server
-      enabled: false
+      enabled: true
       homepage:
         enabled: true
   - name: homepage
@@ -57,7 +57,7 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: false
+      enabled: true
       homepage:
         enabled: false
   - name: portainer
@@ -69,7 +69,7 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: false
+      enabled: true
       homepage:
         enabled: true
         group: "Cluster Management"
