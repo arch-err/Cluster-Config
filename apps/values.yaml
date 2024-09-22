@@ -120,9 +120,9 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: true
+      enabled: false
       homepage:
-        enabled: true
+        enabled: false
   # - name: unifi
   #   namespace: unifi
   #   chart:
