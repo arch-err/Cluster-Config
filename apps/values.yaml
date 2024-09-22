@@ -111,6 +111,18 @@ apps:
       valuesSection: server
       homepage:
         enabled: true
+  - name: metrics-server
+    namespace: kube-metrics
+    chart:
+      url: https://kubernetes-sigs.github.io/metrics-server/
+      name: metrics-server
+      version: 3.12.1
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: unifi
   #   namespace: unifi
   #   chart:
@@ -121,6 +133,78 @@ apps:
   #     enabled: false
   #   ingress:
   #     enabled: false
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  # - name: <++>
+  #   namespace: <++>
+  #   chart:
+  #     url: <++>
+  #     name: <++>
+  #     version: <++>
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
   #     homepage:
   #       enabled: true
   # - name: <++>
