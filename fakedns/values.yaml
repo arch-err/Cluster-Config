@@ -3,7 +3,7 @@ services:
     host: secondary
     port: "6080"
     homepage:
-      enabled: true
+      enabled: "true"
       name: "VaultWarden"
       group: "Security"
       icon: "bitwarden.png"

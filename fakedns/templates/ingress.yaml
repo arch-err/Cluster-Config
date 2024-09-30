@@ -6,11 +6,13 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     cert-manager.io/cluster-issuer: "selfsign-clusterissuer"
-#    gethomepage.dev/enabled: {{ default .homepage.enabled "false" }}
-#    gethomepage.dev/name: {{ default .homepage.name .name }}
-#    gethomepage.dev/description: {{ .homepage.description }}
-#    gethomepage.dev/group: {{ .homepage.group }}
-#    gethomepage.dev/icon: {{ .homepage.icon }}
+    gethomepage.dev/enabled: {{ (default false .homepage.enabled) | quote }}
+    gethomepage.dev/name: {{ default .name .homepage.name}}
+    {{ if .homepage.description }}
+    gethomepage.dev/description: {{ default "" .homepage.description }}
+    {{- end }}
+    gethomepage.dev/group: {{ default "" .homepage.group }}
+    gethomepage.dev/icon: {{ default "" .homepage.icon }}
 spec:
   ingressClassName: nginx
   tls:
