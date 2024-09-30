@@ -1,0 +1,9 @@
+services:
+  - name: "vault"
+    host: secondary
+    port: "6080"
+    homepage:
+      enabled: true
+      name: "VaultWarden"
+      group: "Security"
+      icon: "bitwarden.png"
