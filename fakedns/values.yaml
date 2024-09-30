@@ -1,3 +1,4 @@
+#!CMD: helm upgrade -n fakedns fakedns .
 services:
   - name: "vault"
     host: secondary
@@ -7,3 +8,12 @@ services:
       name: "VaultWarden"
       group: "Security"
       icon: "bitwarden.png"
+  - name: "pihole"
+    host: secondary
+    port: "9080"
+    path: /admin
+    homepage:
+      enabled: "true"
+      name: "PiHole"
+      group: "Management"
+      icon: "pi-hole.png"

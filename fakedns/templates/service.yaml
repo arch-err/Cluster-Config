@@ -10,7 +10,7 @@ spec:
     - name: {{ .name }}
       protocol: "TCP"
       port: 80
-      targetPort: 6080
+      targetPort: {{ .port }}
       nodePort: 0
 ---
 {{- end }}

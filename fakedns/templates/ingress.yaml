@@ -23,7 +23,11 @@ spec:
   - host: {{ .name }}.home
     http:
       paths:
+      {{ if .path }}
+      - path: {{ .path }}
+      {{- else }}
       - path: /
+      {{- end }}
         pathType: Prefix
         backend:
           service:
