@@ -70,6 +70,8 @@ config:
     # change mode to 'cluster' to use RBAC service account
     mode: cluster
   settings:
+    color: zinc
+    hideVersion: true
 
 # -- Main environment variables. Template enabled.
 # Syntax options:
