@@ -135,18 +135,18 @@ apps:
   #     enabled: false
   #     homepage:
   #       enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: photoprism
+    namespace: photoprism
+    chart:
+      url: https://andrenarchy.github.io/helm-charts/
+      name: photoprism
+      version: 8.4.0
+    secrets:
+      enabled: true
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
