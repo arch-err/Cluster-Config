@@ -94,4 +94,5 @@ mariadb:
   primary:
     persistence:
       enabled: true
+      accessMode: ReadWriteMany
       # storageClass: ""
