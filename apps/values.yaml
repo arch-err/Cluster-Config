@@ -142,7 +142,7 @@ apps:
       name: photoprism
       version: 8.4.0
     secrets:
-      enabled: true
+      enabled: false
     ingress:
       enabled: true
       homepage:
