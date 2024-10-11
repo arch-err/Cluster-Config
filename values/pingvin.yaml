@@ -85,7 +85,7 @@ common:
     volumes:
       - name: "data"
         storageClassName: "" # leave empty if you want to use default
-        size: "64"
+        size: "50Gi"
         pvcClaim: "" # Fill only if you want to use existing pvc
         containerMount: "/opt/app/backend/data/"
       - name: "image"
