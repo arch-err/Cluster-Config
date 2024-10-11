@@ -34,7 +34,7 @@ extraObjects:
         gethomepage.dev/enabled: "true"
         gethomepage.dev/name: "ArgoCD"
         gethomepage.dev/description: ""
-        gethomepage.dev/group: "Cluster Management"
+        gethomepage.dev/group: "Management"
         gethomepage.dev/icon: "argocd.png"
     spec:
       ingressClassName: nginx

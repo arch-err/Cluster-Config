@@ -6,7 +6,7 @@ services:
     homepage:
       enabled: "true"
       name: "VaultWarden"
-      group: "Security"
+      group: "Tools"
       icon: "bitwarden.png"
   - name: "pihole"
     host: secondary
