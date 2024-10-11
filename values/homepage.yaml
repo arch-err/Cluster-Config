@@ -55,12 +55,12 @@ config:
               name: myIframe
               src: http://grafana.home/public-dashboards/65d2d07a1dc04852925b632012ff1343
               #classes: h-60 sm:h-60 md:h-60 lg:h-60 xl:h-60 2xl:h-72 # optional, use tailwind height classes
-              referrerPolicy: same-origin # optional, no default
+              #referrerPolicy: same-origin # optional, no default
               # allowPolicy: autoplay #; fullscreen; gamepad # optional, no default
-              allowFullscreen: false # optional, default: true
-              loadingStrategy: eager # optional, default: eager
-              allowScrolling: no # optional, default: yes
-              refreshInterval: 2000 # optional, no default
+              #allowFullscreen: false # optional, default: true
+              #loadingStrategy: eager # optional, default: eager
+              #allowScrolling: no # optional, default: yes
+              #refreshInterval: 2000 # optional, no default
   widgets:
     - resources:
         backend: kubernetes
