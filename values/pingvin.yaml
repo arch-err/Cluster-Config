@@ -1,3 +1,4 @@
+#!CMD: gt
 common:
   app:
     servicePort: 80
@@ -29,6 +30,7 @@ common:
       enabled: true
       secretName: ""
     ingressClassName: nginx
+    isIngressRoute: false
     entrypoint: websecure
     certResolver: "" # leave empty if you don't use, tls.enabled must be true and secretName must me empty
 
