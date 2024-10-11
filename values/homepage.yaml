@@ -89,6 +89,7 @@ config:
   settings:
     color: zinc
     hideVersion: true
+    background: https://wallpapercave.com/wp/wp7196422.jpg
 
 # -- Main environment variables. Template enabled.
 # Syntax options:
