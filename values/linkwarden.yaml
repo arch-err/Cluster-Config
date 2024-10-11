@@ -393,7 +393,7 @@ postgresql:
       ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
       ##   GKE, AWS & OpenStack)
       ##
-      storageClass: ""
+      storageClass: "kadalu.mirror"
       ## @param postgresql.primary.persistence.accessModes PVC Access Mode for PostgreSQL volume
       ##
       accessModes:
