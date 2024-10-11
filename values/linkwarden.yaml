@@ -82,7 +82,7 @@ linkwarden:
       dataPath: data
       pvc:
         size: 5Gi
-        # storageClass: standard
+        storageClass: kadalu.mirror
         reclaimPolicy: Retain
         existingClaim: ""
 
