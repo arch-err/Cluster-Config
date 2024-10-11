@@ -91,6 +91,7 @@ config:
     hideVersion: true
     background: https://wallpaper-house.com/data/out/7/wallpaper2you_147735.jpg
     opacity: 80
+    headerStyle: boxed
 
 # -- Main environment variables. Template enabled.
 # Syntax options:
