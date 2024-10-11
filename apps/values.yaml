@@ -112,10 +112,10 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: false
+      enabled: true
       valuesSection: server
       homepage:
-        enabled: true
+        enabled: false
         group: "Management"
   - name: metrics-server
     namespace: kube-metrics
