@@ -112,7 +112,7 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: true
+      enabled: false
       valuesSection: server
       homepage:
         enabled: true
