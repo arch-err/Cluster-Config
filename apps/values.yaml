@@ -189,6 +189,7 @@ apps:
       enabled: false
     ingress:
       enabled: true
+      valuesSection: common
       homepage:
         enabled: true
         group: tools
