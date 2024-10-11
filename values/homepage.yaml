@@ -45,8 +45,11 @@ ingress:
 config:
   bookmarks:
   services:
-    - iframe:
+    - iframeGroup:
       - iframe:
+        icon: plex.png
+        href: https://plex.my.host
+        description: Watch movies and TV shows.
         widget:
           type: iframe
           name: myIframe
