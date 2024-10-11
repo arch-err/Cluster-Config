@@ -1,3 +1,4 @@
+#!CMD: gt
 # Default Helm values for fmjstudios/linkwarden.
 # Reference: https://github.com/fmjstudios/helm
 
@@ -81,7 +82,7 @@ linkwarden:
       dataPath: data
       pvc:
         size: 5Gi
-        storageClass: standard
+        # storageClass: standard
         reclaimPolicy: Retain
         existingClaim: ""
 
