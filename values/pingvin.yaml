@@ -19,7 +19,7 @@ common:
   # container
   image:
     name: stonith404/pingvin-share
-    tag: v1.3.0
+    tag: v1.1.3
     pullPolicy: Always
 
   # ingress
