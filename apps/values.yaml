@@ -179,18 +179,19 @@ apps:
       enabled: false
       homepage:
         enabled: false
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: pingvin
+    namespace: pingvin
+    chart:
+      url: https://qjoly.github.io/helm-charts/
+      name: pingvin
+      version: 1.0.1
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+        group: tools
   # - name: <++>
   #   namespace: <++>
   #   chart:
