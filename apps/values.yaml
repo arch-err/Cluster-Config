@@ -1,3 +1,4 @@
+#!CMD: gt
 # Default values for apps.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -115,6 +116,7 @@ apps:
       valuesSection: server
       homepage:
         enabled: true
+        group: "Management"
   - name: metrics-server
     namespace: kube-metrics
     chart:
@@ -139,6 +141,7 @@ apps:
       enabled: false
       homepage:
         enabled: true
+        group: "Management"
   - name: photoprism
     namespace: photoprism
     chart:
