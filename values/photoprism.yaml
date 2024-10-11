@@ -59,6 +59,15 @@ ingress:
   main:
     enabled: true
     ingressClassName: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: selfsign-clusterissuer
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+      nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+      gethomepage.dev/description: ''
+      gethomepage.dev/enabled: 'true'
+      gethomepage.dev/group: Tools
+      gethomepage.dev/icon: photoprism.png
+      gethomepage.dev/name: Photoprism
     hosts:
       - host: &host "photoprism.home"
         paths:

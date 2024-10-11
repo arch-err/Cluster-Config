@@ -151,10 +151,9 @@ apps:
     secrets:
       enabled: false
     ingress:
-      enabled: true
+      enabled: false
       homepage:
-        enabled: true
-        group: "Tools"
+        enabled: false
   # - name: <++>
   #   namespace: <++>
   #   chart:
