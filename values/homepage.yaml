@@ -45,28 +45,7 @@ ingress:
 config:
   bookmarks:
   services:
-    - iframeGroup:
-        - iframe:
-            icon: plex.png
-            href: https://plex.my.host
-            description: Watch movies and TV shows.
-            widget:
-              type: iframe
-              name: myIframe
-              src: http://grafana.home/public-dashboards/65d2d07a1dc04852925b632012ff1343
-              #classes: h-60 sm:h-60 md:h-60 lg:h-60 xl:h-60 2xl:h-72 # optional, use tailwind height classes
-              #referrerPolicy: same-origin # optional, no default
-              # allowPolicy: autoplay #; fullscreen; gamepad # optional, no default
-              #allowFullscreen: false # optional, default: true
-              #loadingStrategy: eager # optional, default: eager
-              #allowScrolling: no # optional, default: yes
-              #refreshInterval: 2000 # optional, no default
   widgets:
-    - resources:
-        backend: kubernetes
-        expanded: true
-        cpu: true
-        memory: true
     - search:
         provider: duckduckgo
         target: _blank
@@ -92,6 +71,7 @@ config:
     background: https://wallpaper-house.com/data/out/7/wallpaper2you_147735.jpg
     headerStyle: boxed
     cardBlur: xl
+    statusStyle: "dot"
 
 # -- Main environment variables. Template enabled.
 # Syntax options:
