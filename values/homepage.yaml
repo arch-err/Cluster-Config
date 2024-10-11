@@ -1,3 +1,4 @@
+#!CMD: gt
 # Enable RBAC. RBAC is necessary to use Kubernetes integration
 enableRbac: true
 
@@ -46,26 +47,37 @@ config:
   services:
   widgets:
     - resources:
-        backend: kubernetes
-        expanded: true
-        cpu: true
-        memory: true
+      backend: kubernetes
+      expanded: true
+      cpu: true
+      memory: true
     - search:
-        provider: duckduckgo
-        target: _blank
+      provider: duckduckgo
+      target: _blank
     ## Uncomment to enable Kubernetes integration
     - kubernetes:
-        cluster:
-          show: true
-          cpu: true
-          memory: true
-          showLabel: true
-          label: "cluster"
-        nodes:
-          show: true
-          cpu: true
-          memory: true
-          showLabel: true
+      cluster:
+        show: true
+        cpu: true
+        memory: true
+        showLabel: true
+        label: "cluster"
+      nodes:
+        show: true
+        cpu: true
+        memory: true
+        showLabel: true
+    - iframe:
+    	type: iframe
+    	name: myIframe
+    	src: https://gethomepage.dev/configs/settings/
+    	classes: h-60 sm:h-60 md:h-60 lg:h-60 xl:h-60 2xl:h-72 # optional, use tailwind height classes
+    	referrerPolicy: same-origin # optional, no default
+    	allowPolicy: autoplay #; fullscreen; gamepad # optional, no default
+    	allowFullscreen: false # optional, default: true
+    	loadingStrategy: eager # optional, default: eager
+    	allowScrolling: no # optional, default: yes
+    	refreshInterval: 2000 # optional, no default
   kubernetes:
     # change mode to 'cluster' to use RBAC service account
     mode: cluster
