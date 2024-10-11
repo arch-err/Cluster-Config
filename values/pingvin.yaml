@@ -1,4 +1,8 @@
 #!CMD: gt
+image:
+  name: stonith404/pingvin-share
+  tag: v0.15.0
+  pullPolicy: Always
 common:
   app:
     servicePort: 80
