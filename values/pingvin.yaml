@@ -28,7 +28,7 @@ common:
     hostName: pingvin.home
     tls:
       enabled: true
-      secretName: ""
+      secretName: "pingvin-server-tls"
     ingressClassName: nginx
     isIngressRoute: false
     entrypoint: websecure
