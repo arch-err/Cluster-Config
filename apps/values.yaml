@@ -167,18 +167,18 @@ apps:
       homepage:
         enabled: true
         group: "Tools"
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: cyberchef
+    namespace: cyberchef
+    chart:
+      url: https://charts.obeone.cloud
+      name: cyberchef
+      version: 1.3.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
   # - name: <++>
   #   namespace: <++>
   #   chart:
