@@ -193,18 +193,18 @@ apps:
   #     homepage:
   #       enabled: true
   #       group: tools
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: kubeview
+    namespace: kubeview
+    chart:
+      url: https://benc-uk.github.io/kubeview/charts
+      name: kubeview
+      version: 0.1.31
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
