@@ -154,19 +154,19 @@ apps:
       enabled: false
       homepage:
         enabled: false
-  - name: linkwarden
-    namespace: linkwarden
-    chart:
-      url: https://fmjstudios.github.io/helm/
-      name: linkwarden
-      version: 0.3.2
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
-        group: "Tools"
+  # - name: linkwarden
+  #   namespace: linkwarden
+  #   chart:
+  #     url: https://fmjstudios.github.io/helm/
+  #     name: linkwarden
+  #     version: 0.3.2
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  #       group: "Tools"
   - name: cyberchef
     namespace: cyberchef
     chart:
