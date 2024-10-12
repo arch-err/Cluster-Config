@@ -207,18 +207,18 @@ apps:
         enabled: true
         group: Management
         icon: kubernetes.png
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: n8n
+    namespace: n8n
+    chart:
+      url: oci://8gears.container-registry.com/library/n8n
+      name: n8n
+      version: 0.25.2
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
