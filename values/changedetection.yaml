@@ -1,3 +1,4 @@
+#!CMD: gt
 replicaCount: 1
 
 image:
@@ -93,7 +94,7 @@ tolerations: []
 affinity: {}
 
 persistence:
-  storageClass: ""
+  storageClass: "kadalu.mirror"
   existingClaim: ""
   enabled: true
   accessMode: ReadWriteOnce
