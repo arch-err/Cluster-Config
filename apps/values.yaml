@@ -205,6 +205,8 @@ apps:
       enabled: true
       homepage:
         enabled: true
+        group: Management
+        icon: kubernetes.png
   # - name: <++>
   #   namespace: <++>
   #   chart:
