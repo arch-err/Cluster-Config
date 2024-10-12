@@ -76,7 +76,7 @@ persistence:
   # -- Configure persistence for data.
   # @default -- See values.yaml
   data:
-    enabled: false
+    enabled: true
     mountPath: /usr/src/paperless/data
     accessMode: ReadWriteOnce
     emptyDir:
@@ -84,7 +84,7 @@ persistence:
   # -- Configure persistence for media.
   # @default -- See values.yaml
   media:
-    enabled: false
+    enabled: true
     mountPath: /usr/src/paperless/media
     accessMode: ReadWriteOnce
     emptyDir:
@@ -92,7 +92,7 @@ persistence:
   # -- Configure volume to monitor for new documents.
   # @default -- See values.yaml
   consume:
-    enabled: false
+    enabled: true
     mountPath: /usr/src/paperless/consume
     accessMode: ReadWriteOnce
     emptyDir:
@@ -100,7 +100,7 @@ persistence:
   # -- Configure export volume.
   # @default -- See values.yaml
   export:
-    enabled: false
+    enabled: true
     mountPath: /usr/src/paperless/export
     accessMode: ReadWriteOnce
     emptyDir:
@@ -110,18 +110,18 @@ persistence:
 #    For more options see [postgresql chart documentation](https://github.com/bitnami/charts/tree/master/bitnami/postgresql)
 # @default -- See values.yaml
 postgresql:
-  enabled: false
+  enabled: true
   postgresqlUsername: paperless
   postgresqlPassword: paperless
   postgresqlDatabase: paperless
   persistence:
-    enabled: false
-    # storageClass: ""
+    enabled: true
+    storageClass: "kadalu.mirror"
 
 # -- Enable and configure redis subchart under this key.
 #    For more options see [redis chart documentation](https://github.com/bitnami/charts/tree/master/bitnami/redis)
 # @default -- See values.yaml
 redis:
-  enabled: false
+  enabled: true
   auth:
-    enabled: false
+    enabled: true
