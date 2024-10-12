@@ -16,4 +16,4 @@ services:
       enabled: "true"
       name: "PiHole"
       group: "Management"
-      icon: "pi-hole.png"
+      icon: "pi-hoe.png"
