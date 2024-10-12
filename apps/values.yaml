@@ -219,18 +219,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: changedetection
+    namespace: changedetection
+    chart:
+      url: https://charts.alekc.dev
+      name: changedetection
+      version: 0.5.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
