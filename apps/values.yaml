@@ -231,6 +231,8 @@ apps:
       enabled: true
       homepage:
         enabled: true
+        group: Tools
+        icon: changedetection-io.png
   # - name: <++>
   #   namespace: <++>
   #   chart:
