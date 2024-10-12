@@ -233,18 +233,18 @@ apps:
         enabled: true
         group: Tools
         icon: changedetection-io.png
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: paperless
+    namespace: paperless
+    chart:
+      url: https://k8s-home-lab.github.io/helm-charts/
+      name: paperless
+      version: 10.0.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
