@@ -233,7 +233,7 @@ apps:
         enabled: true
         group: Tools
         icon: changedetection-io.png
-  - name: paperless-ngx
+  - name: paperless
     namespace: paperless-ngx
     chart:
       url: http://helm.crystalnet.org/
@@ -245,6 +245,7 @@ apps:
       enabled: true
       homepage:
         enabled: true
+        group: Tools
   # - name: <++>
   #   namespace: <++>
   #   chart:
