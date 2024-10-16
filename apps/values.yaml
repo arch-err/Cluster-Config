@@ -233,12 +233,12 @@ apps:
         enabled: true
         group: Tools
         icon: changedetection-io.png
-  - name: paperless
-    namespace: paperless
+  - name: paperless-ngx
+    namespace: paperless-ngx
     chart:
-      url: https://k8s-home-lab.github.io/helm-charts/
-      name: paperless
-      version: 10.0.0
+      url: http://helm.crystalnet.org/
+      name: paperless-ngx
+      version: 0.2.17
     secrets:
       enabled: false
     ingress:
