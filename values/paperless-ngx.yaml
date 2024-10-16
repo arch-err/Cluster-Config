@@ -258,3 +258,4 @@ mediaVolume:
     capacity:
       storage: 25Gi
     storageClassName: kadalu.mirror
+    emptyDir: true
