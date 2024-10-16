@@ -162,7 +162,7 @@ postgresql:
 persistence:
   consume:
     # -- Enable paperless consume dir persistence using `PVC`. If false, use emptyDir (usually not needed)
-    enabled: false
+    enabled: true
     # Claims that pods are allowed to reference (see
     # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#persistentvolumeclaim-v1-core
     # for structural reference)
@@ -249,13 +249,15 @@ config:
 # -- The list of additional volumes that will be mounted inside paperless pod, this one to `/paperless/library`.
 # @default -- See [values.yaml](./values.yaml)
 mediaVolume:
-  enabled: true
-  name: library # this volume will be mounted into `/paperless/library`
-  readOnly: false # is this volume readonly ? (optional, default true)
-  volumeSpec: # see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#persistentvolumespec-v1-core
-    accessModes:
-      - ReadWriteOnce
-    capacity:
-      storage: 25Gi
-    storageClassName: kadalu.mirror
-    emptyDir: true
+  enabled: false
+  # name: library # this volume will be mounted into `/paperless/library`
+  # readOnly: false # is this volume readonly ? (optional, default true)
+  # volumeSpec: # see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.26/#persistentvolumespec-v1-core
+  #   accessModes:
+  #     - ReadWriteOnce
+  #   capacity:
+  #     storage: 25Gi
+  #   storageClassName: kadalu.mirror
+  #   emptyDir: true
+  #   hostPath:
+  #     path: "/paperless/library"
