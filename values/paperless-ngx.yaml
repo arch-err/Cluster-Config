@@ -243,7 +243,7 @@ config:
   paperless_url: "https://paperless.domain"
   # -- Languages to be used for ocr (only pre-installed languages are supported)
   ocr_languages:
-    - deu
+    - swe
     - eng
 
 # -- The list of additional volumes that will be mounted inside paperless pod, this one to `/paperless/library`.
