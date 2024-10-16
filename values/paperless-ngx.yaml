@@ -257,3 +257,4 @@ mediaVolume:
       - ReadWriteOnce
     capacity:
       storage: 25Gi
+    storageClass: kadalu.mirror
