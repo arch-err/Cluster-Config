@@ -207,7 +207,7 @@ config:
     # -- default email for the admin user
     email: no@mail.cf
     # -- use an pre-existing secret to provide credentials
-    #    it should contain the keys paperless-user, paperless-mail and paperless-pass
+    #    it should contain the keys aperless-user, paperless-mail and paperless-pass
     existing_secret:
   ftpd:
     # -- set to true to enable builtin ftpd that uses the paperless database for authentication
@@ -225,7 +225,7 @@ config:
     # -- only needed when type is mariadb and mariadb.enabled is set to false
     #    meaning you would use an external already existing mariadb instance
     # @default -- See [values.yaml](./values.yaml)
-    mariadb:
+    postgresql:
       # -- hostname where your external mariadb is reachable
       host: localhost
       # -- port to connect to
