@@ -49,6 +49,9 @@ config:
       - GitHub:
         href: https://github.com/arch-err
         icon: github.png
+      - ProtonMail:
+        href: https://mail.proton.me/u/0/inbox
+        icon: proton-mail.png
   widgets:
     - search:
         provider: duckduckgo
