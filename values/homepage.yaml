@@ -45,6 +45,10 @@ ingress:
 config:
   bookmarks:
   services:
+    - Tools:
+      - GitHub:
+        href: https://github.com/arch-err
+        icon: github.png
   widgets:
     - search:
         provider: duckduckgo
