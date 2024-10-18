@@ -157,7 +157,7 @@ postgresql:
     # -- username to connect to the database
     username: paperless
     # -- password to connect to the database
-    password: changeme
+    password: password
 
 persistence:
   consume:
@@ -236,7 +236,7 @@ config:
       #    it should contain the keys mysql-user and mysql-pass
       existing_secret:
       # -- mariadb user to use for our connection
-      user: paperless-user
+      user: paperless
       # -- mariadb password to use for our connection
       pass: password
   # -- Url where paperless is reachable via browser (including http(s)://)
