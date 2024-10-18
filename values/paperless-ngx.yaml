@@ -127,22 +127,22 @@ redis:
 # @default -- See [values.yaml](./values.yaml)
 mariadb:
   # -- provision an instance of the mariadb sub-chart
-  enabled: false
+  enabled: true
   auth:
     # -- define database schema name that should be available
     database: paperless
     # -- username to connect to the database
     username: paperless
     # -- password to connect to the database
-    password: changeme
+    password: password
     # -- dedicated root password for the database (normally not used but needed for creation of schemas etc.)
-    rootPassword: changeme
+    rootPassword: password
   primary:
     persistence:
       # -- enable to not loose your database contents on updates
-      enabled: false
-      # storageClass: ""
-      # size: 8Gi
+      enabled: true
+      storageClass: "kadalu.mirror"
+      size: 8Gi
 
 # Enable and configure postgresql database subchart under this key.
 # If enabled, the app's db envs will be set for you.
@@ -150,7 +150,7 @@ mariadb:
 # @default -- See [values.yaml](./values.yaml)
 postgresql:
   # -- provision an instance of the postgresql sub-chart
-  enabled: true
+  enabled: false
   auth:
     # -- define database schema name that should be available
     database: paperless
@@ -240,7 +240,7 @@ config:
       # -- mariadb password to use for our connection
       pass: password
   # -- Url where paperless is reachable via browser (including http(s)://)
-  paperless_url: "https://paperless.domain"
+  paperless_url: "https://paperless-ngx.home"
   # -- Languages to be used for ocr (only pre-installed languages are supported)
   ocr_languages:
     - swe
