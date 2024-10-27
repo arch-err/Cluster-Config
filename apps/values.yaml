@@ -247,7 +247,7 @@ apps:
         enabled: true
         group: Tools
   - name: zigbee2mqtt
-    namespace: home-assistant
+    namespace: home-automation
     chart:
       url: https://andrenarchy.github.io/helm-charts/
       name: zigbee2mqtt
