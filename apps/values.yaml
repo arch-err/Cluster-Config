@@ -246,18 +246,19 @@ apps:
       homepage:
         enabled: true
         group: Tools
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: zigbee2mqtt
+    namespace: home-assistant
+    chart:
+      url: https://andrenarchy.github.io/helm-charts/
+      name: zigbee2mqtt
+      version: 9.19.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+        group: Home-Automation
   # - name: <++>
   #   namespace: <++>
   #   chart:
