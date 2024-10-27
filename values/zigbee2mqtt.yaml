@@ -113,7 +113,7 @@ config:
 
 
     # Optional: adapter type, not needed unless you are experiencing problems (options: zstack, deconz)
-   # adapter: deconz
+    adapter: deconz
 
   advanced:
     network_key: GENERATE
