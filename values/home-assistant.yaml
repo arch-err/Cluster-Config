@@ -1,3 +1,4 @@
+#!CMD: gt
 # Default values for home-assistant.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -279,16 +280,16 @@ persistence:
   matchExpressions: {}
 
 # if you need any additional volumes, you can define them here
-additionalVolumes: []
-  # - hostPath:
-  #     path: >-
-  #       /dev/serial/by-id/usb-Silicon_Labs_Sonoff_Zigbee_3.0_USB_Dongle_Plus_0001-if00-port0
-  #     type: CharDevice
-  #   name: usb
+additionalVolumes:
+  - hostPath:
+      path: >-
+        /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
+      type: CharDevice
+    name: usb
 # if you need any additional volume mounts, you can define them here
-additionalMounts: []
-  # - mountPath: /dev/ttyACM0
-  #   name: usb
+additionalMounts:
+  - mountPath: /dev/ttyACM0
+    name: usb
 
 # if you need to expose additional ports
 additionalPorts: []
