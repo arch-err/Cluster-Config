@@ -1,3 +1,4 @@
+#!CMD: gt
 # Default values for datalertio.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -5,7 +6,7 @@
 replicaCount: 1
 
 image:
-  repository: actualbudget/actual-serve
+  repository: actualbudget/actual-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is  the chart appVersion.
   tag: 24.10.1-alpine
