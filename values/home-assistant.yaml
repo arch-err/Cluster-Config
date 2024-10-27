@@ -140,8 +140,8 @@ resources:
   #   memory: 128Mi
 
 # Node selector settings for scheduling the pod on specific nodes
-nodeSelector:
-  zigbee-connector: true
+# nodeSelector:
+#   zigbee-connector: true
 
 # Tolerations settings for scheduling the pod based on node taints
 tolerations: []
