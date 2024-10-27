@@ -141,7 +141,7 @@ resources:
 
 # Node selector settings for scheduling the pod on specific nodes
 nodeSelector:
-	zigbee-connector: true
+  zigbee-connector: true
 
 # Tolerations settings for scheduling the pod based on node taints
 tolerations: []
@@ -282,8 +282,8 @@ persistence:
 # if you need any additional volumes, you can define them here
 additionalVolumes:
   - hostPath:
-      path: >-
-        /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
+    path: >-
+      /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
       type: CharDevice
     name: usb
 # if you need any additional volume mounts, you can define them here
