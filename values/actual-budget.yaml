@@ -91,6 +91,7 @@ setIngressClassByField: true
 ingress:
   enabled: true
   ingressClassName: "nginx"
+  class: "nginx"
   hosts:
     - host: &host "actual-budget.home"
       paths:
