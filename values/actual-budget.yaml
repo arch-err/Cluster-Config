@@ -68,8 +68,8 @@ securityContext:
 
 service:
   enabled: true
-  name: http
-  type: NodePort
+  targetPort: 5006
+  type: ClusterIP
   port: 80
   protocol: TCP
   extraPorts: []
