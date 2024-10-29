@@ -951,6 +951,7 @@ redis:
   ##
   auth:
     ## @param redis.auth.password Redis&reg; password
+    username: "paperless"
     password: "paperless"
 
 ## @section Apache&reg; Tika parameters
