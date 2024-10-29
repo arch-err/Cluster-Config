@@ -17,7 +17,7 @@ paperless:
   secretKey:
     ## @param paperless.secretKey.value [string] Define a custom secret key for Paperless
     ##
-    value: ""
+    value: "paperless"
     ## Existing Secret settings
     ##
     existingSecret:
