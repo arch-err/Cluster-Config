@@ -941,7 +941,7 @@ postgresql:
 redis:
   ## @param redis.enabled Enable or disable the Redis&reg; subchart
   ##
-  enabled: true
+  enabled: false
   ## @param redis.architecture Redis&reg; architecture. Allowed values: `standalone` or `replication`
   ##
   architecture: standalone
