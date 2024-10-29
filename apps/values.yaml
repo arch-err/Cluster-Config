@@ -233,19 +233,19 @@ apps:
         enabled: true
         group: Tools
         icon: changedetection-io.png
-  - name: paperless-ngx
-    namespace: paperless-ngx
-    chart:
-      url: https://fmjstudios.github.io/helm/
-      name: paperless-ngx
-      version: 0.2.3
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
-        group: Tools
+  # - name: paperless-ngx
+  #   namespace: paperless-ngx
+  #   chart:
+  #     url: https://fmjstudios.github.io/helm/
+  #     name: paperless-ngx
+  #     version: 0.2.3
+  #   secrets:
+  #     enabled: false
+  #   ingress:
+  #     enabled: true
+  #     homepage:
+  #       enabled: true
+  #       group: Tools
   - name: zigbee2mqtt
     namespace: home-automation
     chart:
