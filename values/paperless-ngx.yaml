@@ -20,7 +20,7 @@ env:
   # -- Set the container timezone
   TZ: UTC
   # PAPERLESS_SECRET_KEY: ""
-  PAPERLESS_ADMIN_USERNAME: "admin"
+  PAPERLESS_ADMIN_USER: "admin"
   PAPERLESS_ADMIN_PASSWORD: "admin"
 
 service:
