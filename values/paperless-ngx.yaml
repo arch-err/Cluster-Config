@@ -98,7 +98,7 @@ persistence:
 #    [[ref]](https://github.com/bitnami/charts/tree/main/bitnami/postgresql)
 # @default -- See [values.yaml](./values.yaml)
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     database: paperless
     postgresPassword: ""
@@ -113,7 +113,7 @@ postgresql:
 #    [[ref]](https://github.com/bitnami/charts/tree/main/bitnami/mariadb)
 # @default -- See [values.yaml](./values.yaml)
 mariadb:
-  enabled: false
+  enabled: true
   auth:
     database: paperless
     username: paperless
