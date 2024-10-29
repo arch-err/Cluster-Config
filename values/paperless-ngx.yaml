@@ -101,7 +101,7 @@ postgresql:
   enabled: true
   auth:
     database: paperless
-    postgresPassword: changeme
+    postgresPassword: newpass123
   primary:
     persistence:
       enabled: true
