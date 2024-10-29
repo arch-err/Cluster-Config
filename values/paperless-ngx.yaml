@@ -1,66 +1,15 @@
 #!CMD: gt
-# Default Helm values for fmjstudios/paperless-ngx.
-# Reference: https://github.com/fmjstudios/helm
-
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
-
-## @section Image parameters
-##
-
-## Paperless-NGX Image
-## ref: https://github.com/paperless-ngx/paperless-ngx/pkgs/container/paperless-ngx
-## @param image.registry The Docker registry to pull the image from
-## @param image.repository The registry repository to pull the image from
-## @param image.tag The image tag to pull
-## @param image.digest The image digest to pull
-## @param image.pullPolicy The Kubernetes image pull policy
-## @param image.pullSecrets A list of secrets to use for pulling images from private registries
 
 image:
   registry: ghcr.io
   repository: paperless-ngx/paperless-ngx
   tag: "2.10.1"
-  digest: ""
-  ## Specify a imagePullPolicy
-  ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
-  ##
-  pullPolicy: IfNotPresent
-  ## Optionally specify an array of imagePullSecrets.
-  ## Secrets must be manually created in the namespace.
-  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-  ## e.g:
-  ## pullSecrets:
-  ##   - myRegistryKeySecretName
-  ##
-  pullSecrets: []
 
-## @section Name overrides
-##
 
-## @param nameOverride String to partially override paperless.fullname
-##
-nameOverride: ""
-
-## @param fullnameOverride String to fully override paperless.fullname
-##
-fullnameOverride: ""
-
-## @section Paperless Configuration parameters
-##
-
-## Paperless configuration
-## ref: https://docs.paperless-ngx.com/configuration/
 paperless:
-  ## @param paperless.domain [string] Define the domain name for Paperless - will be re-used in Ingress
-  ##
   domain: &host "paperless-ngx.home"
-  ## @param paperless.appTitle [string] If set, overrides the default name "Paperless-ngx"
-  ##
   appTitle: ""
   ## @param paperless.appLogo [string] Path to an image file in the `/media/logo` directory, must include 'logo', e.g. `/logo/Atari_logo.svg`
-  ##
   appLogo: ""
 
   ## Secret Key settings
@@ -84,32 +33,12 @@ paperless:
   ## @param paperless.port [default: 8000] The port Paperless should bind to
   ##
   port: 8000
-  ## @param paperless.uid [default: 1000] The user ID Paperless should use
-  ##
   uid: 1000
-  ## @param paperless.gid [default: 1000] The group ID Paperless should use
-  ##
   gid: 1000
   ## @param paperless.enableFlower [default: false] Enable the 'Flower' monitoring tool for 'Celery' (Paperless' task queue)
   ## ref: https://flower.readthedocs.io/en/latest/index.html
   ##
   enableFlower: false
-  ## @param paperless.webserverWorkers [default: 1] The amount of Nginx worker processes to spawn for the server within the container
-  ##
-  webserverWorkers: 1
-  ## @param paperless.taskWorkers [string] The amount for task worker processes to spawn within the container
-  ##
-  ##
-  taskWorkers: ""
-  ## @param paperless.threadsPerWorker [string] The amount of threads to assign each task worker process within the container
-  ##
-  threadsPerWorker: ""
-  ## @param paperless.workerTimeout [string] The amount of threads to assign each task worker process within the container
-  ##
-  workerTimeout: ""
-  ## @param paperless.timeZone [default: UTC] Set the time zone here
-  ## ref: https://docs.paperless-ngx.com/configuration/#PAPERLESS_TIME_ZONE
-  ##
   timeZone: UTC
   ## @param paperless.enableNLTK [string] Enables or disables the advanced natural language processing used during
   ## automatic classification. If disabled, paperless will still perform some basic text pre-processing before matching.
@@ -143,13 +72,10 @@ paperless:
     autoLoginUsername: ""
     ## @param paperless.auth.adminUser [string] If this environment variable is specified, Paperless automatically creates a superuser with the provided username at start
     ##
-    adminUser: ""
+    adminUser: "admin"
     ## @param paperless.auth.adminPassword [string] Only used when PAPERLESS_ADMIN_USER is set. This will be the password of the automatically created superuser
     ##
-    adminPassword: ""
-    ## @param paperless.auth.existingSecret [string] Specify an existing secret with a `username` and `password` key
-    ##
-    existingSecret: ""
+    adminPassword: "admin"
     ## @param paperless.auth.adminMail [string]  Specify superuser email address. Only used when PAPERLESS_ADMIN_USER is set
     ##
     adminMail: ""
@@ -165,27 +91,8 @@ paperless:
     sessionRemember: None
     ## @param paperless.auth.defaultHTTPProtocol [string] The protocol used when generating URLs, e.g. login callback URLs
     ##
-    defaultHTTPProtocol: https
-    ## @param paperless.auth.emailVerification [string] Determines whether email addresses are verified during signup (as performed by Django allauth)
-    ##
     emailVerification: optional
 
-    ## Social (Django AllAuth) Authentication Configuration
-    ##
-    social:
-      ## @param paperless.auth.social.accountProviders [string] This variable is used to set up login and signup via social account providers which are compatible with django-allauth.
-      ## ref: https://docs.paperless-ngx.com/configuration/#PAPERLESS_SOCIALACCOUNT_PROVIDERS
-      ##
-      accountProviders: ""
-      ## @param paperless.auth.social.existingSecret [string] The name of existing secret containing a `accountProviders` key to configure Django AllAuth
-      ##
-      existingSecret: ""
-      ## @param paperless.auth.social.allowSignups [default: false] Allow users to signup for a new Paperless-ngx account using any setup third party authentication systems
-      ##
-      allowSignups: false
-      ## @param paperless.auth.social.autoSignup [default: false] Attempt to sign up the user using retrieved email, username etc from the third party authentication system
-      ##
-      autoSignup: false
 
 
   ## Hosting configuration
@@ -273,17 +180,10 @@ paperless:
     port: 6379
     ## @param paperless.redis.username [string] The username for the Redis instance
     ##
-    username: ""
+    username: "paperless"
     ## @param paperless.redis.password [string] The password for the Redis instance
     ##
     password: paperless
-    ## @param paperless.redis.existingSecret [string] The name of an existing Secret with a `uri` key containing the full Redis URI
-    ## NOTE: since you provide a custom URI with an existing Secret the previous properties are entirely ignored
-    ##
-    existingSecret: ""
-    ## @param paperless.redis.prefix [string]
-    ##
-    prefix: ""
 
   ## PostgreSQL configuration
   ##
@@ -304,11 +204,6 @@ paperless:
     ## @param paperless.postgresql.password [string] The password for the PostgreSQL database
     ##
     password: paperless
-    ## @param paperless.postgresql.existingSecret [string] An existing BasicAuth secret containing the PostgreSQL credentials
-    ##
-    existingSecret: ""
-    ## @param paperless.postgresql.sslMode [default: prefer] The SSL Mode for the PostgreSQL database
-    ##
     sslMode: "prefer"
     ## @param paperless.postgresql.timeout [string] Define a timeout for the database connection
     ##
