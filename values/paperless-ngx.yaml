@@ -183,7 +183,7 @@ paperless:
     username: "paperless"
     ## @param paperless.redis.password [string] The password for the Redis instance
     ##
-    password: paperless
+    password: "paperless"
 
   ## PostgreSQL configuration
   ##
