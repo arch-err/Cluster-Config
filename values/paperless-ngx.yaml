@@ -428,7 +428,7 @@ paperless:
       size: 10Gi
       ## @param paperless.data.pvc.storageClass [default: standard] The storageClass given to PVCs created from the above data
       ##
-      storageClass: standard
+      storageClass: kadalu.mirror
       ## @param paperless.data.pvc.reclaimPolicy [default: Retain] The resourcePolicy given to PVCs created from the above data
       ##
       reclaimPolicy: Retain
