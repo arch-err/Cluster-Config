@@ -240,7 +240,7 @@ apps:
       name: paperless-ngx
       version: 0.19.1
     secrets:
-      enabled: false
+      enabled: true
     ingress:
       enabled: false
       homepage:
