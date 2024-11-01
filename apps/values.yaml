@@ -243,9 +243,9 @@ apps:
       enabled: false
     ingress:
       enabled: false
-      # homepage:
-      #   enabled: true
-      #   group: Tools
+      homepage:
+        enabled: true
+        group: Tools
   - name: zigbee2mqtt
     namespace: home-automation
     chart:
