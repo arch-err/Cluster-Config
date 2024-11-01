@@ -286,7 +286,7 @@ apps:
         enabled: true
         group: "Tools"
   - name: uptime-kuma
-    namespace: uptime-kuma
+    namespace: monitoring
     chart:
       url: https://geek-cookbook.github.io/charts/
       name: uptime-kuma
@@ -297,18 +297,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: kuma-ingress-watcher
+    namespace: monitoring
+    chart:
+      url: https://squent.github.io/helm-kuma-ingress-watcher
+      name: kuma-ingress-watcher
+      version: 1.1.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
