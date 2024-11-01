@@ -78,6 +78,7 @@ mariadb:
     persistence:
       enabled: true
       storageClass: "kadalu.mirror"
+      accessMode: ReadWriteOnce
       size: 8Gi
 
 redis:
