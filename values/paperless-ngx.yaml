@@ -13,8 +13,6 @@ image:
 env:
   TZ: UTC
   # PAPERLESS_SECRET_KEY: ""
-  PAPERLESS_ADMIN_USER: "admin"
-  PAPERLESS_ADMIN_PASSWORD: "admin"
 
 ingress:
   # -- Enable and configure ingress settings for the chart under this key.
@@ -76,9 +74,6 @@ mariadb:
   enabled: true
   auth:
     database: paperless
-    username: paperless2
-    password: changemenot
-    rootPassword: changemeadmin
   primary:
     persistence:
       enabled: false
