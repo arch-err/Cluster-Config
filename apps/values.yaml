@@ -309,18 +309,14 @@ apps:
       enabled: false
       homepage:
         enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: uptime-kuma-credentials
+    namespace: monitoring
+    chart:
+      url: https://ameijer.github.io/k8s-as-helm
+      name: secret
+      version: 1.0.4
+    secrets:
+      enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
