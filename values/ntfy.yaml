@@ -56,7 +56,7 @@ ingress:
 # @default -- See values.yaml
 persistence:
   cache:
-    enabled: true
+    enabled: false
     mountPath: /var/cache/ntfy
   config:
     enabled: false
