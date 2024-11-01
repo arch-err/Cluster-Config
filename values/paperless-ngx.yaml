@@ -76,7 +76,7 @@ mariadb:
     database: paperless
   primary:
     persistence:
-      enabled: true
+      enabled: false
       storageClass: "kadalu.mirror"
       accessMode: ReadWriteOnce
       size: 8Gi
