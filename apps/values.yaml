@@ -319,6 +319,8 @@ apps:
       enabled: true
     ingress:
       enabled: false
+      homepage:
+        enabled: false
   # - name: <++>
   #   namespace: <++>
   #   chart:
