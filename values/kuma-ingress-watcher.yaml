@@ -1,0 +1,43 @@
+kumaIngressWatcher:
+  watchInterval: 10
+  ingressRoute:
+    enabled: False
+  ingress:
+    enabled: True
+
+namespace: monitoring
+
+clusterRole:
+  name: ingress-reader
+
+clusterRoleBinding:
+  name: kuma-ingress-reader-binding
+
+serviceAccount:
+  name: kuma-ingress-discovery
+
+secret:
+  name: kuma-ingress-discovery-token
+
+deployment:
+  name: kuma-ingress-watcher
+  replicas: 1
+  label: kuma-ingress-watcher
+  image:
+    name: squent/kuma-ingress-watcher
+  logLevel: INFO
+
+uptimeKuma:
+  url: "http://uptime-kuma:3001"
+  credentialsSecret: uptime-kuma-credentials
+
+configMap:
+  name: controller-scripts
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "250m"
+  limits:
+    memory: "128Mi"
+    cpu: "500m"
