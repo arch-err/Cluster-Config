@@ -317,6 +317,8 @@ apps:
       version: 1.0.4
     secrets:
       enabled: true
+    ingress:
+      enabled: false
   # - name: <++>
   #   namespace: <++>
   #   chart:
