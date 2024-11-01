@@ -285,18 +285,18 @@ apps:
       homepage:
         enabled: true
         group: "Tools"
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: uptime-kuma
+    namespace: uptime-kuma
+    chart:
+      url: https://geek-cookbook.github.io/charts/
+      name: uptime-kuma
+      version: 1.4.2
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
