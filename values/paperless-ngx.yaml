@@ -76,9 +76,9 @@ mariadb:
   enabled: true
   auth:
     database: paperless
-    username: paperless
-    password: changeme
-    rootPassword: changeme
+    username: paperless2
+    password: changemenot
+    rootPassword: changemeadmin
   primary:
     persistence:
       enabled: false
