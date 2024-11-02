@@ -34,9 +34,11 @@ spec:
               annotations:
                 {{- if not (hasKey .ingress.homepage "name") }}
                 gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
-                {{- else if not (hasKey .ingress.homepage "icon") }}
+                {{- end}}
+                {{- if not (hasKey .ingress.homepage "icon") }}
                 gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
-                {{- else if not (hasKey .ingress.homepage "group") }}
+                {{- end}}
+                {{- if not (hasKey .ingress.homepage "group") }}
                 gethomepage.dev/group: {{ default (.namespace | title) }}
                 {{- end}}
 
@@ -61,9 +63,11 @@ spec:
             annotations:
               {{- if not (hasKey .ingress.homepage "name") }}
               gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
-              {{- else if not (hasKey .ingress.homepage "icon") }}
+              {{- end}}
+              {{- if not (hasKey .ingress.homepage "icon") }}
               gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
-              {{- else if not (hasKey .ingress.homepage "group") }}
+              {{- end}}
+              {{- if not (hasKey .ingress.homepage "group") }}
               gethomepage.dev/group: {{ default (.namespace | title) }}
               {{- end}}
 
