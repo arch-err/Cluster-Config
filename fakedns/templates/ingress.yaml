@@ -8,11 +8,7 @@ metadata:
     cert-manager.io/cluster-issuer: "selfsign-clusterissuer"
     {{- $outerRange := . -}}
     {{- range $key, $value := .homepage }}
-    {{- if eq $key "description" }}
-    gethomepage.dev/{{ $key }}: {{ $outerRange.name }}
-    {{- else }}
-    gethomepage.dev/{{ $key }}: {{ $value }}
-    {{- end}}
+    gethomepage.dev/{{ $key }}: {{ $value | quote}}
     {{- end}}
 
 spec:

@@ -21,3 +21,4 @@ services:
       icon: "pi-hole.png"
       siteMonitor: http://secondary:9080/admin
       statusStyle: basic
+      widget.url: http://secondary:9080/admin

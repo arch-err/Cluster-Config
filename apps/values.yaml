@@ -82,6 +82,9 @@ apps:
       homepage:
         enabled: true
         group: "Management"
+        widget.env: 1
+        widget.type: portainer
+        widget.url: https://portainer.home/
   - name: home-assistant
     namespace: home-automation
     chart:
