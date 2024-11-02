@@ -43,7 +43,7 @@ spec:
                 {{- end}}
 
                 {{- range $key, $value := .ingress.homepage }}
-                gethomepage.dev/{{ $key }}: {{ $value }}
+                gethomepage.dev/{{ $key }}: {{ $value | quote }}
                 {{- end}}
 
             {{- end }}
@@ -72,7 +72,7 @@ spec:
               {{- end}}
 
               {{- range $key, $value := .ingress.homepage }}
-              gethomepage.dev/{{ $key }}: {{ $value }}
+              gethomepage.dev/{{ $key }}: {{ $value | quote }}
               {{- end}}
           {{- end }}
           {{- if .ingress.enabled }}
