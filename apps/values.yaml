@@ -54,6 +54,8 @@ apps:
       homepage:
         enabled: true
         group: Monitoring
+        siteMonitor: https://prometheus.home/
+        statusStyle: basic
   - name: homepage
     namespace: homepage
     chart:
