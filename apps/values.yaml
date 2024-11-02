@@ -21,6 +21,7 @@ apps:
     ingress:
       enabled: true
       homepage:
+        name: heheh
         enabled: true
         description: "Platform for data analytics and monitoring"
         group: Monitoring

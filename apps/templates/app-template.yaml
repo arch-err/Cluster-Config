@@ -32,17 +32,16 @@ spec:
             {{- end}}
             {{- if .ingress.homepage.enabled }}
               annotations:
-                {{- $outerRange := . -}}
+                {{- if not (hasKey .ingress.homepage "name") }}
+                gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+                {{- else if not (hasKey .ingress.homepage "icon") }}
+                gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+                {{- else if not (hasKey .ingress.homepage "group") }}
+                gethomepage.dev/group: {{ default (.namespace | title) }}
+                {{- end}}
+
                 {{- range $key, $value := .ingress.homepage }}
-                  {{- if eq $key "name" }}
-                gethomepage.dev/name: {{ default ($outerRange.name | title) $outerRange.ingress.homepage.name | quote}}
-                  {{- else if eq $key "icon" }}
-                gethomepage.dev/icon: {{ default (print $outerRange.name ".png" ) $outerRange.ingress.homepage.icon }}
-                  {{- else if eq $key "group" }}
-                gethomepage.dev/group: {{ default ($outerRange.namespace | title) }}
-                  {{- else }}
                 gethomepage.dev/{{ $key }}: {{ $value }}
-                  {{- end}}
                 {{- end}}
 
             {{- end }}
@@ -62,11 +61,12 @@ spec:
             annotations:
               {{- if not (hasKey .ingress.homepage "name") }}
               gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+              {{- else if not (hasKey .ingress.homepage "icon") }}
               gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+              {{- else if not (hasKey .ingress.homepage "group") }}
               gethomepage.dev/group: {{ default (.namespace | title) }}
               {{- end}}
 
-              {{- $outerRange := . -}}
               {{- range $key, $value := .ingress.homepage }}
               gethomepage.dev/{{ $key }}: {{ $value }}
               {{- end}}
