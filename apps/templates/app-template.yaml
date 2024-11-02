@@ -32,7 +32,7 @@ spec:
             {{- end}}
             {{- if .ingress.homepage.enabled }}
               annotations:
-                gethomepage.dev/enabled: 'true'
+                gethomepage.dev/enabled: "true"
                 {{- if not (hasKey .ingress.homepage "name") }}
                 gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
                 {{- end}}
@@ -62,7 +62,7 @@ spec:
           {{- end}}
           {{- if .ingress.homepage.enabled }}
             annotations:
-              gethomepage.dev/enabled: 'true'
+              gethomepage.dev/enabled: "true"
               {{- if not (hasKey .ingress.homepage "name") }}
               gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
               {{- end}}
