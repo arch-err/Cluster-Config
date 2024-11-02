@@ -86,11 +86,13 @@ apps:
       name: home-assistant
       version: 0.2.78
     secrets:
-      enabled: false
+      enabled: true
     ingress:
       enabled: true
       homepage:
         enabled: true
+        widget.type: homeassistant
+        widget.url: https://home-assistant.home/
   - name: excalidraw
     namespace: excalidraw
     chart:
