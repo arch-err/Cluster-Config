@@ -76,7 +76,7 @@ apps:
       name: portainer
       version: 1.0.53
     secrets:
-      enabled: false
+      enabled: true
     ingress:
       enabled: true
       homepage:
