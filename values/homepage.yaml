@@ -79,7 +79,7 @@ config:
     headerStyle: boxed
     cardBlur: xl
     statusStyle: "dot"
-    hideErrors: true
+    hideErrors: false
 
 # -- Main environment variables. Template enabled.
 # Syntax options:
