@@ -8,6 +8,8 @@ services:
       name: "VaultWarden"
       group: "Tools"
       icon: "bitwarden.png"
+      # siteMonitor: http://secondary:6080/admin
+      # statusStyle: basic
   - name: "pihole"
     host: secondary
     port: "9080"
@@ -16,4 +18,6 @@ services:
       enabled: "true"
       name: "PiHole"
       group: "Management"
-      icon: "pi-hoe.png"
+      icon: "pi-hole.png"
+      siteMonitor: http://secondary:9080/admin
+      statusStyle: basic

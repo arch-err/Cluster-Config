@@ -32,11 +32,19 @@ spec:
             {{- end}}
             {{- if .ingress.homepage.enabled }}
               annotations:
-                gethomepage.dev/enabled: "true"
+                {{- $outerRange := . -}}
+                {{- range $key, $value := .ingress.homepage }}
+                  {{- if eq $key "name" }}
                 gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
-                gethomepage.dev/description: {{ default "" .ingress.homepage.description | quote }}
-                gethomepage.dev/group: {{ default (.namespace | title) }}
+                  {{- else if eq $key "icon" }}
                 gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+                  {{- else if eq $key "group" }}
+                gethomepage.dev/group: {{ default (.namespace | title) }}
+                  {{- else }}
+                gethomepage.dev/{{ $key }}: {{ $value }}
+                  {{- end}}
+                {{- end}}
+
             {{- end }}
             {{- if .ingress.enabled }}
               {{- if  (not .ingress.homepage.enabled) }}
@@ -52,11 +60,18 @@ spec:
           {{- end}}
           {{- if .ingress.homepage.enabled }}
             annotations:
-              gethomepage.dev/enabled: "true"
+              {{- $outerRange := . -}}
+              {{- range $key, $value := .ingress.homepage }}
+                {{- if eq $key "name" }}
               gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
-              gethomepage.dev/description: {{ default "" .ingress.homepage.description | quote }}
-              gethomepage.dev/group: {{ default (.namespace | title) .ingress.homepage.group | quote }}
+                {{- else if eq $key "icon" }}
               gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+                {{- else if eq $key "group" }}
+              gethomepage.dev/group: {{ default (.namespace | title) }}
+                {{- else }}
+              gethomepage.dev/{{ $key }}: {{ $value }}
+                {{- end}}
+              {{- end}}
           {{- end }}
           {{- if .ingress.enabled }}
             {{- if  (not .ingress.homepage.enabled) }}
