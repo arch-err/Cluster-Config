@@ -84,7 +84,7 @@ apps:
         group: "Management"
         widget.env: 1
         widget.type: portainer
-        widget.url: https://portainer:9443
+        widget.url: https://portainer.portainer:9443
   - name: home-assistant
     namespace: home-automation
     chart:
