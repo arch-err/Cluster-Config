@@ -37,6 +37,7 @@ apps:
       homepage:
         enabled: true
         group: Monitoring
+        siteMonitor: https://influxdb.home/signin
   - name: prometheus
     namespace: monitoring
     privileged: true
