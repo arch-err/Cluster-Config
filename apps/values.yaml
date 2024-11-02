@@ -92,7 +92,7 @@ apps:
       homepage:
         enabled: true
         widget.type: homeassistant
-        widget.url: https://home-assistant.home/
+        widget.url: https://homeassistant.home/
   - name: excalidraw
     namespace: excalidraw
     chart:
