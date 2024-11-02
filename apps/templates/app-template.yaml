@@ -35,11 +35,11 @@ spec:
                 {{- $outerRange := . -}}
                 {{- range $key, $value := .ingress.homepage }}
                   {{- if eq $key "name" }}
-                gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+                gethomepage.dev/name: {{ default ($outerRange.name | title) $outerRange.ingress.homepage.name | quote}}
                   {{- else if eq $key "icon" }}
-                gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+                gethomepage.dev/icon: {{ default (print $outerRange.name ".png" ) $outerRange.ingress.homepage.icon }}
                   {{- else if eq $key "group" }}
-                gethomepage.dev/group: {{ default (.namespace | title) }}
+                gethomepage.dev/group: {{ default ($outerRange.namespace | title) }}
                   {{- else }}
                 gethomepage.dev/{{ $key }}: {{ $value }}
                   {{- end}}
@@ -63,11 +63,11 @@ spec:
               {{- $outerRange := . -}}
               {{- range $key, $value := .ingress.homepage }}
                 {{- if eq $key "name" }}
-              gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
+              gethomepage.dev/name: {{ default ($outerRange.name | title) $outerRange.ingress.homepage.name | quote}}
                 {{- else if eq $key "icon" }}
-              gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
+              gethomepage.dev/icon: {{ default (print $outerRange.name ".png" ) $outerRange.ingress.homepage.icon }}
                 {{- else if eq $key "group" }}
-              gethomepage.dev/group: {{ default (.namespace | title) }}
+              gethomepage.dev/group: {{ default ($outerRange.namespace | title) }}
                 {{- else }}
               gethomepage.dev/{{ $key }}: {{ $value }}
                 {{- end}}
