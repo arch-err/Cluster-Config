@@ -60,7 +60,7 @@ spec:
           {{- end}}
           {{- if .ingress.homepage.enabled }}
             annotations:
-              {{- if not (hasKey .ingress.homepage.name) }}
+              {{- if not (hasKey .ingress.homepage "name") }}
               gethomepage.dev/name: {{ default (.name | title) .ingress.homepage.name | quote}}
               gethomepage.dev/icon: {{ default (print .name ".png" ) .ingress.homepage.icon }}
               gethomepage.dev/group: {{ default (.namespace | title) }}
