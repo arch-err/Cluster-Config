@@ -353,7 +353,7 @@ apps:
     namespace: minecraft-poc
     chart:
       url: https://itzg.github.io/minecraft-server-charts/
-      name: itzg/minecraft
+      name: minecraft
       version: 4.23.6
     secrets:
       enabled: false
