@@ -354,7 +354,7 @@ apps:
     chart:
       url: https://itzg.github.io/minecraft-server-charts/
       name: itzg/minecraft
-      version: latest
+      version: 4.23.6
     secrets:
       enabled: false
     ingress:
