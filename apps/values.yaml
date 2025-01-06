@@ -325,6 +325,42 @@ apps:
       enabled: false
       homepage:
         enabled: false
+  - name: supabase
+    namespace: draw
+    chart:
+      url: https://tokens-studio.github.io/helm/
+      name: tokens-studio/supabase
+      version: 0.1.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
+  - name: draw
+    namespace: <++>
+    chart:
+      url: <++>
+      name: <++>
+      version: <++>
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+  - name: minecraft-poc
+    namespace: minecraft-poc
+    chart:
+      url: https://itzg.github.io/minecraft-server-charts/
+      name: itzg/minecraft
+      version: 4.23.6
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
   # - name: <++>
   #   namespace: <++>
   #   chart:
