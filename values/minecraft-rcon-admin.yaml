@@ -41,7 +41,7 @@ ingress:
     gethomepage.dev/group: Gaming
     gethomepage.dev/icon: minecraft.png
     gethomepage.dev/name: Minecraft
-  host: &host "cyberchef.home"
+  host: &host "rcon-admin.home"
   path: /
   pathType: Prefix
   tls:
