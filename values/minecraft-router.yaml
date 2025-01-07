@@ -1,3 +1,4 @@
+#!CMD: gt
 image:
   repository: itzg/mc-router
   pullPolicy: IfNotPresent
@@ -165,24 +166,24 @@ minecraftRouter:
       port: 25565
 
   metrics:
-    # Backend to use for metrics exposure/publishing: discard,expvar,influxdb
-    backend: influxdb
+  #   # Backend to use for metrics exposure/publishing: discard,expvar,influxdb
+  #   backend: influxdb
 
-    # InfluxDB settings. Required if backend is set to influxdb
-    influxdb:
-      address: "minecraft-influxdb"
-      database: "minecraft-router"
-      interval: 1m0s
-      credentials:
-        # The name of an existing secret containing the database credentials
-        existingSecret: ""
-        # The key in the existing secret containing the username
-        usernameKey: username
-        # The key in the existing secret containing the password
-        passwordKey: password
-      retentionPolicy: ""
-      # Extra tags to be included with all reported metrics
-      tags: ""
+  #   # InfluxDB settings. Required if backend is set to influxdb
+  #   influxdb:
+  #     address: "minecraft-influxdb"
+  #     database: "minecraft-router"
+  #     interval: 1m0s
+  #     credentials:
+  #       # The name of an existing secret containing the database credentials
+  #       existingSecret: "h"
+  #       # The key in the existing secret containing the username
+  #       usernameKey: username
+  #       # The key in the existing secret containing the password
+  #       passwordKey: password
+  #     retentionPolicy: ""
+  #     # Extra tags to be included with all reported metrics
+  #     tags: ""
 
   # If set, an ngrok tunnel will be established.
   ngrokToken: {}

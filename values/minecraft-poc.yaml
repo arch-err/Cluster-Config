@@ -201,7 +201,7 @@ minecraftServer:
   # A comma-separated list of player names to whitelist.
   whitelist:
   # A comma-separated list of player names who should be admins.
-  ops: Jeppe03
+  ops:
   # A server icon URL for server listings. Auto-scaled and transcoded.
   icon:
   # Max connected players.
@@ -278,9 +278,9 @@ minecraftServer:
   overrideServerProperties: default
   # DEPRECATED: use top-level rconServiceAnnotations instead
   serviceAnnotations: {}
-  serviceType: NodePort
+  serviceType: ClusterIP
   ## Set the port used if the serviceType is NodePort
-  nodePort: 31200
+  nodePort:
   # Set the external port of the service, usefull when using the LoadBalancer service type
   servicePort: 25565
   clusterIP:
