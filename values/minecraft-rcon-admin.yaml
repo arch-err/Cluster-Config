@@ -1,0 +1,97 @@
+#!CMD: gt
+
+replicaCount: 1
+
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 3000
+  runAsNonRoot: true
+  fsGroup: 2000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+# This will expose 2 different services - http and websockets
+# If you want to know why it's separate - ask developer of original project
+# because I have no clue
+service:
+  # Supported options: Ingress + ClusterIP or LoadBalancer
+  type: ClusterIP
+  httpPort: 80
+  wsPort: 4327
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: selfsign-clusterissuer
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+    gethomepage.dev/description: ''
+    gethomepage.dev/enabled: 'true'
+    gethomepage.dev/group: Gaming
+    gethomepage.dev/icon: minecraft.png
+    gethomepage.dev/name: Minecraft
+  host: &host "cyberchef.home"
+  path: /
+  pathType: Prefix
+  tls:
+    - hosts:
+        - *host
+      secretName: cyberchef-server-tls
+
+resources:
+  {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+rconWeb:
+  # Sets the initial user as an admin
+  isAdmin: false
+  # Sets the initial user's username
+  username: admin
+  # Sets the initial user's password
+  password: "password"
+  # Name of existing secret with UI password
+  passwordExistingSecret:
+  passwordKey: "password"
+  # The initial game you wish to control (minecraft / rust / csgo / other)
+  game: minecraft
+  # The display name of the initial server (if unset; defaults to value of RWA_GAME)
+  serverName: minecraft
+  # The initial RCON server to control
+  rconHost: minecraft-poc-minecraft-rcon
+  # The port number of the initial RCON server to control
+  rconPort: 25575
+  # The password for the initial RCON server to control
+  rconPassword: "CHANGEME!"
+  # Name of existing secret with RCON password
+  rconPasswordExistingSecret:
+  rconPasswordKey: "rcon-password"
+  # Prevent the initial user user executing these commands
+  restrictCommands: []
+  # Hide this list of widgets from the initial user
+  restrictWidgets: []
+  # Prevent the initial user changing options in the widget options tab
+  immutableWidgetOptions: false
+  # Enables 'web rcon' if supported by the game server
+  websocketRcon: false
