@@ -373,6 +373,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
+  - name: minecraft-router
+    namespace: minecraft
+    chart:
+      url: https://itzg.github.io/minecraft-server-charts/
+      name: mc-router
+      version: 1.2.4
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
   - name: minecraft-influxdb
     namespace: minecraft
     chart:
