@@ -361,6 +361,18 @@ apps:
       enabled: false
       homepage:
         enabled: false
+  - name: minecraft-rcon-admin
+    namespace: minecraft
+    chart:
+      url: https://itzg.github.io/minecraft-server-charts/
+      name: rcon-web-admin
+      version: 1.1.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
