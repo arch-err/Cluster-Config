@@ -350,7 +350,7 @@ apps:
       homepage:
         enabled: true
   - name: minecraft-poc
-    namespace: minecraft-poc
+    namespace: minecraft
     chart:
       url: https://itzg.github.io/minecraft-server-charts/
       name: minecraft
