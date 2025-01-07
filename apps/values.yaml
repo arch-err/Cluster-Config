@@ -373,6 +373,20 @@ apps:
       enabled: true
       homepage:
         enabled: true
+  - name: minecraft-influxdb
+    namespace: minecraft
+    chart:
+      url: https://helm.influxdata.com/
+      name: influxdb2
+      version: 2.1.2
+    secrets:
+      enabled: true
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+        group: Monitoring
+        siteMonitor: https://minecraft-influxdb.home/signin
   # - name: <++>
   #   namespace: <++>
   #   chart:
