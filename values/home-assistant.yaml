@@ -283,8 +283,9 @@ persistence:
 # if you need any additional volumes, you can define them here
 additionalVolumes:
   - hostPath:
+      # /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
     path: >-
-      /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
+      /dev/serial/by-path/pci-0000:00:14.0-usb-0:5:1.0
       type: CharDevice
     name: usb
 # if you need any additional volume mounts, you can define them here
@@ -342,45 +343,29 @@ serviceMonitor:
   scrapeInterval: 30s
   labels: {}
 
-# Addons configuration for additional services
 addons:
-  # Code-server addon configuration
   codeserver:
-    # Enable or disable the code-server addon
     enabled: false
-    # Resource settings for the code-server container
+
     resources: {}
-    # Image settings for the code-server addon
     image:
-      # Repository for the code-server image
       repository: ghcr.io/coder/code-server
-      # Image pull policy for the code-server image
       pullPolicy: IfNotPresent
-      # Tag for the code-server image
       tag: "4.92.2"
-    # Service settings
     service:
-      # Service type (ClusterIP, NodePort, LoadBalancer, or ExternalName)
       type: ClusterIP
-      # Service port
       port: 12321
-    # Ingress settings for the code-server addon
+
     ingress:
-      # Enable or disable the ingress for the code-server addon
       enabled: false
-      # Ingress class name
       className: ""
-      # Ingress annotations
       annotations: {}
-      # Ingress hosts configuration
       hosts:
         - host: chart-example.local
           paths:
             - path: /
               pathType: ImplementationSpecific
-      # Ingress TLS configuration
       tls: []
-    # if you need any additional volume mounts, you can define them here
     additionalMounts: []
       # - mountPath: /home/coder/.ssh/id_rsa
       #   name: id-rsa
