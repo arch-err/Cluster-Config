@@ -37,7 +37,7 @@ podAnnotations: {}
 
 # Pod security context settings
 podSecurityContext:
-  privileged: true
+  {}
   # runAsUser: 568
   # runAsGroup: 568
   # fsGroup: 568
@@ -81,7 +81,7 @@ hostNetwork: false
 
 # Container security context settings
 securityContext:
-  {}
+  privileged: true
   # capabilities:
   #   drop:
   #   - ALL
