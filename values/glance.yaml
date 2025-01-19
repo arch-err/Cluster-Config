@@ -25,7 +25,8 @@ ingress:
 glance:
   config:
     theme:
-      background-color: 240 3 12
+      background-color: 12 12 12
+      # background-color: 240 3 12
       primary-color: 180 100 27
       contrast-multiplier: 1.1
     pages:
@@ -34,23 +35,6 @@ glance:
           - size: small
             widgets:
               - type: calendar
-              - type: weather
-                location: Umeå, Sweden
-              - type: rss
-                title: News
-                style: horizontal-cards
-                feeds:
-                  - url: https://isc.sans.edu/dailypodcast.xml
-                    title: Sans Internet Stormcast
-              - type: twitch-channels
-                channels:
-                  - theprimeagen
-                  - piratesoftware
-                  - teej_dv
-                  - lowleveltv
-                  - badcop_
-                  - ferretsoftware
-                  - christitustech
               - type: bookmarks
                 groups:
                   - title: Personal
@@ -69,6 +53,15 @@ glance:
                         url: https://twitter.com/
                       - title: Instagram
                         url: https://www.instagram.com/
+              - type: twitch-channels
+                channels:
+                  - theprimeagen
+                  - piratesoftware
+                  - teej_dv
+                  - lowleveltv
+                  - badcop_
+                  - ferretsoftware
+                  - christitustech
           - size: full
             widgets:
               - type: iframe
@@ -76,9 +69,14 @@ glance:
                 height: 1200
           - size: small
             widgets:
-              - type: calendar
               - type: weather
                 location: Umeå, Sweden
+              - type: rss
+                title: News
+                style: horizontal-cards
+                feeds:
+                  - url: https://isc.sans.edu/dailypodcast.xml
+                    title: Sans Internet Stormcast
       # - name: Home
       #   columns:
       #     - size: small
