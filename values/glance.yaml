@@ -25,7 +25,7 @@ ingress:
 glance:
   config:
     theme:
-      background-color: 12 12 12
+      background-color: 0 0 5
       # background-color: 240 3 12
       primary-color: 180 100 27
       contrast-multiplier: 1.1
