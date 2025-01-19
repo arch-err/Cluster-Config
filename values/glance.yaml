@@ -34,19 +34,51 @@ glance:
           - size: small
             widgets:
               - type: calendar
+              - type: weather
+                location: Umeå, Sweden
               - type: rss
                 title: News
                 style: horizontal-cards
                 feeds:
                   - url: https://isc.sans.edu/dailypodcast.xml
                     title: Sans Internet Stormcast
-              - type: weather
-                location: London, United Kingdom
+              - type: twitch-channels
+                channels:
+                  - theprimeagen
+                  - piratesoftware
+                  - teej_dv
+                  - lowleveltv
+                  - badcop_
+                  - ferretsoftware
+                  - christitustech
+              - type: bookmarks
+                groups:
+                  - title: Personal
+                    color: 10 70 50
+                    links:
+                      - title: ProtonMail
+                        url: https://mail.proton.me/u/0/inbox
+                      - title: <++>
+                        url: <++>
+                  - title: Social
+                    color: 200 50 50
+                    links:
+                      - title: Reddit
+                        url: https://www.reddit.com/
+                      - title: Twitter
+                        url: https://twitter.com/
+                      - title: Instagram
+                        url: https://www.instagram.com/
           - size: full
             widgets:
               - type: iframe
                 source: https://homepage.home/
-                height: 1800
+                height: 1200
+          - size: small
+            widgets:
+              - type: calendar
+              - type: weather
+                location: Umeå, Sweden
       # - name: Home
       #   columns:
       #     - size: small
@@ -106,12 +138,3 @@ glance:
       #
       ###############  WIP  #########################
       #
-      #         - type: twitch-channels
-      #           channels:
-      #             - theprimeagen
-      #             - piratesoftware
-      #             - teej_dv
-      #             - lowleveltv
-      #             - badcop_
-      #             - ferretsoftware
-      #             - christitustech
