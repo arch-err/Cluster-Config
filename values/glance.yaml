@@ -36,19 +36,19 @@ glance:
               - type: calendar
           - size: full
             widgets:
-              - type: rss
-                title: News
-                style: horizontal-cards
-                feeds:
-                  - url: https://isc.sans.edu/dailypodcast.xml
-                    title: Sans Internet Stormcast
+              # - type: rss
+              #   title: News
+              #   style: horizontal-cards
+              #   feeds:
+              #     - url: https://isc.sans.edu/dailypodcast.xml
+              #       title: Sans Internet Stormcast
               - type: iframe
                 source: https://homepage.home/
                 height: 800
-          - size: small
-            widgets:
-              - type: weather
-                location: London, United Kingdom
+          # - size: small
+          #   widgets:
+          #     - type: weather
+          #       location: London, United Kingdom
       # - name: Home
       #   columns:
       #     - size: small
