@@ -31,7 +31,7 @@ glance:
     pages:
       - name: Home
         columns:
-          - size: full
+          - size: small
             widgets:
               - type: calendar
           - size: full
