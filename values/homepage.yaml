@@ -76,7 +76,7 @@ config:
     # color: zinc
     hideVersion: true
     # background: https://wallpaper-house.com/data/out/7/wallpaper2you_147735.jpg
-    background: https://raw.githubusercontent.com/arch-err/Cluster-Config/refs/heads/main/assets/homepage/gray.png
+    background: https://raw.githubusercontent.com/arch-err/Cluster-Config/refs/heads/main/assets/homepage/0c0c0c.png
     headerStyle: boxed
     cardBlur: xl
     statusStyle: "dot"
