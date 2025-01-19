@@ -42,8 +42,6 @@ glance:
                 feeds:
                   - url: https://isc.sans.edu/dailypodcast.xml
                     title: Sans Internet Stormcast
-          - size: full
-            widgets:
               - type: iframe
                 source: https://homepage.home/
                 height: 800
@@ -70,14 +68,6 @@ glance:
       #             - url: https://ishadeed.com/feed.xml
       #               title: Ahmad Shadeed
 
-      #         - type: twitch-channels
-      #           channels:
-      #             - theprimeagen
-      #             - cohhcarnage
-      #             - christitustech
-      #             - blurbs
-      #             - asmongold
-      #             - jembawls
 
       #     - size: full
       #       widgets:
@@ -115,3 +105,15 @@ glance:
       #               name: AMD
       #             - symbol: RDDT
       #               name: Reddit
+      #
+      ###############  WIP  #########################
+      #
+      #         - type: twitch-channels
+      #           channels:
+      #             - theprimeagen
+      #             - piratesoftware
+      #             - teej_dv
+      #             - lowleveltv
+      #             - badcop_
+      #             - ferretsoftware
+      #             - christitustech
