@@ -73,9 +73,10 @@ config:
     # change mode to 'cluster' to use RBAC service account
     mode: cluster
   settings:
-    color: zinc
+    # color: zinc
     hideVersion: true
-    background: https://wallpaper-house.com/data/out/7/wallpaper2you_147735.jpg
+    # background: https://wallpaper-house.com/data/out/7/wallpaper2you_147735.jpg
+    background: https://raw.githubusercontent.com/arch-err/Cluster-Config/refs/heads/main/assets/homepage/gray.png
     headerStyle: boxed
     cardBlur: xl
     statusStyle: "dot"
