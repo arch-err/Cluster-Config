@@ -66,6 +66,18 @@ apps:
       enabled: true
       homepage:
         enabled: false
+  - name: glance
+    namespace: glance
+    chart:
+      url: https://arch-err.github.io/charts
+      name: glance
+      version: 1.0.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   - name: portainer
     namespace: portainer
     chart:
