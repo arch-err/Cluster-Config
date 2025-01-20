@@ -36,11 +36,13 @@ glance:
 
           - size: small
             widgets:
+              - type: clock
+                hour-format: 24h
               - type: calendar
               - type: bookmarks
                 groups:
                   - title: Personal
-                    color: 285 70 20
+                    color: 285 70 30
                     links:
                       - title: Mail
                         url: https://mail.proton.me/u/0/inbox
@@ -52,7 +54,7 @@ glance:
                         url: https://github.com/users/arch-err/projects/7/views/1
                         icon: si:github
                   - title: Entertainment
-                    color: 210 70 20
+                    color: 210 70 30
                     links:
                       - title: Netflix
                         url: https://www.netflix.com/browse
