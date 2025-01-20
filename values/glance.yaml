@@ -70,6 +70,14 @@ glance:
                   - badcop_
                   - ferretsoftware
                   - christitustech
+              - type: group
+                widgets:
+                  - type: calendar
+                  - type: reddit
+                    subreddit: games
+                  - type: reddit
+                    subreddit: pcgaming
+                    show-thumbnails: true
 
           - size: full
             widgets:
@@ -83,7 +91,7 @@ glance:
                     url: https://www.youtube.com/results?search_query={QUERY}
                   # Wikis
                   - title: ArchWiki
-                    shortcut: "!yt"
+                    shortcut: "!aw"
                     url: https://wiki.archlinux.org/index.php?search={QUERY}&title=Special%3ASearch&wprov=acrw1_-1
                   # Personal
                   - title: arch-err's repos
@@ -98,7 +106,7 @@ glance:
                   # Personal Homelab Services
                   - title: Homelab ArgoCD
                     shortcut: "!argo"
-                    url: https://argocd.home/applications?search={QUERY}
+                    url: https://argocd.home/applications?howFavorites=false&search={QUERY}
 
               - type: iframe
                 source: https://homepage.home/
