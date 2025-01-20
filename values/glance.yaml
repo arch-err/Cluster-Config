@@ -44,13 +44,13 @@ glance:
                     links:
                       - title: Mail
                         url: https://mail.proton.me/u/0/inbox
-                        icon: proton-mail
+                        icon: si:proton-mail
                       - title: Calendar
                         url: https://calendar.proton.me/u/0/week
-                        icon: proton-calendar
+                        icon: si:proton-calendar
                       - title: arch-err Board
                         url: https://github.com/users/arch-err/projects/7/views/1
-                        icon: github
+                        icon: si:github
                       - title: <++>
                         url: <++>
                       - title: <++>
