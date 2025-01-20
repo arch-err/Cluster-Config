@@ -111,6 +111,10 @@ glance:
                   - title: Artifacthub
                     shortcut: "!ah"
                     url: https://artifacthub.io/packages/search?ts_query_web={QUERY}&sort=relevance&page=1
+                  - title: Homepage Wiki
+                    shortcut: "!hpw"
+                    url: https://gethomepage.dev/?search=test
+
                   # Hacking/CTF
                   - title: HackTricks
                     shortcut: "!ht"
