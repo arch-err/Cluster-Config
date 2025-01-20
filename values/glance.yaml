@@ -94,11 +94,11 @@ glance:
                     url: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
                   - title: Calendar
                     shortcut: "!cal"
-                    utl: https://calendar.proton.me/u/0/search#keyword={QUERY}
+                    url: https://calendar.proton.me/u/0/search#keyword={QUERY}
                   # Personal Homelab Services
                   - title: Homelab ArgoCD
                     shortcut: "!argo"
-                    utl: https://argocd.home/applications?search={QUERY}
+                    url: https://argocd.home/applications?search={QUERY}
 
               - type: iframe
                 source: https://homepage.home/
