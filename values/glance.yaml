@@ -40,30 +40,24 @@ glance:
               - type: bookmarks
                 groups:
                   - title: Personal
-                    color: 10 70 50
+                    color: 285 70 20
                     links:
                       - title: Mail
                         url: https://mail.proton.me/u/0/inbox
-                        icon: si:proton_mail
+                        icon: si:protonmail
                       - title: Calendar
                         url: https://calendar.proton.me/u/0/week
                         icon: si:protoncalendar
                       - title: arch-err's Board
                         url: https://github.com/users/arch-err/projects/7/views/1
                         icon: si:github
-                      - title: <++>
-                        url: <++>
-                      - title: <++>
-                        url: <++>
-                  - title: Social
-                    color: 200 50 50
+                  - title: Entertainment
+                    color: 210 70 20
                     links:
-                      - title: Reddit
-                        url: https://www.reddit.com/
-                      - title: Twitter
-                        url: https://twitter.com/
-                      - title: Instagram
-                        url: https://www.instagram.com/
+                      - title: Netflix
+                        url: https://www.netflix.com/browse
+                      - title: Prime Video
+                        url: https://www.primevideo.com/
               - type: twitch-channels
                 channels:
                   - theprimeagen
@@ -89,13 +83,38 @@ glance:
                 autofocus: true
                 bangs:
                   # General
+                  # ???
+                  # Entertainment
                   - title: YouTube
                     shortcut: "!yt"
                     url: https://www.youtube.com/results?search_query={QUERY}
+                  - title: Prime Video
+                    shortcut: "!prime"
+                    url: https://www.primevideo.com/search/?phrase={QUERY}
+                  - title: Netflix
+                    shortcut: "!netflix"
+                    url: https://www.netflix.com/search?q={QUERY}
                   # Wikis
                   - title: ArchWiki
                     shortcut: "!aw"
                     url: https://wiki.archlinux.org/index.php?search={QUERY}&title=Special%3ASearch&wprov=acrw1_-1
+                  - title: Hyprland Wiki
+                    shortcut: "!hw"
+                    url: https://wiki.hyprland.org/
+                  # Dev
+                  - title: Dockerhub
+                    shortcut: "!dh"
+                    url: https://hub.docker.com/search?q={QUERY}
+                  - title: Github
+                    shortcut: "!gh"
+                    url: https://github.com/search?q={QUERY}&type=repositories
+                  - title: Artifacthub
+                    shortcut: "!ah"
+                    url: https://artifacthub.io/packages/search?ts_query_web={QUERY}&sort=relevance&page=1
+                  # Hacking/CTF
+                  - title: HackTricks
+                    shortcut: "!ht"
+                    url: https://book.hacktricks.wiki/?search={QUERY}
                   # Personal
                   - title: arch-err's repos
                     shortcut: "!repo"
