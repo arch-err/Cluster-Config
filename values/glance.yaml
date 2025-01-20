@@ -28,10 +28,12 @@ glance:
       background-color: 0 0 5
       # background-color: 240 3 12
       primary-color: 180 100 27
-      contrast-multiplier: 1.1
+      # contrast-multiplier: 1.1
+      contrast-multiplier: 1.5
     pages:
       - name: Home
         columns:
+
           - size: small
             widgets:
               - type: calendar
@@ -68,11 +70,40 @@ glance:
                   - badcop_
                   - ferretsoftware
                   - christitustech
+
           - size: full
             widgets:
+              - type: search
+                search-engine: duckduckgo
+                autofocus: true
+                bangs:
+                  # General
+                  - title: YouTube
+                    shortcut: "!yt"
+                    url: https://www.youtube.com/results?search_query={QUERY}
+                  # Wikis
+                  - title: ArchWiki
+                    shortcut: "!yt"
+                    url: https://wiki.archlinux.org/index.php?search={QUERY}&title=Special%3ASearch&wprov=acrw1_-1
+                  # Personal
+                  - title: arch-err's repos
+                    shortcut: "!repo"
+                    url: https://github.com/arch-err?tab=repositories&q={QUERY}
+                  - title: Mail
+                    shortcut: "!mail"
+                    utl: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
+                  - title: Calendar
+                    shortcut: "!cal"
+                    utl: https://calendar.proton.me/u/0/search#keyword={QUERY}
+                  # Personal Homelab Services
+                  - title: Homelab ArgoCD
+                    shortcut: "!argo"
+                    utl: https://argocd.home/applications?search={QUERY}
+
               - type: iframe
                 source: https://homepage.home/
                 height: 1200
+
           - size: small
             widgets:
               - type: weather
