@@ -53,13 +53,13 @@ config:
         href: https://mail.proton.me/u/0/inbox
         icon: proton-mail.png
   widgets:
-    - search:
-        provider: duckduckgo
-        target: _blank
+    # - search:
+    #     provider: duckduckgo
+    #     target: _blank
     ## Uncomment to enable Kubernetes integration
     - kubernetes:
         cluster:
-          show: true
+          show: false
           cpu: true
           memory: true
           showLabel: true

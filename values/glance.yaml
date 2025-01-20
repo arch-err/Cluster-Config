@@ -40,8 +40,14 @@ glance:
                   - title: Personal
                     color: 10 70 50
                     links:
-                      - title: ProtonMail
+                      - title: Mail
                         url: https://mail.proton.me/u/0/inbox
+                      - title: Calendar
+                        url: https://calendar.proton.me/u/0/week
+                      - title: arch-err Board
+                        url: https://github.com/users/arch-err/projects/7/views/1
+                      - title: <++>
+                        url: <++>
                       - title: <++>
                         url: <++>
                   - title: Social
