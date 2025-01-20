@@ -91,7 +91,7 @@ glance:
                     url: https://github.com/arch-err?tab=repositories&q={QUERY}
                   - title: Mail
                     shortcut: "!mail"
-                    utl: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
+                    url: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
                   - title: Calendar
                     shortcut: "!cal"
                     utl: https://calendar.proton.me/u/0/search#keyword={QUERY}
