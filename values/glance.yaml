@@ -133,12 +133,27 @@ glance:
                   - title: arch-err's repos
                     shortcut: "!repo"
                     url: https://github.com/arch-err?tab=repositories&q={QUERY}
+                  - title: arch-err's repos
+                    shortcut: "!r"
+                    url: https://github.com/arch-err?tab=repositories&q={QUERY}
                   - title: Mail
                     shortcut: "!mail"
+                    url: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
+                  - title: Mail
+                    shortcut: "!m"
                     url: https://mail.proton.me/u/0/almost-all-mail#keyword={QUERY}
                   - title: Calendar
                     shortcut: "!cal"
                     url: https://calendar.proton.me/u/0/search#keyword={QUERY}
+                  - title: Calendar
+                    shortcut: "!c"
+                    url: https://calendar.proton.me/u/0/search#keyword={QUERY}
+                  - title: MyrCTF 2025 (Github Project)
+                    shortcut: "!myrc"
+                    url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
+                  - title: MyrCTF 2025 (Github Project)
+                    shortcut: "!myrct"
+                    url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
                   - title: MyrCTF 2025 (Github Project)
                     shortcut: "!myrctf"
                     url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
