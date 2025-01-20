@@ -116,6 +116,7 @@ glance:
             widgets:
               - type: weather
                 location: Umeå, Sweden
+                hour-format: 24h
               - type: rss
                 title: News
                 style: horizontal-cards
