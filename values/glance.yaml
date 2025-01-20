@@ -56,6 +56,10 @@ glance:
                   - title: Entertainment
                     color: 210 70 30
                     links:
+                      - title: YouTube
+                        url: https://www.youtube.com/
+                      - title: Twitch
+                        url: https://www.twitch.tv/
                       - title: Netflix
                         url: https://www.netflix.com/browse
                       - title: Prime Video
@@ -96,6 +100,10 @@ glance:
                   - title: Netflix
                     shortcut: "!netflix"
                     url: https://www.netflix.com/search?q={QUERY}
+                  - title: Twitch
+                    shortcut: "!twitch"
+                    url: https://www.twitch.tv/search?term={QUERY}
+
                   # Wikis
                   - title: ArchWiki
                     shortcut: "!aw"
@@ -131,6 +139,10 @@ glance:
                   - title: Calendar
                     shortcut: "!cal"
                     url: https://calendar.proton.me/u/0/search#keyword={QUERY}
+                  - title: MyrCTF 2025 (Github Project)
+                    shortcut: "!myrctf"
+                    url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
+
                   # Personal Homelab Services
                   - title: Homelab ArgoCD
                     shortcut: "!argo"
