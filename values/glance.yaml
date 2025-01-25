@@ -73,14 +73,9 @@ glance:
                   - badcop_
                   - ferretsoftware
                   - christitustech
-              - type: group
-                widgets:
-                  - type: calendar
-                  - type: reddit
-                    subreddit: games
-                  - type: reddit
-                    subreddit: pcgaming
-                    show-thumbnails: true
+              - type: change-detection
+                instance-url: https://changedetection.mydomain.com/
+                # token: <set from secret values>
 
           - size: full
             widgets:
