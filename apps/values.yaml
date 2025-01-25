@@ -78,6 +78,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
+  - name: glance-draw
+    namespace: glance
+    chart:
+      url: https://pmoscode-helm.github.io/excalidraw/
+      name: excalidraw
+      version: 0.1.1
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: false
   - name: portainer
     namespace: portainer
     chart:

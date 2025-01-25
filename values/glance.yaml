@@ -152,9 +152,6 @@ glance:
                     shortcut: "!myrc"
                     url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
                   - title: MyrCTF 2025 (Github Project)
-                    shortcut: "!myrct"
-                    url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
-                  - title: MyrCTF 2025 (Github Project)
                     shortcut: "!myrctf"
                     url: https://github.com/users/arch-err/projects/5/views/8?filterQuery={QUERY}
 
@@ -165,7 +162,7 @@ glance:
 
               - type: iframe
                 source: https://homepage.home/
-                height: 1200
+                height: 2500
 
           - size: small
             widgets:
@@ -178,6 +175,13 @@ glance:
                 feeds:
                   - url: https://isc.sans.edu/dailypodcast.xml
                     title: Sans Internet Stormcast
+      - name: Draw
+        columns:
+          - size: full
+            widgets:
+              - type: iframe
+                source: https://glance-draw.home/
+                height: 2500
       # - name: Home
       #   columns:
       #     - size: small

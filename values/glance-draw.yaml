@@ -1,0 +1,21 @@
+replicaCount: 1
+
+podAnnotations: {}
+
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: glance-draw.home
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: glance-draw-server-tls
+      hosts:
+        - glance-draw.home
