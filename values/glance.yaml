@@ -162,7 +162,7 @@ glance:
 
               - type: iframe
                 source: https://homepage.home/
-                height: 2500
+                height: 2300
 
           - size: small
             widgets:
@@ -181,7 +181,7 @@ glance:
             widgets:
               - type: iframe
                 source: https://glance-draw.home/
-                height: 2500
+                height: 2300
       # - name: Home
       #   columns:
       #     - size: small
