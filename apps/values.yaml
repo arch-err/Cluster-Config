@@ -232,18 +232,6 @@ apps:
       homepage:
         enabled: true
         group: "Tools"
-  - name: draw
-    namespace: <++>
-    chart:
-      url: <++>
-      name: <++>
-      version: <++>
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
   - name: minecraft-poc
     namespace: minecraft
     chart:
