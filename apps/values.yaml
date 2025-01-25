@@ -115,8 +115,6 @@ apps:
       enabled: true
       homepage:
         enabled: true
-        # widget.type: homeassistant
-        # widget.url: https://homeassistant.home/
   - name: excalidraw
     namespace: excalidraw
     chart:
@@ -130,21 +128,6 @@ apps:
       homepage:
         enabled: true
         group: "Tools"
-  - name: authentik
-    namespace: authentication
-    privileged: true
-    chart:
-      url: https://charts.goauthentik.io/
-      name: authentik
-      version: 2024.8.2
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      valuesSection: server
-      homepage:
-        enabled: false
-        group: "Management"
   - name: metrics-server
     namespace: kube-metrics
     chart:
@@ -170,31 +153,6 @@ apps:
       homepage:
         enabled: true
         group: "Management"
-  - name: photoprism
-    namespace: photoprism
-    chart:
-      url: https://andrenarchy.github.io/helm-charts/
-      name: photoprism
-      version: 8.4.0
-    secrets:
-      enabled: false
-    ingress:
-      enabled: false
-      homepage:
-        enabled: false
-  - name: linkwarden
-    namespace: linkwarden
-    chart:
-      url: https://fmjstudios.github.io/helm/
-      name: linkwarden
-      version: 0.3.2
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
-        group: "Tools"
   - name: cyberchef
     namespace: cyberchef
     chart:
@@ -207,20 +165,6 @@ apps:
       enabled: false
       homepage:
         enabled: false
-  # - name: pingvin
-  #   namespace: pingvin
-  #   chart:
-  #     url: https://qjoly.github.io/helm-charts/
-  #     name: pingvin
-  #     version: 1.0.1
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     valuesSection: common
-  #     homepage:
-  #       enabled: true
-  #       group: tools
   # - name: kubeview
   #   namespace: kubeview
   #   chart:
@@ -235,18 +179,6 @@ apps:
   #       enabled: true
   #       group: Management
   #       icon: kubernetes.png
-  - name: n8n
-    namespace: n8n
-    chart:
-      url: oci://8gears.container-registry.com/library/n8n
-      name: ""
-      version: 0.25.2
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
   - name: changedetection
     namespace: changedetection
     chart:
@@ -287,19 +219,6 @@ apps:
       homepage:
         enabled: true
         group: Home-Automation
-  - name: actual-budget
-    namespace: actual-budget
-    chart:
-      url: https://dasmeta.github.io/helm/
-      name: base
-      version: 0.2.5
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
-        group: "Tools"
   - name: ntfy
     namespace: ntfy
     chart:
@@ -313,54 +232,6 @@ apps:
       homepage:
         enabled: true
         group: "Tools"
-  - name: uptime-kuma
-    namespace: monitoring
-    chart:
-      url: https://geek-cookbook.github.io/charts/
-      name: uptime-kuma
-      version: 1.4.2
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
-  - name: kuma-ingress-watcher
-    namespace: monitoring
-    chart:
-      url: https://squent.github.io/helm-kuma-ingress-watcher
-      name: kuma-ingress-watcher
-      version: 1.1.0
-    secrets:
-      enabled: false
-    ingress:
-      enabled: false
-      homepage:
-        enabled: true
-  - name: uptime-kuma-credentials
-    namespace: monitoring
-    chart:
-      url: https://ameijer.github.io/k8s-as-helm
-      name: secret
-      version: 1.0.4
-    secrets:
-      enabled: true
-    ingress:
-      enabled: false
-      homepage:
-        enabled: false
-  - name: supabase
-    namespace: draw
-    chart:
-      url: https://tokens-studio.github.io/helm/
-      name: tokens-studio/supabase
-      version: 0.1.0
-    secrets:
-      enabled: false
-    ingress:
-      enabled: false
-      homepage:
-        enabled: false
   - name: draw
     namespace: <++>
     chart:
