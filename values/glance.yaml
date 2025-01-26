@@ -74,7 +74,7 @@ glance:
                   - ferretsoftware
                   - christitustech
               - type: change-detection
-                instance-url: https://changedetection.mydomain.com/
+                instance-url: https://changedetection.home/
                 # token: <set from secret values>
 
           - size: full

@@ -73,7 +73,7 @@ apps:
       name: glance
       version: 1.0.0
     secrets:
-      enabled: false
+      enabled: true
     ingress:
       enabled: true
       homepage:
