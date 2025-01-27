@@ -19,6 +19,7 @@ ollama:
   persistentVolume:
     enabled: true
     volumeName: "model-volume"
+    storageClass: "kadalu.mirror"
 
 pipelines:
   # -- Automatically install Pipelines chart to extend Open WebUI functionality using Pipelines: https://github.com/open-webui/pipelines
@@ -178,7 +179,7 @@ persistence:
   # -- If using multiple replicas, you must update accessModes to ReadWriteMany
   accessModes:
     - ReadWriteOnce
-  storageClass: ""
+  storageClass: "kadalu.mirror"
   selector: {}
   annotations: {}
 
