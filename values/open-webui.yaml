@@ -162,7 +162,7 @@ ingress:
   # -- Use appropriate annotations for your Ingress controller, e.g., for NGINX:
   # nginx.ingress.kubernetes.io/rewrite-target: /
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     cert-manager.io/cluster-issuer: "selfsign-clusterissuer"
   host: "open-webui.home"
