@@ -13,8 +13,8 @@ ollama:
       enabled: false
       # type: 'nvidia'
       # number: 1
-    models:
-      - tinyllama
+    # models:
+    #   - tinyllama
   # runtimeClassName: nvidia
   persistentVolume:
     enabled: true
