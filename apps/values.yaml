@@ -282,6 +282,30 @@ apps:
         enabled: true
         group: Monitoring
         siteMonitor: https://minecraft-influxdb.home/signin
+  - name: <++>
+    namespace: <++>
+    chart:
+      url: <++>
+      name: <++>
+      version: <++>
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
+  - name: open-webui
+    namespace: ai
+    chart:
+      url: https://open-webui.github.io/helm-charts
+      name: open-webui
+      version: 5.4.0
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
