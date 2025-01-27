@@ -282,18 +282,6 @@ apps:
         enabled: true
         group: Monitoring
         siteMonitor: https://minecraft-influxdb.home/signin
-  - name: <++>
-    namespace: <++>
-    chart:
-      url: <++>
-      name: <++>
-      version: <++>
-    secrets:
-      enabled: false
-    ingress:
-      enabled: true
-      homepage:
-        enabled: true
   - name: open-webui
     namespace: ai
     chart:
