@@ -18,7 +18,7 @@ ollama:
   # runtimeClassName: nvidia
   persistentVolume:
     enabled: true
-    volumeName: "model-volume"
+    # volumeName: "model-volume"
     storageClass: "kadalu.mirror"
 
 pipelines:
