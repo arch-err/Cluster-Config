@@ -73,8 +73,8 @@ glance:
                   - badcop_
                   - ferretsoftware
                   - christitustech
-              - type: change-detection
-                instance-url: https://changedetection.home/
+              # - type: change-detection
+              #   instance-url: https://changedetection.home/
                 # token: <set from secret values>
 
           - size: full
