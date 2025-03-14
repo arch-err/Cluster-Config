@@ -53,6 +53,9 @@ glance:
                       - title: arch-err's Board
                         url: https://github.com/users/arch-err/projects/7/views/1
                         icon: si:github
+                      - title: MyrCTF Organization
+                        url: https://github.com/MyrCTFO
+                        icon: si:github
                   - title: Entertainment
                     color: 210 70 30
                     links:
