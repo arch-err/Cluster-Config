@@ -173,6 +173,8 @@ glance:
                 feeds:
                   - url: https://isc.sans.edu/dailypodcast.xml
                     title: Sans Internet Stormcast
+                  - url: https://podcast.darknetdiaries.com/
+                    title: Darknet Diaries
       - name: Draw
         columns:
           - size: full
