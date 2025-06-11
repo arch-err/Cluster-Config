@@ -348,6 +348,16 @@ server:
 
   ingress:
     enabled: true
+    ingressClassName: "nginx"
+    hosts:
+      - host: &host "authentik.home"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - *host
+        secretName: authentik-server-tls
 
     paths:
       - "{{ .Values.authentik.web.path }}"
