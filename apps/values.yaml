@@ -294,19 +294,19 @@ apps:
       enabled: true
       homepage:
         enabled: true
-  # - name: authentik
-  #   namespace: authentik
-  #   chart:
-  #     url: https://charts.goauthentik.io/
-  #     name: authentik
-  #     version: 2025.6.1
-  #   secrets:
-  #     enabled: true
-  #   ingress:
-  #     valuesSection: server
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: authentik
+    namespace: authentik
+    chart:
+      url: https://charts.goauthentik.io/
+      name: authentik
+      version: 2025.6.1
+    secrets:
+      enabled: false
+    ingress:
+      valuesSection: server
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
