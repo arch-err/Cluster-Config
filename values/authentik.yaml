@@ -350,10 +350,7 @@ server:
     enabled: true
     ingressClassName: "nginx"
     hosts:
-      - host: &host "authentik.home"
-        paths:
-          - path: /
-            pathType: Prefix
+      - &host "authentik.home"
     tls:
       - hosts:
           - *host
