@@ -36,8 +36,8 @@ serviceAccount:
 podAnnotations: {}
 
 # Pod security context settings
-podSecurityContext:
-  privileged: true
+podSecurityContext: {}
+  # privileged: true
   # runAsUser: 568
   # runAsGroup: 568
   # fsGroup: 568
@@ -284,9 +284,9 @@ persistence:
 additionalVolumes:
   - hostPath:
       # /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
-    path: >-
-      /dev/serial/by-path/pci-0000:00:14.0-usb-0:5:1.0
-      type: CharDevice
+      # /dev/serial/by-path/pci-0000:00:14.0-usb-0:5:1.0
+    path: /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
+    type: CharDevice
     name: usb
 # if you need any additional volume mounts, you can define them here
 additionalMounts:
