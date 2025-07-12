@@ -115,6 +115,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
+  - name: akri
+    namespace: home-automation
+    chart:
+      url: https://project-akri.github.io/akri
+      name: akri
+      version:  0.13.8
+    secrets:
+      enabled: false
+    ingress:
+      enabled: false
+      homepage:
+        enabled: false
   - name: excalidraw
     namespace: excalidraw
     chart:
