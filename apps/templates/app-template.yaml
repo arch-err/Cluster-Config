@@ -16,10 +16,9 @@ spec:
 
     - repoURL: {{ .chart.url }}
       targetRevision: {{ .chart.version }}
-      {{ if hasPrefix "oci://" .chart.url -}}
       chart: {{ .chart.name }}
+      {{ if hasPrefix "oci://" .chart.url -}}
       path: .
-      {{ else -}}
       {{ end -}}
 
       helm:
