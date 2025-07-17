@@ -977,16 +977,14 @@ externalRedis:
 postgresql:
   # -- Enable postgresql
   enabled: true
-  architecture: standalone
-
   primary:
-    service:
-      ports:
-        postgresql: 5432
-
-    persistence:
+    livenessProbe:
       enabled: true
-      existingClaim: ""
+      initialDelaySeconds: 60
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+
 
   auth:
     username: ""
