@@ -504,7 +504,7 @@ worker:
   # -- Extra environment variables
   extraEnvVars:
     N8N_PORT: 443
-    N8N_HOST: *host
+    N8N_HOST: n8n.home
 
   # -- Extra secrets for environment variables
   extraSecretNamesForEnvFrom: []
