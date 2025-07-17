@@ -1,3 +1,4 @@
+#!CMD: helm template ../ | grep home -C 10
 #!CMD: gt
 {{- range .Values.apps }}
 apiVersion: argoproj.io/v1alpha1
@@ -16,6 +17,9 @@ spec:
     - chart: {{ .chart.name }}
       repoURL: {{ .chart.url }}
       targetRevision: {{ .chart.version }}
+      {{ if hasPrefix "oci://" .chart.url -}}
+      path: .
+      {{ end -}}
 
       helm:
         valueFiles:
