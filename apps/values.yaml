@@ -319,18 +319,18 @@ apps:
   #     enabled: true
   #     homepage:
   #       enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: n8n
+    namespace: home-automation
+    chart:
+      url: oci://8gears.container-registry.com/library/n8n
+      name: n8n
+      version: 1.0.10
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
