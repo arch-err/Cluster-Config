@@ -980,10 +980,10 @@ postgresql:
   primary:
     livenessProbe:
       enabled: true
-      initialDelaySeconds: 60
+      initialDelaySeconds: 90
     readinessProbe:
       enabled: true
-      initialDelaySeconds: 30
+      initialDelaySeconds: 60
 
 
   auth:
