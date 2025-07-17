@@ -326,7 +326,7 @@ apps:
       name: n8n
       version: 1.13.4
     secrets:
-      enabled: false
+      enabled: true
     ingress:
       enabled: true
       homepage:
