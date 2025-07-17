@@ -323,7 +323,7 @@ apps:
     namespace: home-automation
     chart:
       url: oci://8gears.container-registry.com/library/n8n
-      name: n8n
+      name: ''
       version: 1.0.10
     secrets:
       enabled: false
