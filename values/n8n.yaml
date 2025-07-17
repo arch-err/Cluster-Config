@@ -180,7 +180,7 @@ db:
   # -- Prefix to use for table names.
   tablePrefix: ""
   # -- Type of database to use. Valid values 'sqlite' | 'postgresdb'
-  type: postgresql
+  type: postgresdb
 
   logging:
     # -- Whether database logging is enabled.
