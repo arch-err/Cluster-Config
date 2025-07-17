@@ -331,18 +331,18 @@ apps:
       enabled: true
       homepage:
         enabled: true
-  # - name: <++>
-  #   namespace: <++>
-  #   chart:
-  #     url: <++>
-  #     name: <++>
-  #     version: <++>
-  #   secrets:
-  #     enabled: false
-  #   ingress:
-  #     enabled: true
-  #     homepage:
-  #       enabled: true
+  - name: yourls
+    namespace: home-automation
+    chart:
+      url: https://charts.yourls.org/
+      name: yourls
+      version: 8.3.7
+    secrets:
+      enabled: false
+    ingress:
+      enabled: true
+      homepage:
+        enabled: true
   # - name: <++>
   #   namespace: <++>
   #   chart:
