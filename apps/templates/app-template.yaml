@@ -14,11 +14,12 @@ spec:
       targetRevision: HEAD
       ref: reporoot
 
-    - chart: {{ .chart.name }}
-      repoURL: {{ .chart.url }}
+    - repoURL: {{ .chart.url }}
       targetRevision: {{ .chart.version }}
       {{ if hasPrefix "oci://" .chart.url -}}
+      chart: {{ .chart.name }}
       path: .
+      {{ else -}}
       {{ end -}}
 
       helm:
