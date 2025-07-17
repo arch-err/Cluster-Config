@@ -322,9 +322,9 @@ apps:
   - name: n8n
     namespace: home-automation
     chart:
-      url: oci://8gears.container-registry.com/library/n8n
-      # name: ''
-      version: 1.0.10
+      url: https://community-charts.github.io/helm-charts
+      name: n8n
+      version: 1.13.4
     secrets:
       enabled: false
     ingress:
