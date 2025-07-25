@@ -243,9 +243,9 @@ api:
 # -- n8n enterprise license configurations
 license:
   # -- Whether to enable the enterprise license
-  enabled: true
+  # enabled: true
   # -- Activation key to initialize license. Not applicable if the n8n instance was already activated. For more information please refer to the following link: https://docs.n8n.io/enterprise-key/
-  activationKey: ""
+  # activationKey: ""
   # -- The name of an existing secret with license activation key. The secret must contain a key with the name N8N_LICENSE_ACTIVATION_KEY.
   existingActivationKeySecret: ""
   # -- The auto new license configuration
@@ -502,9 +502,9 @@ worker:
     labels: {}
 
   # -- Extra environment variables
-  extraEnvVars:
-    N8N_PORT: 443
-    N8N_HOST: n8n.home
+  extraEnvVars: {}
+    # N8N_PORT: 443
+    # N8N_HOST: n8n.home
 
   # -- Extra secrets for environment variables
   extraSecretNamesForEnvFrom: []
