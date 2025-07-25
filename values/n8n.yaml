@@ -326,7 +326,13 @@ main:
     labels: {}
 
   # -- Extra environment variables
-  extraEnvVars: {}
+  extraEnvVars:
+    N8N_PORT: 443
+    N8N_HOST: n8n.home
+    N8N_EDITOR_BASE_URL: https://n8n.home/
+    N8N_TEMPLATES_ENABLED: true
+    N8N_PROXY_HOPS: 1
+
 
   # -- Extra secrets for environment variables
   extraSecretNamesForEnvFrom: []
@@ -503,8 +509,6 @@ worker:
 
   # -- Extra environment variables
   extraEnvVars: {}
-    # N8N_PORT: 443
-    # N8N_HOST: n8n.home
 
   # -- Extra secrets for environment variables
   extraSecretNamesForEnvFrom: []
