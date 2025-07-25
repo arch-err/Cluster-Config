@@ -66,8 +66,8 @@ service:
   type: ClusterIP
   # -- This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
   # port: 443
-  port: 4443
-  # port: 5678
+  # port: 4443
+  port: 5678
   # -- Default Service name
   name: http
   # -- Additional service annotations
@@ -329,7 +329,7 @@ main:
 
   # -- Extra environment variables
   extraEnvVars:
-    # N8N_PORT: 443
+    N8N_PORT: 443
     N8N_HOST: n8n.home
     N8N_EDITOR_BASE_URL: https://n8n.home/
     N8N_TEMPLATES_ENABLED: true
