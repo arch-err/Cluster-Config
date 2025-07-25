@@ -329,7 +329,7 @@ main:
 
   # -- Extra environment variables
   extraEnvVars:
-    N8N_PORT: 443
+    N8N_PORT: 1443
     N8N_HOST: n8n.home
     N8N_EDITOR_BASE_URL: https://n8n.home/
     N8N_TEMPLATES_ENABLED: true
