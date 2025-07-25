@@ -1,8 +1,8 @@
-#!CMD: gt
 # yaml-language-server: $schema=values.schema.json
 # Default values for n8n.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+#!CMD: gt
 
 # -- This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
@@ -43,7 +43,7 @@ podLabels: {}
 
 # -- This is for setting Security Context to a Pod. For more information checkout: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 podSecurityContext:
-  fsGroup: 1000
+  fsGroup: 9500
   fsGroupChangePolicy: "OnRootMismatch"
 
 # -- This is for setting Security Context to a Container. For more information checkout: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
@@ -329,11 +329,11 @@ main:
 
   # -- Extra environment variables
   extraEnvVars:
-    N8N_PORT: 1443
     N8N_HOST: n8n.home
     N8N_EDITOR_BASE_URL: https://n8n.home/
     N8N_TEMPLATES_ENABLED: true
     N8N_PROXY_HOPS: 1
+    N8N_PORT: 443
 
 
   # -- Extra secrets for environment variables
