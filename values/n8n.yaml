@@ -338,7 +338,7 @@ main:
 
   # -- Extra secrets for environment variables
   extraSecretNamesForEnvFrom:
-    - name: n8n-port-fix
+    - n8n-port-fix
 
   # -- Additional volumes on the output Deployment definition.
   volumes: []
