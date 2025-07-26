@@ -322,7 +322,8 @@ apps:
   - name: n8n
     namespace: home-automation
     chart:
-      url: https://community-charts.github.io/helm-charts
+      # url: https://community-charts.github.io/helm-charts
+      url: https://arch-err.github.io/charts
       name: n8n
       version: 1.13.4
     secrets:
