@@ -911,7 +911,7 @@ serviceMonitor:
 extraEnvVars: {}
 
 # -- DEPRECATED: Use main, worker, and webhook blocks extraSecretNamesForEnvFrom fields instead. This field will be removed in a future release.
-extraSecretNamesForEnvFrom: {}
+extraSecretNamesForEnvFrom: []
 
 # -- DEPRECATED: Use main, worker, and webhook blocks resources fields instead. This field will be removed in a future release.
 resources: {}
