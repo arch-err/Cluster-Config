@@ -45,6 +45,9 @@ podLabels: {}
 podSecurityContext:
   fsGroup: 9500
   fsGroupChangePolicy: "OnRootMismatch"
+  capabilities:
+    add:
+      - NET_BIND_SERVICE
 
 # -- This is for setting Security Context to a Container. For more information checkout: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 securityContext:
@@ -66,7 +69,6 @@ service:
   type: ClusterIP
   # -- This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
   port: 443
-  # port: 4443
   # port: 5678
   # -- Default Service name
   name: http
@@ -333,7 +335,6 @@ main:
     N8N_EDITOR_BASE_URL: https://n8n.home/
     N8N_TEMPLATES_ENABLED: true
     N8N_PROXY_HOPS: 1
-    N8N_PORT: 443
 
 
   # -- Extra secrets for environment variables
