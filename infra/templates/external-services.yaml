@@ -40,6 +40,24 @@ ports:
     port: 443
     protocol: TCP
 ---
+# BackendTLSPolicy - re-encrypt traffic to Traefik
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: docker-traefik-tls
+  namespace: external
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: docker-traefik
+  validation:
+    wellKnownCACertificates: System
+    hostname: traefik.home
+---
 # HTTPRoutes for each external service
 {{- range .Values.external.services }}
 apiVersion: gateway.networking.k8s.io/v1
