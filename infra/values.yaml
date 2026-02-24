@@ -50,12 +50,12 @@ components:
     extraArgs:
       - --set installCRDs=true
 
-  # Keycloak - SSO
-  - name: keycloak
-    namespace: keycloak
-    chart:
-      url: https://charts.bitnami.com/bitnami
-      name: keycloak
-      version: 24.x
-    values: true
-    secrets: true
+  # Keycloak - SSO (disabled until helm-secrets is configured)
+  # - name: keycloak
+  #   namespace: keycloak
+  #   chart:
+  #     url: https://charts.bitnami.com/bitnami
+  #     name: keycloak
+  #     version: 24.x
+  #   values: true
+  #   secrets: true
