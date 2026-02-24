@@ -4,12 +4,17 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 ---
-# L2 Announcement Policy
+# L2 Announcement Policy (depends on Cilium CRDs)
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
 metadata:
   name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   interfaces:
     - ^eth[0-9]+
@@ -17,23 +22,28 @@ spec:
   loadBalancerIPs: true
   externalIPs: true
 ---
-# LoadBalancer IP Pool
+# LoadBalancer IP Pool (depends on Cilium CRDs)
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
   name: default-pool
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   blocks:
     - start: {{ .Values.gateway.internal.ip }}
       stop: "192.168.1.220"
 ---
-# Internal Gateway (*.home)
+# Internal Gateway (depends on Gateway API CRDs)
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: internal
   namespace: gateway-system
   annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     cert-manager.io/cluster-issuer: home-ca
 spec:
   gatewayClassName: cilium
@@ -60,6 +70,9 @@ kind: Gateway
 metadata:
   name: external
   namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   gatewayClassName: cilium
   addresses:
