@@ -13,3 +13,20 @@ configs:
       secrets+age-import, secrets+age-import-kubernetes,
       secrets, secrets+literal,
       https
+
+    # Override resource exclusions - allow EndpointSlice (we manage external services)
+    resource.exclusions: |
+      - apiGroups:
+          - ''
+        kinds:
+          - Endpoints
+      - apiGroups:
+          - coordination.k8s.io
+        kinds:
+          - Lease
+      - apiGroups:
+          - cilium.io
+        kinds:
+          - CiliumIdentity
+          - CiliumEndpoint
+          - CiliumEndpointSlice
