@@ -1,0 +1,54 @@
+# Certificate Issuers and Wildcard Certificates
+---
+# Bootstrap self-signed issuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+# Root CA Certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: home-root-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: "Home Lab Root CA"
+  secretName: home-root-ca
+  duration: 87600h    # 10 years
+  renewBefore: 8760h  # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+  issuerRef:
+    name: selfsigned-bootstrap
+    kind: ClusterIssuer
+---
+# CA Issuer using the root CA
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: home-ca
+spec:
+  ca:
+    secretName: home-root-ca
+---
+# Wildcard certificate for *.home
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-home
+  namespace: cert-manager
+spec:
+  secretName: {{ .Values.gateway.internal.tlsSecret }}
+  duration: 8760h     # 1 year
+  renewBefore: 720h   # 30 days
+  commonName: "*.{{ .Values.gateway.internal.domain }}"
+  dnsNames:
+    - "*.{{ .Values.gateway.internal.domain }}"
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer

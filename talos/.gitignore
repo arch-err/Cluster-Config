@@ -1,0 +1,9 @@
+# Generated Talos configs
+clusterconfig/
+
+# Netboot assets (downloaded)
+netboot/
+
+# Plaintext secrets
+talsecret.yaml
+*.dec.yaml

@@ -1,0 +1,7 @@
+# Secrets
+*.dec.yaml
+
+# Editor
+.idea/
+.vscode/
+*.swp

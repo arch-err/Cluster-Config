@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Two-phase PXE booter wrapper:
+# Phase 1: Boot with wipe flag, wait for all nodes to be seen
+# Phase 2: Restart without wipe flag, nodes enter maintenance mode
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
+# Configuration
+TALOS_VERSION="${TALOS_VERSION:-v1.12.4}"
+BOOTER_INTERFACE="${BOOTER_INTERFACE:-enp0s20f0u2u1u2}"
+CONTAINER_NAME="booter"
+PHASE1_TIMEOUT="${PHASE1_TIMEOUT:-300}"  # 5 min default for phase 1
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [OPTIONS] MAC1 [MAC2 ...]
+
+Two-phase PXE boot wrapper for Talos cluster provisioning.
+
+Phase 1: Start booter with wipe flag, wait for all MACs to be seen
+Phase 2: Restart booter without wipe, nodes enter maintenance mode
+
+Arguments:
+  MAC1, MAC2, ...    Expected node MAC addresses (format: aa:bb:cc:dd:ee:ff or aa-bb-cc-dd-ee-ff)
+
+Options:
+  -i, --interface IFACE    Network interface for booter (default: $BOOTER_INTERFACE)
+  -v, --version VERSION    Talos version (default: $TALOS_VERSION)
+  -t, --timeout SECONDS    Phase 1 timeout in seconds (default: $PHASE1_TIMEOUT)
+  -h, --help               Show this help
+
+Examples:
+  $(basename "$0") 10:e7:c6:0d:12:be 10:e7:c6:0d:12:62 10:e7:c6:0d:61:18
+  $(basename "$0") -t 600 10:e7:c6:0d:12:be  # 10 min timeout
+
+EOF
+    exit 0
+}
+
+# Parse arguments
+EXPECTED_MACS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -i|--interface) BOOTER_INTERFACE="$2"; shift 2 ;;
+        -v|--version) TALOS_VERSION="$2"; shift 2 ;;
+        -t|--timeout) PHASE1_TIMEOUT="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        -*) die "Unknown option: $1" ;;
+        *) EXPECTED_MACS+=("$(echo "$1" | tr '[:upper:]' '[:lower:]' | tr '-' ':')"); shift ;;
+    esac
+done
+
+[[ ${#EXPECTED_MACS[@]} -eq 0 ]] && die "No MAC addresses provided"
+
+# Get local IP
+LOCAL_IP=$(ip -4 addr show "$BOOTER_INTERFACE" | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+[[ -z "$LOCAL_IP" ]] && die "Could not determine IP for interface $BOOTER_INTERFACE"
+
+log() { echo -e "${BLUE}[$1]${NC} $2"; }
+success() { echo -e "${GREEN}✓${NC} $1"; }
+warn() { echo -e "${YELLOW}!${NC} $1"; }
+
+stop_booter() {
+    sudo podman stop "$CONTAINER_NAME" 2>/dev/null || true
+    sudo podman rm "$CONTAINER_NAME" 2>/dev/null || true
+}
+
+start_booter() {
+    local wipe_arg="${1:-}"
+    local extra_args=""
+
+    [[ -n "$wipe_arg" ]] && extra_args="--extra-kernel-args talos.experimental.wipe=system"
+
+    stop_booter
+
+    # shellcheck disable=SC2086
+    sudo podman run -d --rm --name "$CONTAINER_NAME" --network host \
+        ghcr.io/siderolabs/booter:v0.1.0 \
+        --talos-version "$TALOS_VERSION" \
+        --dhcp-proxy-iface-or-ip "$BOOTER_INTERFACE" \
+        --api-advertise-address "$LOCAL_IP" \
+        $extra_args >/dev/null
+}
+
+# Extract MACs from booter logs - look for actual iPXE boot requests, not just DHCP
+# iPXE boot request format: "handle iPXE boot request" ... "mac": "10-e7-c6-0d-12-be"
+get_seen_macs() {
+    sudo podman logs "$CONTAINER_NAME" 2>&1 | \
+        grep "handle iPXE boot request" | \
+        grep -oP '"mac":\s*"\K[0-9a-f:-]+' | \
+        tr '-' ':' | tr '[:upper:]' '[:lower:]' || true
+}
+
+# Count how many times a MAC has iPXE booted
+get_mac_count() {
+    local mac="$1"
+    local count
+    count=$(get_seen_macs | grep -c "^${mac}$" 2>/dev/null || echo 0)
+    echo "${count//[^0-9]/}"  # Strip any non-numeric chars
+}
+
+# Require each MAC to be seen at least twice (proves wipe-reboot loop)
+MIN_BOOT_COUNT=2
+
+check_all_macs_seen() {
+    for mac in "${EXPECTED_MACS[@]}"; do
+        local count
+        count=$(get_mac_count "$mac")
+        count=${count:-0}  # Default to 0 if empty
+        if [[ $count -lt $MIN_BOOT_COUNT ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+print_mac_status() {
+    echo -e "\n  MAC Status (need ${MIN_BOOT_COUNT}x iPXE boots each):"
+    for mac in "${EXPECTED_MACS[@]}"; do
+        local count
+        count=$(get_mac_count "$mac")
+        count=${count:-0}
+        if [[ $count -ge $MIN_BOOT_COUNT ]]; then
+            echo -e "    ${GREEN}✓${NC} $mac (${count}x)"
+        elif [[ $count -gt 0 ]]; then
+            echo -e "    ${YELLOW}◐${NC} $mac (${count}/${MIN_BOOT_COUNT})"
+        else
+            echo -e "    ${YELLOW}○${NC} $mac (waiting)"
+        fi
+    done
+}
+
+# Cleanup on exit
+cleanup() {
+    echo -e "\n${YELLOW}Cleaning up...${NC}"
+    stop_booter
+}
+trap cleanup EXIT
+
+# Main
+echo -e "${BLUE}══════════════════════════════════════════════════════════${NC}"
+echo -e "${BLUE}  Two-Phase Booter Wrapper${NC}"
+echo -e "${BLUE}══════════════════════════════════════════════════════════${NC}"
+echo -e "  Interface: $BOOTER_INTERFACE"
+echo -e "  Local IP:  $LOCAL_IP"
+echo -e "  Talos:     $TALOS_VERSION"
+echo -e "  Expected:  ${#EXPECTED_MACS[@]} nodes"
+for mac in "${EXPECTED_MACS[@]}"; do
+    echo -e "    - $mac"
+done
+echo ""
+
+# Phase 1: Wipe mode
+echo -e "${YELLOW}═══ PHASE 1: Wipe Mode ═══${NC}"
+echo -e "Starting booter with ${RED}wipe=system${NC} kernel arg..."
+echo -e "Nodes will wipe and reboot in a loop until all are seen.\n"
+
+start_booter "wipe"
+success "Booter started in wipe mode"
+echo -e "Waiting for all nodes to PXE boot (timeout: ${PHASE1_TIMEOUT}s)...\n"
+
+start_time=$SECONDS
+last_status_time=0
+
+while true; do
+    elapsed=$((SECONDS - start_time))
+
+    # Check timeout
+    if [[ $elapsed -ge $PHASE1_TIMEOUT ]]; then
+        echo -e "\n${RED}Timeout waiting for all nodes in phase 1${NC}"
+        print_mac_status
+        die "Phase 1 timed out after ${PHASE1_TIMEOUT}s"
+    fi
+
+    # Check if all MACs seen
+    if check_all_macs_seen; then
+        echo -e "\n${GREEN}All nodes have been seen!${NC}"
+        print_mac_status
+        break
+    fi
+
+    # Print status every 15 seconds
+    if [[ $((SECONDS - last_status_time)) -ge 15 ]]; then
+        print_mac_status
+        echo -e "  (${elapsed}s elapsed, waiting...)\n"
+        last_status_time=$SECONDS
+    fi
+
+    sleep 2
+done
+
+success "Phase 1 complete - all nodes have wiped"
+echo ""
+
+# Brief pause to let nodes finish current boot cycle
+echo "Waiting 5s for nodes to cycle..."
+sleep 5
+
+# Phase 2: Clean mode
+echo -e "${GREEN}═══ PHASE 2: Clean Mode ═══${NC}"
+echo -e "Restarting booter ${GREEN}without${NC} wipe arg..."
+echo -e "Nodes will now boot into maintenance mode.\n"
+
+start_booter ""
+success "Booter restarted in clean mode"
+
+# Node IPs (derived from standard cluster config)
+NODE_IPS=("192.168.1.71" "192.168.1.72" "192.168.1.73")
+
+echo -e "\nWaiting for nodes to enter maintenance mode (port 50000)..."
+
+phase2_start=$SECONDS
+PHASE2_TIMEOUT=300
+
+while true; do
+    elapsed=$((SECONDS - phase2_start))
+
+    # Check timeout
+    if [[ $elapsed -ge $PHASE2_TIMEOUT ]]; then
+        echo -e "\n${RED}Timeout waiting for maintenance mode${NC}"
+        die "Phase 2 timed out after ${PHASE2_TIMEOUT}s"
+    fi
+
+    # Check all nodes
+    up=0
+    for ip in "${NODE_IPS[@]}"; do
+        if nc -z -w1 "$ip" 50000 2>/dev/null; then
+            up=$((up + 1))
+        fi
+    done
+
+    echo -e "  ${up}/${#NODE_IPS[@]} nodes in maintenance mode (${elapsed}s)"
+
+    if [[ $up -eq ${#NODE_IPS[@]} ]]; then
+        echo -e "\n${GREEN}All nodes in maintenance mode!${NC}"
+        break
+    fi
+
+    sleep 5
+done
+
+success "Phase 2 complete - all nodes ready"
+
+# Don't stop booter here - let the calling script handle it
+# The trap will clean up on exit
+trap - EXIT  # Remove cleanup trap so booter keeps running
+echo -e "\n${GREEN}══════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}  Nodes ready for config application${NC}"
+echo -e "${GREEN}══════════════════════════════════════════════════════════${NC}"

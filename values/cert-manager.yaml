@@ -1,0 +1,21 @@
+# cert-manager configuration
+
+# Install CRDs
+installCRDs: true
+
+# Replicas
+replicaCount: 1
+
+# Resources
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+# Prometheus metrics
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: false  # Enable when prometheus is set up

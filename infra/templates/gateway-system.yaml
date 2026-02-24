@@ -1,0 +1,83 @@
+# Gateway System - L2 Pool and Gateways
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway-system
+---
+# L2 Announcement Policy
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+spec:
+  interfaces:
+    - ^eth[0-9]+
+    - ^en[a-z0-9]+
+  loadBalancerIPs: true
+  externalIPs: true
+---
+# LoadBalancer IP Pool
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: default-pool
+spec:
+  blocks:
+    - start: {{ .Values.gateway.internal.ip }}
+      stop: "192.168.1.220"
+---
+# Internal Gateway (*.home)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal
+  namespace: gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: home-ca
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.internal.ip }}
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.internal.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.internal.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+# External Gateway (DMZ)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: external
+  namespace: gateway-system
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.external.ip }}
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.external.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.external.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway-access: dmz

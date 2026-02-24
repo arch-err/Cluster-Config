@@ -1,0 +1,4 @@
+creation_rules:
+  - path_regex: talsecret.*\.yaml$
+    encrypted_regex: ^(secret|bootstraptoken|secretboxencryptionsecret|token|key|crt|ca)$
+    age: 'age1sjrw9cudya5fhnucvlhqsrfpv8g6zn56tvffx3ns5rr935z3v3aq7hydlz'

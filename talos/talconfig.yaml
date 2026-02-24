@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
+---
+clusterName: cluster
+talosVersion: v1.12.4
+kubernetesVersion: v1.34.0
+endpoint: https://192.168.1.70:6443
+
+allowSchedulingOnControlPlanes: true
+
+patches:
+  # Disable kube-proxy (Cilium replaces it)
+  - |-
+    cluster:
+      proxy:
+        disabled: true
+
+  # No CNI - Cilium installed separately
+  - |-
+    cluster:
+      network:
+        cni:
+          name: none
+
+  # Kubelet certificate rotation
+  - |-
+    machine:
+      kubelet:
+        extraArgs:
+          rotate-server-certificates: "true"
+
+controlPlane:
+  patches:
+    # Talos VIP for API HA
+    - |-
+      machine:
+        network:
+          interfaces:
+            - interface: enp1s0
+              dhcp: true
+              vip:
+                ip: 192.168.1.70
+
+    # etcd metrics exposure
+    - |-
+      cluster:
+        etcd:
+          extraArgs:
+            listen-metrics-urls: http://0.0.0.0:2381
+          advertisedSubnets:
+            - 192.168.1.0/24
+
+    # Pod Security Standards - restricted
+    - |-
+      cluster:
+        apiServer:
+          admissionControl:
+            - name: PodSecurity
+              configuration:
+                apiVersion: pod-security.admission.config.k8s.io/v1alpha1
+                kind: PodSecurityConfiguration
+                defaults:
+                  enforce: "restricted"
+                  enforce-version: "latest"
+                  audit: "restricted"
+                  audit-version: "latest"
+                  warn: "restricted"
+                  warn-version: "latest"
+                exemptions:
+                  namespaces:
+                    - cilium
+                    - longhorn-system
+
+    # Controller manager metrics
+    - |-
+      cluster:
+        controllerManager:
+          extraArgs:
+            bind-address: 0.0.0.0
+
+    # Scheduler metrics
+    - |-
+      cluster:
+        scheduler:
+          extraArgs:
+            bind-address: 0.0.0.0
+
+nodes:
+  - hostname: NODE-1
+    ipAddress: 192.168.1.71
+    controlPlane: true
+    installDisk: /dev/nvme0n1
+
+  - hostname: NODE-2
+    ipAddress: 192.168.1.72
+    controlPlane: true
+    installDisk: /dev/nvme0n1
+
+  - hostname: NODE-3
+    ipAddress: 192.168.1.73
+    controlPlane: true
+    installDisk: /dev/nvme0n1
