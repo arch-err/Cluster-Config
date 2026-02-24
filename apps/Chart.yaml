@@ -1,5 +1,0 @@
-apiVersion: v2
-name: apps
-description: Application catalog - generates ArgoCD Applications from catalog
-type: application
-version: 1.0.0

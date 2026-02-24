@@ -1,0 +1,89 @@
+# Infrastructure configuration
+# This file configures the 'infra' instance of the platform chart
+
+repoURL: https://github.com/arch-err/Cluster-Config.git
+targetRevision: v2
+valuesPath: values/infra
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMPONENTS (generates ArgoCD Applications)
+# ══════════════════════════════════════════════════════════════════════════════
+components:
+  - name: cilium
+    namespace: kube-system
+    chart:
+      repo: https://helm.cilium.io
+      name: cilium
+      version: 1.16.x
+    route:
+      hostname: hubble.home
+      service: hubble-ui
+      port: 80
+
+  - name: cert-manager
+    namespace: cert-manager
+    chart:
+      repo: https://charts.jetstack.io
+      name: cert-manager
+      version: 1.16.x
+    extraArgs:
+      - installCRDs=true
+
+  - name: argocd
+    namespace: argocd
+    chart:
+      repo: https://argoproj.github.io/argo-helm
+      name: argo-cd
+    syncWave: "-1"  # ArgoCD manages itself, sync early
+    route:
+      hostname: argocd.home
+      service: argocd-server
+      port: 80
+
+  - name: sops-secrets-operator
+    namespace: sops-secrets-operator
+    chart:
+      repo: https://isindir.github.io/sops-secrets-operator
+      name: sops-secrets-operator
+    syncWave: "-2"  # Before ArgoCD, so secrets are ready
+
+  # Add more infra components here:
+  # - name: external-dns
+  # - name: prometheus
+  # - name: loki
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXTRAS (raw resources managed directly)
+# ══════════════════════════════════════════════════════════════════════════════
+extras:
+  gateways: true
+  certIssuers: true
+  externalServices: true
+
+# Gateway configuration
+gateway:
+  pool:
+    start: "192.168.1.200"
+    stop: "192.168.1.220"
+  internal:
+    ip: "192.168.1.200"
+    domain: home
+    tlsSecret: wildcard-home-tls
+
+# External services (TLS passthrough to Docker host)
+external:
+  dockerHost: "192.168.1.60"
+  passthroughIP: "192.168.1.202"
+  services:
+    - name: homeassistant
+      hostname: homeassistant.home
+    - name: vault
+      hostname: vault.home
+    - name: ntfy
+      hostname: ntfy.home
+    - name: happy-api
+      hostname: happy.home
+    - name: happy-app
+      hostname: app.happy.home
+    - name: claude-notify
+      hostname: claude-notify.home

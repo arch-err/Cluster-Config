@@ -1,0 +1,30 @@
+# User Applications configuration
+# This file configures the 'apps' instance of the platform chart
+
+repoURL: https://github.com/arch-err/Cluster-Config.git
+targetRevision: v2
+valuesPath: values/apps
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMPONENTS (generates ArgoCD Applications)
+# ══════════════════════════════════════════════════════════════════════════════
+components: []
+  # Example apps (uncomment when ready):
+  #
+  # - name: homepage
+  #   namespace: homepage
+  #   chart:
+  #     repo: https://jameswynn.github.io/helm-charts
+  #     name: homepage
+  #   route:
+  #     hostname: home.home
+  #     port: 3000
+  #
+  # - name: grafana
+  #   namespace: monitoring
+  #   chart:
+  #     repo: https://grafana.github.io/helm-charts
+  #     name: grafana
+  #   route:
+  #     hostname: grafana.home
+  #     port: 3000

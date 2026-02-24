@@ -1,0 +1,96 @@
+# ArgoCD configuration with root apps
+# Install: helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f bootstrap/argocd.yaml
+#
+# This includes extraObjects that create the root ArgoCD Applications:
+#   - infra: platform chart with infra.yaml (cert-manager, gateways, external services)
+#   - apps: platform chart with apps.yaml (user applications)
+
+server:
+  ingress:
+    enabled: false  # Using Gateway API instead
+
+configs:
+  params:
+    server.insecure: true  # TLS terminated at gateway
+
+  cm:
+    # Enable helm-secrets plugin
+    helm.valuesFileSchemes: >-
+      secrets+age-import, secrets+age-import-kubernetes,
+      secrets+literal,
+      https
+
+    # Override resource exclusions - allow EndpointSlice (we manage external services)
+    resource.exclusions: |
+      - apiGroups:
+          - ''
+        kinds:
+          - Endpoints
+      - apiGroups:
+          - coordination.k8s.io
+        kinds:
+          - Lease
+      - apiGroups:
+          - cilium.io
+        kinds:
+          - CiliumIdentity
+          - CiliumEndpoint
+          - CiliumEndpointSlice
+
+# Bootstrap Applications - ArgoCD creates these on first install
+extraObjects:
+  # Infrastructure root app
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: infra
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/arch-err/Cluster-Config.git
+        targetRevision: v2
+        path: kubernetes/platform
+        helm:
+          valueFiles:
+            - ../infra.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+
+  # User applications root app
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: apps
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/arch-err/Cluster-Config.git
+        targetRevision: v2
+        path: kubernetes/platform
+        helm:
+          valueFiles:
+            - ../apps.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

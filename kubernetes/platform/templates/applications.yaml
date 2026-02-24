@@ -1,0 +1,47 @@
+{{- $root := . -}}
+{{- range .Values.components }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .syncWave | default "0" | quote }}
+spec:
+  project: default
+  sources:
+    # Values from Git repo
+    - repoURL: {{ $root.Values.repoURL }}
+      targetRevision: {{ $root.Values.targetRevision }}
+      ref: repo
+
+    # Helm chart
+    - repoURL: {{ .chart.repo }}
+      targetRevision: {{ .chart.version | default "*" }}
+      chart: {{ .chart.name }}
+      helm:
+        valueFiles:
+          - $repo/{{ $root.Values.valuesPath }}/{{ .name }}.yaml
+        {{- if .extraArgs }}
+        parameters:
+          {{- range .extraArgs }}
+          - name: {{ (split "=" .)._0 }}
+            value: {{ (split "=" .)._1 | quote }}
+          {{- end }}
+        {{- end }}
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .namespace | default .name }}
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+{{- end }}

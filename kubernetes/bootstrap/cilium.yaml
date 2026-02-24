@@ -1,7 +1,7 @@
-# Cilium Helm values for Talos Linux
-# Optimized for 3-node control plane cluster with kube-proxy replacement
+# Cilium configuration for Talos + Gateway API
+# Install: helm upgrade --install cilium cilium/cilium -n kube-system -f bootstrap/cilium.yaml
 
-# Kubernetes API server (use VIP)
+# Kubernetes API server
 k8sServiceHost: 192.168.1.70
 k8sServicePort: 6443
 
@@ -38,6 +38,10 @@ securityContext:
       - SYS_ADMIN
       - SYS_RESOURCE
 
+# Gateway API support
+gatewayAPI:
+  enabled: true
+
 # L2 announcements for LoadBalancer services
 l2announcements:
   enabled: true
@@ -46,17 +50,44 @@ l2announcements:
 externalIPs:
   enabled: true
 
+# Native routing (no tunneling) - required for DSR
+routingMode: native
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: 10.244.0.0/16
+
+# eBPF load balancing
+loadBalancer:
+  mode: dsr
+  algorithm: maglev
+
+# BPF settings
+bpf:
+  masquerade: true
+  hostLegacyRouting: false
+
+# Enable socket-level load balancing for host
+socketLB:
+  enabled: true
+  hostNamespaceOnly: false
+
 # Operator configuration
 operator:
   replicas: 1
 
-# Hubble observability (optional - enable for debugging)
+# Hubble observability
 hubble:
-  enabled: false
+  enabled: true
   relay:
-    enabled: false
+    enabled: true
   ui:
-    enabled: false
+    enabled: true
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload
 
 # Rollout configuration
 rollOutCiliumPods: true

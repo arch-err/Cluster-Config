@@ -1,0 +1,223 @@
+{{/*
+Extra resources for infrastructure (gateways, cert-issuers, external services)
+Only rendered when extras.* is enabled in values
+*/}}
+
+{{- if .Values.extras }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* GATEWAY SYSTEM                                                              */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.gateways }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway-system
+---
+# L2 Announcement Policy
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  interfaces:
+    - ^eth[0-9]+
+    - ^en[a-z0-9]+
+  loadBalancerIPs: true
+  externalIPs: true
+---
+# LoadBalancer IP Pool
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: default-pool
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  blocks:
+    - start: {{ .Values.gateway.pool.start }}
+      stop: {{ .Values.gateway.pool.stop }}
+---
+# ReferenceGrant for cert access
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-certs
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: gateway-system
+  to:
+    - group: ""
+      kind: Secret
+---
+# Internal Gateway (*.home)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: internal
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.internal.ip }}
+  listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.internal.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.internal.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* CERT ISSUERS                                                                */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.certIssuers }}
+---
+# CA Issuer using pre-existing root CA secret
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: home-ca
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  ca:
+    secretName: home-root-ca
+---
+# Wildcard certificate for *.home
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-home
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretName: {{ .Values.gateway.internal.tlsSecret }}
+  duration: 8760h
+  renewBefore: 720h
+  commonName: "*.{{ .Values.gateway.internal.domain }}"
+  dnsNames:
+    - "*.{{ .Values.gateway.internal.domain }}"
+    - "{{ .Values.gateway.internal.domain }}"
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* EXTERNAL SERVICES (TLS Passthrough to Docker host)                         */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.externalServices }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external
+---
+# Service pointing to Docker host
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-traefik
+  namespace: external
+spec:
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+---
+# EndpointSlice for Docker host
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: docker-traefik-external
+  namespace: external
+  labels:
+    kubernetes.io/service-name: docker-traefik
+addressType: IPv4
+endpoints:
+  - addresses:
+      - {{ .Values.external.dockerHost }}
+ports:
+  - name: https
+    port: 443
+    protocol: TCP
+---
+# Passthrough Gateway
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: passthrough
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.external.passthroughIP }}
+  listeners:
+{{- range .Values.external.services }}
+    - name: {{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+---
+# TLSRoutes for external services
+{{- range .Values.external.services }}
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: {{ .name }}
+  namespace: external
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - name: passthrough
+      namespace: gateway-system
+      sectionName: {{ .name }}
+  hostnames:
+    - {{ .hostname }}
+  rules:
+    - backendRefs:
+        - name: docker-traefik
+          port: 443
+{{- end }}
+{{- end }}
+
+{{- end }}

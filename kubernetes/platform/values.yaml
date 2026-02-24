@@ -1,0 +1,13 @@
+# Default values for platform chart
+# These should be overridden by infra.yaml or apps.yaml
+
+repoURL: ""
+targetRevision: ""
+valuesPath: ""
+
+components: []
+
+# Extras (infrastructure only)
+extras: {}
+gateway: {}
+external: {}

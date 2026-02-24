@@ -1,0 +1,23 @@
+{{- range .Values.components }}
+{{- if .route }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace | default .name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - name: {{ .route.gateway | default "internal" }}
+      namespace: gateway-system
+  hostnames:
+    - {{ .route.hostname }}
+  rules:
+    - backendRefs:
+        - name: {{ .route.service | default .name }}
+          port: {{ .route.port | default 80 }}
+{{- end }}
+{{- end }}

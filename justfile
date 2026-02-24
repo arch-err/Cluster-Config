@@ -26,7 +26,6 @@ booter_interface := "enp0s20f0u2u1u2"
 talos_dir := "talos"
 cluster_dir := talos_dir / "clusterconfig"
 talosconfig := cluster_dir / "talosconfig"
-k8s_infra := "kubernetes/infra"
 
 # Default recipe
 default:
@@ -56,20 +55,24 @@ bootstrap: generate booter-wipe _apply-all-nodes _booter-stop _bootstrap-cluster
 # KUBERNETES LAYER
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Install all K8s infrastructure: Cilium, storage (local-path + Kadalu), ArgoCD
-install: install-cilium install-local-path install-kadalu install-argocd
+# Install K8s infrastructure: Cilium + ArgoCD (ArgoCD manages the rest via GitOps)
+install: install-cilium deploy-secrets install-argocd
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
     @echo "  ✓ Kubernetes infrastructure installed!"
     @echo ""
-    @echo "  CNI: Cilium with L2 announcements"
-    @echo "  Storage: local-path (NVMe) + kadalu.replica2 (external drives)"
-    @echo "  GitOps: ArgoCD"
+    @echo "  CNI: Cilium with Gateway API + L2 announcements"
+    @echo "  GitOps: ArgoCD (managing infra + apps via GitOps)"
+    @echo ""
+    @echo "  ArgoCD will now sync all infrastructure from Git:"
+    @echo "    - cert-manager, gateways, certificates"
+    @echo "    - external service proxies"
+    @echo "    - user applications"
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
 
 # Uninstall all K8s infrastructure (reverse order)
-uninstall: uninstall-argocd uninstall-kadalu uninstall-local-path uninstall-cilium
+uninstall: uninstall-argocd uninstall-cilium
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
     @echo "  ✓ Kubernetes infrastructure uninstalled"
@@ -88,15 +91,16 @@ install-cilium:
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
     helm repo update cilium >/dev/null
+    # Install experimental Gateway API CRDs (TLSRoute, etc. required by Cilium)
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml 2>/dev/null || true
     helm upgrade --install cilium cilium/cilium \
         --namespace kube-system \
-        --values {{k8s_infra}}/cilium/values.yaml \
+        --values kubernetes/bootstrap/cilium.yaml \
         --wait --timeout 5m
     echo "✓ Cilium installed"
     echo "   Waiting for Cilium pods..."
     kubectl -n kube-system rollout status ds/cilium --timeout=3m
-    kubectl apply -f {{k8s_infra}}/cilium/lb-pool.yaml
-    echo "✓ Cilium L2 pool configured"
+    echo "✓ Cilium ready"
 
 # Uninstall Cilium (WARNING: breaks networking!)
 uninstall-cilium:
@@ -104,79 +108,12 @@ uninstall-cilium:
     set -euo pipefail
     echo "══ Uninstalling Cilium..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl delete -f {{k8s_infra}}/cilium/lb-pool.yaml 2>/dev/null || true
     helm uninstall cilium -n kube-system 2>/dev/null || true
     echo "✓ Cilium uninstalled"
 
-# ── Local Path Provisioner ────────────────────────────────────────────────────
-
-# Install Local Path Provisioner (node-local NVMe storage)
-install-local-path:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Installing Local Path Provisioner..."
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl apply -f {{k8s_infra}}/local-path/manifest.yaml
-    echo "   Waiting for provisioner pod..."
-    kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=2m
-    echo "✓ Local Path Provisioner installed"
-
-# Uninstall Local Path Provisioner
-uninstall-local-path:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Uninstalling Local Path Provisioner..."
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl delete -f {{k8s_infra}}/local-path/manifest.yaml 2>/dev/null || true
-    echo "✓ Local Path Provisioner uninstalled"
-
-# ── Kadalu (GlusterFS) ────────────────────────────────────────────────────────
-
-# Install Kadalu operator and storage
-install-kadalu:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Installing Kadalu..."
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    # Create namespace with privileged PodSecurity
-    kubectl apply -f {{k8s_infra}}/kadalu/namespace.yaml
-    # Install Kadalu operator via Helm (direct from GitHub release)
-    helm upgrade --install kadalu \
-        https://github.com/kadalu/kadalu/releases/latest/download/kadalu-helm-chart.tgz \
-        --namespace kadalu \
-        --set operator.enabled=true \
-        --set global.kubernetesDistro=kubernetes \
-        --wait --timeout 5m
-    echo "✓ Kadalu operator installed"
-    echo "   Waiting for operator to be ready..."
-    kubectl -n kadalu rollout status deployment/operator --timeout=2m
-    echo "   Waiting for CSI provisioner..."
-    kubectl -n kadalu rollout status statefulset/kadalu-csi-provisioner --timeout=3m
-    # Create storage pool (Replica2 with tiebreaker)
-    echo "   Creating Replica2 storage pool..."
-    kubectl apply -f {{k8s_infra}}/kadalu/storage.yaml
-    # Apply StorageClass with default annotation
-    kubectl apply -f {{k8s_infra}}/kadalu/storageclass.yaml
-    echo "✓ Kadalu storage configured (default StorageClass)"
-    echo ""
-    echo "  StorageClass: kadalu.replica2"
-    echo "  Drives: node-1:/dev/sda + node-2:/dev/sda (mirrored)"
-    echo "  Tiebreaker: node-3"
-
-# Uninstall Kadalu (WARNING: deletes all PVs!)
-uninstall-kadalu:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Uninstalling Kadalu..."
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl delete -f {{k8s_infra}}/kadalu/storage.yaml 2>/dev/null || true
-    helm uninstall kadalu -n kadalu 2>/dev/null || true
-    kubectl delete namespace kadalu --timeout=5m 2>/dev/null || true
-    echo "✓ Kadalu uninstalled"
-
 # ── ArgoCD ────────────────────────────────────────────────────────────────────
 
-# Install ArgoCD
+# Install ArgoCD (includes root apps via extraObjects)
 install-argocd:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -184,14 +121,19 @@ install-argocd:
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
     helm repo update argo >/dev/null
+    # bootstrap/argocd.yaml includes extraObjects for infra + apps root Applications
     helm upgrade --install argocd argo/argo-cd \
         --namespace argocd --create-namespace \
-        --values {{k8s_infra}}/argocd/values.yaml \
+        --values kubernetes/bootstrap/argocd.yaml \
         --wait --timeout 5m
-    echo "✓ ArgoCD installed"
+    echo "✓ ArgoCD installed with root applications"
+    echo ""
+    echo "  ArgoCD will sync:"
+    echo "    - infra: platform chart with infra.yaml values"
+    echo "    - apps: platform chart with apps.yaml values"
     echo ""
     echo "  Get admin password:"
-    echo "    kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+    echo "    just argocd-password"
 
 # Uninstall ArgoCD
 uninstall-argocd:
@@ -205,8 +147,34 @@ uninstall-argocd:
     kubectl delete namespace argocd --timeout=2m 2>/dev/null || true
     echo "✓ ArgoCD uninstalled"
 
-# Deploy SOPS-encrypted secrets (run before argocd-bootstrap)
-deploy-secrets:
+# Deploy SOPS age key (required for sops-secrets-operator)
+deploy-age-key:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "══ Deploying SOPS age key..."
+    export KUBECONFIG={{cluster_dir}}/kubeconfig
+
+    # Find age key file
+    AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+    if [[ ! -f "$AGE_KEY_FILE" ]]; then
+        echo "Error: Age key not found at $AGE_KEY_FILE"
+        echo "Set SOPS_AGE_KEY_FILE or create key with: age-keygen -o ~/.config/sops/age/keys.txt"
+        exit 1
+    fi
+
+    # Create namespace if needed
+    kubectl create namespace sops-secrets-operator 2>/dev/null || true
+
+    # Create secret with age key
+    kubectl create secret generic sops-age-key \
+        --namespace sops-secrets-operator \
+        --from-file=keys.txt="$AGE_KEY_FILE" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+    echo "✓ Age key deployed to sops-secrets-operator namespace"
+
+# Deploy SOPS-encrypted secrets (run before ArgoCD needs them)
+deploy-secrets: deploy-age-key
     #!/usr/bin/env bash
     set -euo pipefail
     echo "══ Deploying SOPS-encrypted secrets..."
@@ -216,7 +184,8 @@ deploy-secrets:
     # Ensure cert-manager namespace exists
     kubectl create namespace cert-manager 2>/dev/null || true
 
-    # Decrypt and apply each secret
+    # Decrypt and apply each secret (run from kubernetes/ for .sops.yaml)
+    cd kubernetes
     for secret in secrets/*.yaml; do
         if [ -f "$secret" ]; then
             echo "   Deploying $(basename $secret)..."
@@ -224,16 +193,6 @@ deploy-secrets:
         fi
     done
     echo "✓ Secrets deployed"
-
-# Bootstrap ArgoCD App of Apps (after install-argocd)
-argocd-bootstrap: deploy-secrets
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Bootstrapping ArgoCD App of Apps..."
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl apply -f root.yaml
-    echo "✓ ArgoCD root application created"
-    echo "   ArgoCD will now sync all apps from Git"
 
 # Get ArgoCD admin password
 argocd-password:
