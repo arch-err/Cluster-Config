@@ -62,6 +62,13 @@ loadBalancer:
 # BPF settings
 bpf:
   masquerade: true
+  # Enable host routing to reach pods from node
+  hostLegacyRouting: false
+
+# Enable socket-level load balancing for host
+socketLB:
+  enabled: true
+  hostNamespaceOnly: false
 
 # Operator configuration
 operator:
