@@ -1,0 +1,28 @@
+# ArgoCD Application for Cilium
+# This allows ArgoCD to manage Cilium config after initial bootstrap
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://helm.cilium.io
+    chart: cilium
+    targetRevision: "*"  # Latest
+    helm:
+      valueFiles:
+        - values.yaml
+      # Values are sourced from Git repo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-delete - CNI is critical
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

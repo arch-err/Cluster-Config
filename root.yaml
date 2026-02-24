@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:arch-err/Cluster-Config.git
+    repoURL: https://github.com/arch-err/Cluster-Config.git
     targetRevision: v2
     path: infra
   destination:
@@ -31,7 +31,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:arch-err/Cluster-Config.git
+    repoURL: https://github.com/arch-err/Cluster-Config.git
     targetRevision: v2
     path: apps
   destination:

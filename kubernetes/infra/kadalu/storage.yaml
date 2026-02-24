@@ -1,0 +1,19 @@
+# Kadalu Replica2 storage with tiebreaker
+# - node-1: /dev/sda (4TB external)
+# - node-2: /dev/sda (4TB external)
+# - node-3: tiebreaker (thin arbiter)
+apiVersion: kadalu-operator.storage/v1alpha1
+kind: KadaluStorage
+metadata:
+  name: replica2
+spec:
+  type: Replica2
+  storage:
+    - node: node-1
+      device: /dev/sda
+    - node: node-2
+      device: /dev/sda
+  tiebreaker:
+    node: node-3
+    path: /var/lib/kadalu/tiebreaker
+    port: 24007

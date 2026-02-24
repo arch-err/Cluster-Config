@@ -1,0 +1,19 @@
+# Local Path Provisioner Helm values
+# Provides fast node-local storage on NVMe
+
+storageClass:
+  name: local-path
+  defaultClass: false  # longhorn is default
+  reclaimPolicy: Delete
+
+# Path on nodes where PVs will be created
+# This should be a partition on the NVMe (~100GB)
+# TODO: Update Talos config to create this partition
+nodePathMap:
+  - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
+    paths:
+      - /var/local-path-provisioner
+
+# Helper pod configuration
+helperPod:
+  image: busybox:latest

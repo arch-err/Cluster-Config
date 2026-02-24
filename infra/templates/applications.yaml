@@ -11,7 +11,7 @@ spec:
   project: default
   sources:
     # Git repo for values files
-    - repoURL: git@github.com:{{ $.Values.sourceRepo }}.git
+    - repoURL: https://github.com/{{ $.Values.sourceRepo }}.git
       targetRevision: {{ $.Values.sourceRepoBranch }}
       ref: repo
 
