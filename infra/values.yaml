@@ -60,9 +60,10 @@ components:
   #   values: true
   #   secrets: true
 
-# External services - proxied to Docker host via Traefik
+# External services - proxied to Docker host via Traefik (TLS passthrough)
 external:
   dockerHost: 192.168.1.60
+  passthroughIP: 192.168.1.202  # Separate IP for passthrough gateway
   services:
     - name: homeassistant
       hostname: homeassistant.home

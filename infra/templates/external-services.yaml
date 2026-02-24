@@ -1,4 +1,4 @@
-# External Services - Proxy to Docker host via Traefik
+# External Services - Proxy to Docker host via Traefik (TLS Passthrough)
 ---
 apiVersion: v1
 kind: Namespace
@@ -21,7 +21,7 @@ spec:
       port: 443
       targetPort: 443
 ---
-# EndpointSlice for the Docker host (newer API, not excluded by ArgoCD)
+# EndpointSlice for the Docker host
 apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
@@ -40,28 +40,37 @@ ports:
     port: 443
     protocol: TCP
 ---
-# BackendTLSPolicy - re-encrypt traffic to Traefik
-apiVersion: gateway.networking.k8s.io/v1alpha3
-kind: BackendTLSPolicy
+# Passthrough Gateway for external services (separate from internal gateway)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
 metadata:
-  name: docker-traefik-tls
-  namespace: external
+  name: passthrough
+  namespace: gateway-system
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "5"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  targetRefs:
-    - group: ""
-      kind: Service
-      name: docker-traefik
-  validation:
-    wellKnownCACertificates: System
-    hostname: traefik.home
----
-# HTTPRoutes for each external service
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.external.passthroughIP }}
+  listeners:
 {{- range .Values.external.services }}
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+    - name: {{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+---
+# TLSRoutes for each external service (passthrough to Traefik)
+{{- range .Values.external.services }}
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
 metadata:
   name: {{ .name }}
   namespace: external
@@ -70,10 +79,11 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - name: internal
+    - name: passthrough
       namespace: gateway-system
+      sectionName: {{ .name }}
   hostnames:
-    - "{{ .hostname }}"
+    - {{ .hostname }}
   rules:
     - backendRefs:
         - name: docker-traefik
