@@ -35,6 +35,24 @@ spec:
     - start: {{ .Values.gateway.internal.ip }}
       stop: "192.168.1.220"
 ---
+# ReferenceGrant: Allow gateways to reference certs in cert-manager namespace
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-certs
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: gateway-system
+  to:
+    - group: ""
+      kind: Secret
+---
 # Internal Gateway (depends on Gateway API CRDs)
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
