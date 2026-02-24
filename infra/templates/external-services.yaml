@@ -21,20 +21,24 @@ spec:
       port: 443
       targetPort: 443
 ---
-# Endpoints for the Docker host
-apiVersion: v1
-kind: Endpoints
+# EndpointSlice for the Docker host (newer API, not excluded by ArgoCD)
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
 metadata:
-  name: docker-traefik
+  name: docker-traefik-external
   namespace: external
+  labels:
+    kubernetes.io/service-name: docker-traefik
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-subsets:
+addressType: IPv4
+endpoints:
   - addresses:
-      - ip: {{ .Values.external.dockerHost }}
-    ports:
-      - name: https
-        port: 443
+      - {{ .Values.external.dockerHost }}
+ports:
+  - name: https
+    port: 443
+    protocol: TCP
 ---
 # HTTPRoutes for each external service
 {{- range .Values.external.services }}
