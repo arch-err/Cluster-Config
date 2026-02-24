@@ -205,15 +205,35 @@ uninstall-argocd:
     kubectl delete namespace argocd --timeout=2m 2>/dev/null || true
     echo "✓ ArgoCD uninstalled"
 
+# Deploy SOPS-encrypted secrets (run before argocd-bootstrap)
+deploy-secrets:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "══ Deploying SOPS-encrypted secrets..."
+    export KUBECONFIG={{cluster_dir}}/kubeconfig
+    source .envrc 2>/dev/null || true
+
+    # Ensure cert-manager namespace exists
+    kubectl create namespace cert-manager 2>/dev/null || true
+
+    # Decrypt and apply each secret
+    for secret in secrets/*.yaml; do
+        if [ -f "$secret" ]; then
+            echo "   Deploying $(basename $secret)..."
+            sops -d "$secret" | kubectl apply -f -
+        fi
+    done
+    echo "✓ Secrets deployed"
+
 # Bootstrap ArgoCD App of Apps (after install-argocd)
-argocd-bootstrap:
+argocd-bootstrap: deploy-secrets
     #!/usr/bin/env bash
     set -euo pipefail
     echo "══ Bootstrapping ArgoCD App of Apps..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
-    kubectl apply -f kubernetes/apps/root.yaml
+    kubectl apply -f root.yaml
     echo "✓ ArgoCD root application created"
-    echo "   ArgoCD will now sync all apps from kubernetes/apps/"
+    echo "   ArgoCD will now sync all apps from Git"
 
 # Get ArgoCD admin password
 argocd-password:
