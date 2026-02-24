@@ -49,4 +49,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      {{- if eq .name "argocd" }}
+      - SkipHooks=true
+      {{- end }}
 {{- end }}

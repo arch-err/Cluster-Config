@@ -49,6 +49,11 @@ l2announcements:
 externalIPs:
   enabled: true
 
+# Native routing (no tunneling) - required for DSR
+routingMode: native
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: 10.244.0.0/16
+
 # eBPF load balancing
 loadBalancer:
   mode: dsr
