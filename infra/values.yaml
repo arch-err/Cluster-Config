@@ -59,3 +59,20 @@ components:
   #     version: 24.x
   #   values: true
   #   secrets: true
+
+# External services - proxied to Docker host via Traefik
+external:
+  dockerHost: 192.168.1.60
+  services:
+    - name: homeassistant
+      hostname: homeassistant.home
+    - name: vault
+      hostname: vault.home
+    - name: ntfy
+      hostname: ntfy.home
+    - name: happy-api
+      hostname: happy.home
+    - name: happy-app
+      hostname: app.happy.home
+    - name: claude-notify
+      hostname: claude-notify.home
