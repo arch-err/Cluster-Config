@@ -3,7 +3,7 @@
 
 repoURL: https://github.com/arch-err/Cluster-Config.git
 targetRevision: v2
-valuesPath: values/infra
+valuesPath: kubernetes/values/infra
 
 # ══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (generates ArgoCD Applications)
