@@ -69,7 +69,7 @@ extras:
   gateways: true
   certIssuers: true
   externalServices: true
-  kadalu: true
+  kadalu: false  # Disabled until we figure out kadalu installation method
 
 # Gateway configuration
 gateway:
