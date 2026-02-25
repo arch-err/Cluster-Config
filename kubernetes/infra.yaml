@@ -47,12 +47,15 @@ components:
       name: sops-secrets-operator
     syncWave: "-2"  # Before ArgoCD, so secrets are ready
 
-  - name: kadalu
-    namespace: kadalu
-    chart:
-      repo: https://kadalu.github.io/helm-charts
-      name: kadalu
-    syncWave: "1"  # After base infra, before storage consumers
+# Kadalu is installed via extras.yaml resources only (no helm chart in standard repo)
+# The kadalu operator needs to be installed manually or via a different method
+# For now, we'll use kustomize/raw manifests in the future
+#  - name: kadalu
+#    namespace: kadalu
+#    chart:
+#      repo: https://kadalu.github.io/helm-charts
+#      name: kadalu
+#    syncWave: "1"  # After base infra, before storage consumers
 
   # Add more infra components here:
   # - name: external-dns
