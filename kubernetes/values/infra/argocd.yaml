@@ -8,6 +8,10 @@ configs:
     server.insecure: true  # TLS terminated at gateway
 
   cm:
+    # Enable web terminal (exec into pods from UI)
+    exec.enabled: "true"
+    exec.shells: "bash,sh,zsh"
+
     # Enable helm-secrets plugin
     helm.valuesFileSchemes: >-
       secrets+age-import, secrets+age-import-kubernetes,

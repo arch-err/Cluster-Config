@@ -1,0 +1,11 @@
+# Kadalu Operator configuration
+# Storage pools and classes are created via extras.kadalu in infra.yaml
+
+operator:
+  enabled: true
+
+global:
+  kubernetesDistro: kubernetes
+
+# Verbose logging for debugging
+verbose: false

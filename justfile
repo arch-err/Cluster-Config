@@ -55,8 +55,8 @@ bootstrap: generate booter-wipe _apply-all-nodes _booter-stop _bootstrap-cluster
 # KUBERNETES LAYER
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Install K8s infrastructure: Cilium + ArgoCD (ArgoCD manages the rest via GitOps)
-install: install-cilium deploy-secrets install-argocd
+# Install K8s infrastructure: Cilium + ArgoCD + age key (ArgoCD manages the rest via GitOps)
+install: install-cilium install-argocd deploy-age-key
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
     @echo "  ✓ Kubernetes infrastructure installed!"
@@ -65,8 +65,10 @@ install: install-cilium deploy-secrets install-argocd
     @echo "  GitOps: ArgoCD (managing infra + apps via GitOps)"
     @echo ""
     @echo "  ArgoCD will now sync all infrastructure from Git:"
+    @echo "    - sops-secrets-operator (decrypts SopsSecrets)"
+    @echo "    - infra-secrets (root CA, etc.)"
     @echo "    - cert-manager, gateways, certificates"
-    @echo "    - external service proxies"
+    @echo "    - kadalu storage"
     @echo "    - user applications"
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
@@ -173,26 +175,32 @@ deploy-age-key:
 
     echo "✓ Age key deployed to sops-secrets-operator namespace"
 
-# Deploy SOPS-encrypted secrets (run before ArgoCD needs them)
-deploy-secrets: deploy-age-key
+# [DEPRECATED] Manual secret deployment - secrets are now managed by ArgoCD via SopsSecrets
+# Use this only for debugging or if you need to manually apply a secret
+deploy-secrets-manual:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "══ Deploying SOPS-encrypted secrets..."
+    echo "══ Manually deploying SOPS-encrypted secrets..."
+    echo "   NOTE: Secrets are normally managed by ArgoCD + sops-secrets-operator"
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     source .envrc 2>/dev/null || true
 
-    # Ensure cert-manager namespace exists
-    kubectl create namespace cert-manager 2>/dev/null || true
-
-    # Decrypt and apply each secret (run from kubernetes/ for .sops.yaml)
+    # Apply SopsSecrets from infra
     cd kubernetes
-    for secret in secrets/*.yaml; do
-        if [ -f "$secret" ]; then
-            echo "   Deploying $(basename $secret)..."
-            sops -d "$secret" | kubectl apply -f -
+    for secret in secrets/infra/*.yaml; do
+        if [ -f "$secret" ] && [ "$(basename $secret)" != ".gitkeep" ]; then
+            echo "   Applying $(basename $secret)..."
+            kubectl apply -f "$secret"
         fi
     done
-    echo "✓ Secrets deployed"
+    # Apply SopsSecrets from apps
+    for secret in secrets/apps/*.yaml; do
+        if [ -f "$secret" ] && [ "$(basename $secret)" != ".gitkeep" ]; then
+            echo "   Applying $(basename $secret)..."
+            kubectl apply -f "$secret"
+        fi
+    done
+    echo "✓ SopsSecrets applied (operator will decrypt them)"
 
 # Get ArgoCD admin password
 argocd-password:

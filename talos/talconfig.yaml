@@ -68,7 +68,7 @@ controlPlane:
                 exemptions:
                   namespaces:
                     - cilium
-                    - longhorn-system
+                    - kadalu
 
     # Controller manager metrics
     - |-

@@ -96,7 +96,7 @@ controlPlane:
                 exemptions:
                   namespaces:
                     - cilium
-                    - longhorn-system
+                    - kadalu
 
 nodes:
   - hostname: NODE-1
@@ -304,5 +304,5 @@ defaults:
 exemptions:
   namespaces:
     - cilium
-    - longhorn-system
+    - kadalu
 ```

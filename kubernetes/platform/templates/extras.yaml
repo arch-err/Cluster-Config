@@ -61,7 +61,7 @@ spec:
     - group: ""
       kind: Secret
 ---
-# Internal Gateway (*.home)
+# Internal Gateway (*.home) with TLS termination + passthrough for external services
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -76,6 +76,7 @@ spec:
     - type: IPAddress
       value: {{ .Values.gateway.internal.ip }}
   listeners:
+    # HTTPS listener for TLS termination (wildcard)
     - name: https
       port: 443
       protocol: HTTPS
@@ -88,6 +89,20 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+{{- if .Values.extras.externalServices }}
+    # TLS passthrough listeners for external services (SNI-based routing)
+{{- range .Values.external.services }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
@@ -168,34 +183,7 @@ ports:
     port: 443
     protocol: TCP
 ---
-# Passthrough Gateway
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: passthrough
-  namespace: gateway-system
-  annotations:
-    argocd.argoproj.io/sync-wave: "5"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  gatewayClassName: cilium
-  addresses:
-    - type: IPAddress
-      value: {{ .Values.external.passthroughIP }}
-  listeners:
-{{- range .Values.external.services }}
-    - name: {{ .name }}
-      port: 443
-      protocol: TLS
-      hostname: {{ .hostname }}
-      tls:
-        mode: Passthrough
-      allowedRoutes:
-        namespaces:
-          from: All
-{{- end }}
----
-# TLSRoutes for external services
+# TLSRoutes for external services (passthrough via internal gateway)
 {{- range .Values.external.services }}
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
@@ -208,9 +196,9 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - name: passthrough
+    - name: internal
       namespace: gateway-system
-      sectionName: {{ .name }}
+      sectionName: passthrough-{{ .name }}
   hostnames:
     - {{ .hostname }}
   rules:
@@ -218,6 +206,62 @@ spec:
         - name: docker-traefik
           port: 443
 {{- end }}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* KADALU STORAGE                                                             */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.kadalu }}
+---
+# Kadalu namespace with privileged PodSecurity (required for storage operations)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kadalu
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+# Kadalu Replica2 storage with tiebreaker
+# - node-1: /dev/sda (4TB external)
+# - node-2: /dev/sda (4TB external)
+# - node-3: tiebreaker (thin arbiter)
+apiVersion: kadalu-operator.storage/v1alpha1
+kind: KadaluStorage
+metadata:
+  name: replica2
+  namespace: kadalu
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: Replica2
+  storage:
+    - node: {{ .Values.kadalu.nodes.primary }}
+      device: {{ .Values.kadalu.device }}
+    - node: {{ .Values.kadalu.nodes.secondary }}
+      device: {{ .Values.kadalu.device }}
+  tiebreaker:
+    node: {{ .Values.kadalu.nodes.tiebreaker }}
+    path: /var/lib/kadalu/tiebreaker
+    port: 24007
+---
+# StorageClass for kadalu.replica2 (set as default)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kadalu.replica2
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+    argocd.argoproj.io/sync-wave: "7"
+provisioner: kadalu
+parameters:
+  storage_name: replica2
+  single_pv_per_pool: "False"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
 {{- end }}
 
 {{- end }}

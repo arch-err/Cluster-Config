@@ -1,8 +1,6 @@
-# ArgoCD configuration with root apps
-# Install: helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f bootstrap/argocd.yaml
-#
+#!/usr/bin/env -S helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f argocd.yaml
 # This includes extraObjects that create the root ArgoCD Applications:
-#   - infra: platform chart with infra.yaml (cert-manager, gateways, external services)
+#   - infra: platform chart with infra.yaml (cert-manager, gateways, external services, etc.)
 #   - apps: platform chart with apps.yaml (user applications)
 
 server:
@@ -14,6 +12,10 @@ configs:
     server.insecure: true  # TLS terminated at gateway
 
   cm:
+    # Enable web terminal (exec into pods from UI)
+    exec.enabled: "true"
+    exec.shells: "bash,sh,zsh"
+
     # Enable helm-secrets plugin
     helm.valuesFileSchemes: >-
       secrets+age-import, secrets+age-import-kubernetes,
@@ -84,6 +86,59 @@ extraObjects:
         helm:
           valueFiles:
             - ../apps.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+
+  # Infrastructure secrets (SopsSecrets managed by sops-secrets-operator)
+  # Syncs after cert-manager creates its namespace (wave 2 > cert-manager default wave)
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: infra-secrets
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "2"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/arch-err/Cluster-Config.git
+        targetRevision: v2
+        path: kubernetes/secrets/infra
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+
+  # Application secrets (SopsSecrets for user applications)
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: apps-secrets
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/arch-err/Cluster-Config.git
+        targetRevision: v2
+        path: kubernetes/secrets/apps
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd

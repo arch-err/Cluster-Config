@@ -47,6 +47,13 @@ components:
       name: sops-secrets-operator
     syncWave: "-2"  # Before ArgoCD, so secrets are ready
 
+  - name: kadalu
+    namespace: kadalu
+    chart:
+      repo: https://kadalu.github.io/helm-charts
+      name: kadalu
+    syncWave: "1"  # After base infra, before storage consumers
+
   # Add more infra components here:
   # - name: external-dns
   # - name: prometheus
@@ -59,6 +66,7 @@ extras:
   gateways: true
   certIssuers: true
   externalServices: true
+  kadalu: true
 
 # Gateway configuration
 gateway:
@@ -70,10 +78,9 @@ gateway:
     domain: home
     tlsSecret: wildcard-home-tls
 
-# External services (TLS passthrough to Docker host)
+# External services (TLS passthrough to Docker host via SNI routing)
 external:
   dockerHost: "192.168.1.60"
-  passthroughIP: "192.168.1.202"
   services:
     - name: homeassistant
       hostname: homeassistant.home
@@ -87,3 +94,11 @@ external:
       hostname: app.happy.home
     - name: claude-notify
       hostname: claude-notify.home
+
+# Kadalu distributed storage configuration
+kadalu:
+  device: /dev/sda  # 4TB external drives on node-1 and node-2
+  nodes:
+    primary: node-1
+    secondary: node-2
+    tiebreaker: node-3
