@@ -62,14 +62,14 @@ The chart uses a naming convention to locate values files:
 Example:
 ```yaml
 # infra.yaml
-valuesPath: values/infra
+valuesPath: kubernetes/values/infra
 
 components:
   - name: grafana
-    # → Loads: values/infra/grafana.yaml
+    # → Loads: kubernetes/values/infra/grafana.yaml
 
   - name: cert-manager
-    # → Loads: values/infra/cert-manager.yaml
+    # → Loads: kubernetes/values/infra/cert-manager.yaml
 ```
 
 ### Namespace Defaults
@@ -203,7 +203,7 @@ The platform chart is instantiated twice:
 # kubernetes/infra.yaml
 repoURL: https://github.com/arch-err/Cluster-Config.git
 targetRevision: v2
-valuesPath: values/infra
+valuesPath: kubernetes/values/infra
 
 components:
   - name: cilium
@@ -225,20 +225,37 @@ components:
     extraArgs:
       - installCRDs=true
 
+  - name: sops-secrets-operator
+    namespace: sops-secrets-operator
+    chart:
+      repo: https://isindir.github.io/sops-secrets-operator
+      name: sops-secrets-operator
+    syncWave: "-2"  # Before ArgoCD
+
   - name: argocd
     namespace: argocd
     chart:
       repo: https://argoproj.github.io/argo-helm
       name: argo-cd
+    syncWave: "-1"  # ArgoCD manages itself
     route:
       hostname: argocd.home
       service: argocd-server
       port: 80
 
+  - name: kadalu
+    namespace: kadalu
+    chart:
+      repo: https://arch-err.github.io/charts
+      name: kadalu
+      version: 1.3.0
+    syncWave: "1"
+
 extras:
   gateways: true
   certIssuers: true
   externalServices: true
+  kadalu: true
 
 gateway:
   pool:
@@ -251,11 +268,17 @@ gateway:
 
 external:
   dockerHost: "192.168.1.60"
-  passthroughIP: "192.168.1.202"
   services:
     - name: homeassistant
       hostname: homeassistant.home
     # ...
+
+kadalu:
+  device: /dev/sda
+  nodes:
+    primary: node-1
+    secondary: node-2
+    tiebreaker: node-3
 ```
 
 ### 2. Applications (`apps`)
@@ -264,7 +287,7 @@ external:
 # kubernetes/apps.yaml
 repoURL: https://github.com/arch-err/Cluster-Config.git
 targetRevision: v2
-valuesPath: values/apps
+valuesPath: kubernetes/values/apps
 
 components: []
   # Add applications here:
@@ -286,12 +309,14 @@ Creates:
 - `CiliumL2AnnouncementPolicy`
 - `CiliumLoadBalancerIPPool`
 - `ReferenceGrant` (for cross-namespace TLS cert access)
-- `internal` Gateway (TLS termination)
+- `internal` Gateway with multiple listeners:
+  - HTTPS listener for `*.home` (TLS termination)
+  - TLS passthrough listeners for each external service (SNI-based)
 
 ### Cert Issuers (`extras.certIssuers`)
 
 Creates:
-- `home-ca` ClusterIssuer (uses pre-existing root CA secret)
+- `home-ca` ClusterIssuer (uses root CA secret from SopsSecret)
 - `wildcard-home` Certificate
 
 ### External Services (`extras.externalServices`)
@@ -299,20 +324,30 @@ Creates:
 Creates:
 - `external` namespace
 - `docker-traefik` Service + EndpointSlice (pointing to Docker host)
-- `passthrough` Gateway (TLS passthrough)
+- TLS passthrough listeners on internal gateway (one per hostname)
 - TLSRoute for each external service
+
+### Kadalu Storage (`extras.kadalu`)
+
+Creates:
+- `kadalu` namespace (with privileged PodSecurity)
+- `KadaluStorage` CR for Replica2 storage with tiebreaker
+- `kadalu.replica2` StorageClass (set as default)
 
 ## Sync Wave Order
 
 Resources sync in this order:
 
-1. **Wave 0**: ArgoCD Applications
-2. **Wave 1**: L2 Policy, IP Pool
-3. **Wave 3**: ClusterIssuer
-4. **Wave 4**: Certificate, ReferenceGrant
-5. **Wave 5**: Gateways
-6. **Wave 6**: TLSRoutes
-7. **Wave 10**: HTTPRoutes (for apps)
+1. **Wave -2**: sops-secrets-operator
+2. **Wave -1**: ArgoCD (self-management)
+3. **Wave 0**: ArgoCD Applications (default)
+4. **Wave 1**: L2 Policy, IP Pool, Kadalu
+5. **Wave 3**: ClusterIssuer
+6. **Wave 4**: Certificate, ReferenceGrant
+7. **Wave 5**: Gateways
+8. **Wave 6**: TLSRoutes
+9. **Wave 7**: Kadalu Storage
+10. **Wave 10**: HTTPRoutes (for apps)
 
 ## Extending
 

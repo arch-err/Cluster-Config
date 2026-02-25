@@ -170,12 +170,12 @@ For backend services that don't need external access:
 
 ### Location
 
-Values files are loaded from:
+Values files are loaded from the `valuesPath` specified in apps.yaml:
 ```
-kubernetes/values/{valuesPath}/{name}.yaml
+{valuesPath}/{name}.yaml
 ```
 
-For apps:
+For apps (valuesPath: `kubernetes/values/apps`):
 ```
 kubernetes/values/apps/{name}.yaml
 ```
@@ -235,9 +235,9 @@ ingress:
 ```
 
 ```yaml
-# values/apps/postgresql.yaml
+# kubernetes/values/apps/postgresql.yaml
 auth:
-  postgresPassword: "changeme"  # Use SOPS in production!
+  existingSecret: postgresql-credentials  # Reference SopsSecret
   database: myapp
 
 primary:
@@ -245,6 +245,8 @@ primary:
     enabled: true
     size: 10Gi
 ```
+
+For credentials, create a SopsSecret in `kubernetes/secrets/apps/postgresql.yaml`.
 
 ### Homepage Dashboard
 

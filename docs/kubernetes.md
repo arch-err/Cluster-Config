@@ -12,23 +12,25 @@ After Talos bootstrap, we install the Kubernetes layer: Cilium (CNI) and ArgoCD 
 │  1. install-cilium     CNI + Gateway API + L2 announcements    │
 │         │                                                       │
 │         ▼                                                       │
-│  2. deploy-secrets     SOPS-decrypt root CA → cert-manager ns  │
+│  2. install-argocd     ArgoCD + extraObjects (root apps)       │
 │         │                                                       │
 │         ▼                                                       │
-│  3. install-argocd     ArgoCD + extraObjects (root apps)       │
+│  3. deploy-age-key     Age key for sops-secrets-operator       │
 │         │                                                       │
 │         ▼                                                       │
 │  ┌──────┴──────┐                                               │
 │  │   ArgoCD    │ ◄── Immediately syncs root Applications       │
 │  └──────┬──────┘                                               │
 │         │                                                       │
-│    ┌────┴────┐                                                 │
-│    ▼         ▼                                                 │
-│ [infra]   [apps]   ◄── Two root ArgoCD Applications            │
-│    │         │                                                 │
-│    ▼         ▼                                                 │
-│ platform/  platform/   ◄── Same chart, different values       │
-│ + infra.yaml  + apps.yaml                                      │
+│    ┌────┴────┬────────────┬────────────┐                       │
+│    ▼         ▼            ▼            ▼                       │
+│ [infra]   [apps]   [infra-secrets] [apps-secrets]              │
+│    │         │            │            │                       │
+│    ▼         ▼            ▼            ▼                       │
+│ platform/  platform/   secrets/     secrets/                   │
+│ + infra.yaml + apps.yaml  infra/       apps/                   │
+│                                                                 │
+│  ArgoCD syncs sops-secrets-operator → decrypts SopsSecrets     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -78,36 +80,43 @@ hubble:
 
 ### Gateway API Architecture
 
+A single gateway handles both TLS termination and passthrough via SNI-based routing:
+
 ```
-                    Internet / LAN
-                         │
-            ┌────────────┴────────────┐
-            │                         │
-    ┌───────▼───────┐        ┌───────▼───────┐
-    │   Internal    │        │  Passthrough  │
-    │   Gateway     │        │   Gateway     │
-    │ 192.168.1.200 │        │ 192.168.1.202 │
-    │               │        │               │
-    │ TLS Terminate │        │ TLS Passthru  │
-    │  *.home cert  │        │  (no decrypt) │
-    └───────┬───────┘        └───────┬───────┘
-            │                         │
-    ┌───────▼───────┐        ┌───────▼───────┐
-    │  HTTPRoutes   │        │   TLSRoutes   │
-    │               │        │               │
-    │ argocd.home   │        │ homeassistant │
-    │ hubble.home   │        │ vault.home    │
-    │ grafana.home  │        │ ntfy.home     │
-    └───────┬───────┘        └───────┬───────┘
-            │                         │
-            ▼                         ▼
-      Cluster Pods            Docker Host
-                              (Traefik)
+                         Internet / LAN
+                              │
+                    ┌─────────▼─────────┐
+                    │  Internal Gateway │
+                    │   192.168.1.200   │
+                    │                   │
+                    │  Multiple Listeners:
+                    │  ├─ HTTPS *.home (terminate)
+                    │  ├─ TLS homeassistant.home (passthrough)
+                    │  ├─ TLS vault.home (passthrough)
+                    │  └─ TLS ntfy.home (passthrough)
+                    └─────────┬─────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+    ┌─────▼─────┐       ┌─────▼─────┐       ┌─────▼─────┐
+    │ HTTPRoutes│       │ TLSRoutes │       │ TLSRoutes │
+    │           │       │ (external)│       │ (external)│
+    │ argocd    │       │ homeassist│       │ vault     │
+    │ hubble    │       │ ntfy      │       │ happy.*   │
+    │ grafana   │       │           │       │           │
+    └─────┬─────┘       └─────┬─────┘       └─────┬─────┘
+          │                   │                   │
+          ▼                   └─────────┬─────────┘
+    Cluster Pods                        ▼
+                                  Docker Host
+                                   (Traefik)
 ```
 
-**Internal Gateway**: Terminates TLS using wildcard cert, routes to cluster services.
+**How it works**:
+- **HTTPS listener** (`*.home`): Terminates TLS using the wildcard cert, routes via HTTPRoutes to cluster pods
+- **TLS listeners** (per external service): Pass TLS through via SNI routing to Docker host
 
-**Passthrough Gateway**: Passes TLS directly to Docker host for services running outside the cluster.
+All listeners share the same IP (192.168.1.200). Cilium uses SNI (Server Name Indication) to route traffic to the correct listener.
 
 ### L2 Announcements
 
@@ -220,52 +229,58 @@ https://argocd.home
 
 ```
 ┌─────────────────────────────────────────┐
-│         home-root-ca (Secret)           │
-│    SOPS-encrypted in kubernetes/secrets │
-│                                          │
-│    Deployed by: just deploy-secrets      │
+│      SopsSecret: home-root-ca           │
+│    kubernetes/secrets/infra/            │
+│                                         │
+│    Synced by: ArgoCD (infra-secrets)    │
+│    Decrypted by: sops-secrets-operator  │
+└────────────────┬────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────┐
+│    Secret: home-root-ca (auto-created)  │
+│    namespace: cert-manager              │
 └────────────────┬────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────┐
 │      home-ca (ClusterIssuer)            │
-│                                          │
-│    References: home-root-ca secret       │
+│                                         │
+│    References: home-root-ca secret      │
 └────────────────┬────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────┐
 │    wildcard-home (Certificate)          │
-│                                          │
-│    CN: *.home                            │
-│    Secret: wildcard-home-tls             │
+│                                         │
+│    CN: *.home                           │
+│    Secret: wildcard-home-tls            │
 └────────────────┬────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────┐
-│      Internal Gateway                    │
-│                                          │
-│    Uses: wildcard-home-tls               │
-│    Terminates TLS for *.home             │
+│      Internal Gateway                   │
+│                                         │
+│    Uses: wildcard-home-tls              │
+│    Terminates TLS for *.home            │
 └─────────────────────────────────────────┘
 ```
 
 ### Why SOPS-encrypt the Root CA?
 
-When the cluster is rebuilt, the same root CA is deployed. This means:
+When the cluster is rebuilt, the same root CA is deployed automatically via GitOps:
 - Devices don't need to re-import a new CA certificate
 - Existing browser trust is preserved
 - No certificate warnings after cluster reinstall
 
 ## External Services
 
-Services running on the Docker host (192.168.1.60) are exposed via TLS passthrough:
+Services running on the Docker host (192.168.1.60) are exposed via TLS passthrough on the internal gateway:
 
 ```yaml
 # kubernetes/infra.yaml
 external:
   dockerHost: "192.168.1.60"
-  passthroughIP: "192.168.1.202"
   services:
     - name: homeassistant
       hostname: homeassistant.home
@@ -276,16 +291,16 @@ external:
 ```
 
 This creates:
-1. **Service + EndpointSlice** pointing to Docker host
-2. **Passthrough Gateway** listening on 192.168.1.202
+1. **Service + EndpointSlice** pointing to Docker host IP
+2. **TLS passthrough listener** on the internal gateway (per hostname)
 3. **TLSRoute** per service routing to the Docker host
 
 Traffic flow:
 ```
-Client → 192.168.1.202:443 → Cilium (passthrough) → Docker:443 → Traefik → Container
+Client → 192.168.1.200:443 → Cilium (SNI routing) → Passthrough listener → Docker:443 → Traefik
 ```
 
-TLS is never decrypted by the cluster - it passes through to Traefik on the Docker host.
+TLS is never decrypted by the cluster - Cilium routes based on SNI and passes TLS through to Traefik on the Docker host.
 
 ## Sync Waves
 

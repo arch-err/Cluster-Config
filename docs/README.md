@@ -131,8 +131,9 @@ just argocd-ui
 | Node 3 | 192.168.1.73 |
 | LoadBalancer Pool | 192.168.1.200-220 |
 | Internal Gateway | 192.168.1.200 |
-| Passthrough Gateway | 192.168.1.202 |
 | Docker Host | 192.168.1.60 |
+
+The internal gateway handles both TLS termination (`*.home`) and TLS passthrough for external services via SNI-based routing.
 
 ## Documentation Index
 

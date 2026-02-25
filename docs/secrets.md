@@ -2,49 +2,52 @@
 
 Secrets are encrypted using [SOPS](https://github.com/mozilla/sops) with [age](https://github.com/FiloSottile/age) encryption.
 
-## Two Approaches
+## GitOps-Managed Secrets
 
-| Approach | Use Case |
-|----------|----------|
-| **SopsSecret CRD** | GitOps-managed secrets (preferred) |
-| **Manual deploy** | Bootstrap secrets (age key, root CA) |
+All secrets are managed via GitOps using **SopsSecret** custom resources:
 
-The **SOPS Secrets Operator** watches for `SopsSecret` custom resources and automatically creates decrypted `Secret` objects. This is the preferred approach for application secrets.
+| ArgoCD App | Path | Purpose |
+|------------|------|---------|
+| `infra-secrets` | `kubernetes/secrets/infra/` | Infrastructure secrets (root CA, etc.) |
+| `apps-secrets` | `kubernetes/secrets/apps/` | Application secrets |
 
-Bootstrap secrets (like the age key itself) must be deployed manually since they're needed before the operator can function.
+The **SOPS Secrets Operator** watches for `SopsSecret` CRs and automatically creates decrypted `Secret` objects.
+
+### Bootstrap Exception
+
+The age private key (`sops-age-key`) is the only manually-deployed secret, since the operator needs it to decrypt everything else. Deployed via `just deploy-age-key`.
 
 ## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Secrets Flow                                │
+│                     Secrets Flow (GitOps)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   Developer Workstation                                         │
-│   ┌─────────────────────────────────────────────────────────┐  │
-│   │                                                          │  │
-│   │  age private key (~/.config/sops/age/keys.txt)          │  │
-│   │           │                                              │  │
-│   │           ▼                                              │  │
-│   │  sops -d secret.yaml  ──►  Decrypted YAML               │  │
-│   │                                                          │  │
-│   └─────────────────────────────────────────────────────────┘  │
-│                           │                                     │
-│                           │ kubectl apply                       │
-│                           ▼                                     │
-│   ┌─────────────────────────────────────────────────────────┐  │
-│   │                    Kubernetes                            │  │
-│   │                                                          │  │
-│   │  Secret object (decrypted, stored in etcd)              │  │
-│   │                                                          │  │
-│   └─────────────────────────────────────────────────────────┘  │
 │                                                                 │
 │   Git Repository                                                │
 │   ┌─────────────────────────────────────────────────────────┐  │
-│   │                                                          │  │
-│   │  kubernetes/secrets/home-root-ca.yaml  (SOPS encrypted) │  │
-│   │  talos/talsecret.sops.yaml             (SOPS encrypted) │  │
-│   │                                                          │  │
+│   │  kubernetes/secrets/infra/home-root-ca.yaml             │  │
+│   │  kubernetes/secrets/apps/*.yaml                         │  │
+│   │  (SopsSecret CRs with encrypted stringData)             │  │
+│   └──────────────────────┬──────────────────────────────────┘  │
+│                          │                                      │
+│                          │ git push                             │
+│                          ▼                                      │
+│   ┌─────────────────────────────────────────────────────────┐  │
+│   │  ArgoCD (infra-secrets / apps-secrets)                  │  │
+│   │  Syncs SopsSecret CRs to cluster                        │  │
+│   └──────────────────────┬──────────────────────────────────┘  │
+│                          │                                      │
+│                          ▼                                      │
+│   ┌─────────────────────────────────────────────────────────┐  │
+│   │  sops-secrets-operator                                  │  │
+│   │  Watches SopsSecrets → Decrypts → Creates Secrets       │  │
+│   │  Uses: sops-age-key secret                              │  │
+│   └──────────────────────┬──────────────────────────────────┘  │
+│                          │                                      │
+│                          ▼                                      │
+│   ┌─────────────────────────────────────────────────────────┐  │
+│   │  Kubernetes Secret (decrypted, usable by pods)          │  │
 │   └─────────────────────────────────────────────────────────┘  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -90,39 +93,51 @@ export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 
 ## Encrypting Secrets
 
-### Create a New Secret
+### Create a SopsSecret
+
+SopsSecrets should be encrypted with `--encrypted-regex '^stringData'` to keep the CR structure visible for ArgoCD:
 
 ```bash
-# Create plain YAML
-cat > kubernetes/secrets/my-secret.yaml << 'EOF'
-apiVersion: v1
-kind: Secret
+# 1. Create plain SopsSecret YAML
+cat > kubernetes/secrets/infra/my-secret.yaml << 'EOF'
+apiVersion: isindir.github.com/v1alpha3
+kind: SopsSecret
 metadata:
   name: my-secret
   namespace: default
-type: Opaque
-stringData:
-  password: super-secret-password
+spec:
+  secretTemplates:
+    - name: my-secret
+      stringData:
+        password: super-secret-password
 EOF
 
-# Encrypt in-place
+# 2. Encrypt in-place (only stringData values are encrypted)
 cd kubernetes
-sops -e -i secrets/my-secret.yaml
+sops --encrypt --encrypted-regex '^stringData' -i secrets/infra/my-secret.yaml
 ```
 
-### Encrypt Specific Fields
+### What Gets Encrypted
 
-SOPS encrypts only the values, not the keys:
+With `--encrypted-regex '^stringData'`, only the values inside `stringData` are encrypted:
 
 ```yaml
-# Before encryption
-stringData:
-  password: super-secret-password
-
-# After encryption
-stringData:
-  password: ENC[AES256_GCM,data:abc123...,type:str]
+# After encryption - CR structure remains visible
+apiVersion: isindir.github.com/v1alpha3
+kind: SopsSecret
+metadata:
+  name: my-secret
+  namespace: default
+spec:
+  secretTemplates:
+    - name: my-secret
+      stringData:
+        password: ENC[AES256_GCM,data:abc123...,type:str]
+sops:
+  # ... sops metadata
 ```
+
+This allows ArgoCD to parse the YAML and sync it, while the operator decrypts the values.
 
 ## Decrypting Secrets
 
@@ -153,11 +168,15 @@ just deploy-secrets
 
 ## Current Secrets
 
-### Kubernetes Secrets
+### Infrastructure Secrets (`kubernetes/secrets/infra/`)
 
 | File | Purpose | Namespace |
 |------|---------|-----------|
-| `kubernetes/secrets/home-root-ca.yaml` | Root CA for internal TLS | cert-manager |
+| `home-root-ca.yaml` | Root CA for internal TLS | cert-manager |
+
+### Application Secrets (`kubernetes/secrets/apps/`)
+
+Application-specific secrets go here.
 
 ### Talos Secrets
 
@@ -167,37 +186,44 @@ just deploy-secrets
 
 ## Root CA Secret
 
-The root CA is crucial for TLS:
+The root CA is stored as a SopsSecret:
 
 ```yaml
-# Decrypted structure
-apiVersion: v1
-kind: Secret
+# Encrypted SopsSecret structure
+apiVersion: isindir.github.com/v1alpha3
+kind: SopsSecret
 metadata:
   name: home-root-ca
   namespace: cert-manager
-type: kubernetes.io/tls
-data:
-  tls.crt: <base64-encoded-cert>
-  tls.key: <base64-encoded-key>
+spec:
+  secretTemplates:
+    - name: home-root-ca
+      type: kubernetes.io/tls
+      stringData:
+        tls.crt: ENC[AES256_GCM,data:...,type:str]
+        tls.key: ENC[AES256_GCM,data:...,type:str]
 ```
+
+The operator creates the actual `kubernetes.io/tls` Secret from this.
 
 ### Why Encrypt the Root CA?
 
 When the cluster is rebuilt:
-1. The same root CA is deployed
-2. Existing certificates remain valid
-3. Devices don't need to re-import the CA
-4. No certificate warnings
+1. ArgoCD syncs the SopsSecret automatically
+2. The operator creates the same root CA Secret
+3. Existing certificates remain valid
+4. Devices don't need to re-import the CA
+5. No certificate warnings
 
 ### Extracting Root CA (for backup)
 
 ```bash
+# Decrypt and extract from SopsSecret
 cd kubernetes
-sops -d secrets/home-root-ca.yaml | \
-  yq '.data["tls.crt"]' | base64 -d > root-ca.crt
-sops -d secrets/home-root-ca.yaml | \
-  yq '.data["tls.key"]' | base64 -d > root-ca.key
+sops -d secrets/infra/home-root-ca.yaml | \
+  yq '.spec.secretTemplates[0].stringData["tls.crt"]' > root-ca.crt
+sops -d secrets/infra/home-root-ca.yaml | \
+  yq '.spec.secretTemplates[0].stringData["tls.key"]' > root-ca.key
 ```
 
 ### Importing Root CA to Devices
@@ -206,8 +232,9 @@ The certificate (not the key!) can be imported to trust the cluster:
 
 ```bash
 # Extract just the cert
-sops -d kubernetes/secrets/home-root-ca.yaml | \
-  yq '.data["tls.crt"]' | base64 -d > home-root-ca.crt
+cd kubernetes
+sops -d secrets/infra/home-root-ca.yaml | \
+  yq '.spec.secretTemplates[0].stringData["tls.crt"]' > home-root-ca.crt
 
 # Then import to your device/browser
 ```
@@ -327,8 +354,8 @@ The operator enables full GitOps for secrets - no ArgoCD plugins needed.
 
 ```bash
 # 1. Create the manifest
-cat > kubernetes/secrets/my-app.yaml << 'EOF'
-apiVersion: isindir.github.io/v1alpha3
+cat > kubernetes/secrets/apps/my-app.yaml << 'EOF'
+apiVersion: isindir.github.com/v1alpha3
 kind: SopsSecret
 metadata:
   name: my-app-secrets
@@ -341,12 +368,12 @@ spec:
         password: super-secret
 EOF
 
-# 2. Encrypt with sops
+# 2. Encrypt with sops (only stringData values)
 cd kubernetes
-sops -e -i secrets/my-app.yaml
+sops --encrypt --encrypted-regex '^stringData' -i secrets/apps/my-app.yaml
 
-# 3. Commit and push
-git add secrets/my-app.yaml
+# 3. Commit and push - ArgoCD syncs automatically
+git add secrets/apps/my-app.yaml
 git commit -m "feat: add my-app secrets"
 git push
 ```
@@ -354,7 +381,7 @@ git push
 ### SopsSecret Schema
 
 ```yaml
-apiVersion: isindir.github.io/v1alpha3
+apiVersion: isindir.github.com/v1alpha3
 kind: SopsSecret
 metadata:
   name: my-secrets
@@ -376,10 +403,18 @@ spec:
 
     - name: secret-two
       type: kubernetes.io/tls
-      data:
-        tls.crt: <base64>
-        tls.key: <base64>
+      stringData:
+        tls.crt: |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+        tls.key: |
+          -----BEGIN EC PRIVATE KEY-----
+          ...
+          -----END EC PRIVATE KEY-----
 ```
+
+**Note**: Use `stringData` (not `data`) for SopsSecrets - the operator handles encoding.
 
 ### Viewing Created Secrets
 
@@ -423,9 +458,9 @@ To convert existing manually-deployed secrets to SopsSecrets:
 # 1. Export existing secret
 kubectl -n cert-manager get secret home-root-ca -o yaml > temp.yaml
 
-# 2. Convert to SopsSecret format
-cat > kubernetes/secrets/home-root-ca.yaml << 'EOF'
-apiVersion: isindir.github.io/v1alpha3
+# 2. Convert to SopsSecret format (use stringData, not data)
+cat > kubernetes/secrets/infra/home-root-ca.yaml << 'EOF'
+apiVersion: isindir.github.com/v1alpha3
 kind: SopsSecret
 metadata:
   name: home-root-ca
@@ -434,23 +469,27 @@ spec:
   secretTemplates:
     - name: home-root-ca
       type: kubernetes.io/tls
-      data:
-        tls.crt: <paste from temp.yaml>
-        tls.key: <paste from temp.yaml>
+      stringData:
+        tls.crt: |
+          <paste decoded cert>
+        tls.key: |
+          <paste decoded key>
 EOF
 
-# 3. Encrypt
-cd kubernetes && sops -e -i secrets/home-root-ca.yaml
+# 3. Encrypt (only stringData values)
+cd kubernetes
+sops --encrypt --encrypted-regex '^stringData' -i secrets/infra/home-root-ca.yaml
 
-# 4. Commit
-git add secrets/home-root-ca.yaml
+# 4. Commit - ArgoCD syncs automatically
+git add secrets/infra/home-root-ca.yaml
 git commit -m "refactor: migrate home-root-ca to SopsSecret"
+git push
 ```
 
 ## Bootstrap vs GitOps Secrets
 
 | Secret | Type | Why |
 |--------|------|-----|
-| `sops-age-key` | Manual | Can't encrypt the decryption key |
-| `home-root-ca` | SopsSecret | Normal secret, GitOps managed |
-| App credentials | SopsSecret | Normal secret, GitOps managed |
+| `sops-age-key` | Manual (`just deploy-age-key`) | Can't encrypt the decryption key |
+| `home-root-ca` | SopsSecret (infra-secrets) | GitOps managed |
+| App credentials | SopsSecret (apps-secrets) | GitOps managed |
