@@ -17,10 +17,9 @@ spec:
     - repoURL: {{ $root.Values.repoURL }}
       targetRevision: {{ $root.Values.targetRevision }}
       ref: repo
-
     # Helm chart
     - repoURL: {{ .chart.repo }}
-      targetRevision: {{ .chart.version | default "*" }}
+      targetRevision: {{ .chart.version | default "*" | quote }}
       chart: {{ .chart.name }}
       helm:
         valueFiles:
