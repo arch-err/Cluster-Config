@@ -98,16 +98,9 @@ install-cilium:
     echo "   Installing Gateway API CRDs (experimental channel)..."
     GWAPI_VERSION=v1.2.0
     GWAPI_URL="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/${GWAPI_VERSION}/config/crd/experimental"
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_gatewayclasses.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_gateways.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_httproutes.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_grpcroutes.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_referencegrants.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_tlsroutes.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_tcproutes.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_udproutes.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_backendlbpolicies.yaml
-    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_backendtlspolicies.yaml
+    for crd in gatewayclasses gateways httproutes grpcroutes referencegrants tlsroutes tcproutes udproutes backendlbpolicies backendtlspolicies; do
+        kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_${crd}.yaml 2>&1 | grep -v "unrecognized format"
+    done
     # Execute the values file directly (shebang has helm install args)
     kubernetes/bootstrap/cilium.yaml --wait --timeout 5m
     echo "✓ Cilium installed"
