@@ -95,10 +95,8 @@ install-cilium:
     helm repo update cilium >/dev/null
     # Install experimental Gateway API CRDs (TLSRoute, etc. required by Cilium)
     kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml 2>/dev/null || true
-    helm upgrade --install cilium cilium/cilium \
-        --namespace kube-system \
-        --values kubernetes/bootstrap/cilium.yaml \
-        --wait --timeout 5m
+    # Execute the values file directly (shebang has helm install args)
+    kubernetes/bootstrap/cilium.yaml --wait --timeout 5m
     echo "✓ Cilium installed"
     echo "   Waiting for Cilium pods..."
     kubectl -n kube-system rollout status ds/cilium --timeout=3m
@@ -123,11 +121,8 @@ install-argocd:
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
     helm repo update argo >/dev/null
-    # bootstrap/argocd.yaml includes extraObjects for infra + apps root Applications
-    helm upgrade --install argocd argo/argo-cd \
-        --namespace argocd --create-namespace \
-        --values kubernetes/bootstrap/argocd.yaml \
-        --wait --timeout 5m
+    # Execute the values file directly (shebang has helm install args + extraObjects)
+    kubernetes/bootstrap/argocd.yaml --wait --timeout 5m
     echo "✓ ArgoCD installed with root applications"
     echo ""
     echo "  ArgoCD will sync:"

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f argocd.yaml
+#!/usr/bin/env -S helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f
 # This includes extraObjects that create the root ArgoCD Applications:
 #   - infra: platform chart with infra.yaml (cert-manager, gateways, external services, etc.)
 #   - apps: platform chart with apps.yaml (user applications)

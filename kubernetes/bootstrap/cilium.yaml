@@ -1,5 +1,5 @@
+#!/usr/bin/env -S helm upgrade --install cilium cilium/cilium -n kube-system -f
 # Cilium configuration for Talos + Gateway API
-# Install: helm upgrade --install cilium cilium/cilium -n kube-system -f bootstrap/cilium.yaml
 
 # Kubernetes API server
 k8sServiceHost: 192.168.1.70
