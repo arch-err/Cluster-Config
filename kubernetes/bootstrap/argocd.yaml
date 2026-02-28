@@ -1,4 +1,4 @@
-#!/usr/bin/env -S helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace -f
+#!/usr/bin/env -S helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace --disable-openapi-validation -f
 # This includes extraObjects that create the root ArgoCD Applications:
 #   - infra: platform chart with infra.yaml (cert-manager, gateways, external services, etc.)
 #   - apps: platform chart with apps.yaml (user applications)
