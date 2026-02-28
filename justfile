@@ -95,8 +95,9 @@ install-cilium:
     helm repo update cilium >/dev/null
     # Install Gateway API CRDs (required for Cilium Gateway API support)
     # Using experimental channel for full feature set (includes standard + experimental)
+    # Note: Cilium 1.16.x requires Gateway API v1.1.0 (not v1.2.0)
     echo "   Installing Gateway API CRDs (experimental channel)..."
-    GWAPI_VERSION=v1.2.0
+    GWAPI_VERSION=v1.1.0
     GWAPI_URL="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/${GWAPI_VERSION}/config/crd/experimental"
     for crd in gatewayclasses gateways httproutes grpcroutes referencegrants tlsroutes tcproutes udproutes backendlbpolicies backendtlspolicies; do
         kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_${crd}.yaml 2>&1 | grep -v "unrecognized format"
