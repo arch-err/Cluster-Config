@@ -109,6 +109,10 @@ uninstall-cilium:
     echo "══ Uninstalling Cilium..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm uninstall cilium -n kube-system 2>/dev/null || true
+    echo "   Deleting Cilium CRDs..."
+    kubectl get crd -o name | grep -E 'cilium|gateway' | xargs -r kubectl delete --timeout=30s 2>/dev/null || true
+    echo "   Cleaning up namespaces..."
+    kubectl delete ns gateway-system external --timeout=30s 2>/dev/null || true
     echo "✓ Cilium uninstalled"
 
 # ── ArgoCD ────────────────────────────────────────────────────────────────────
@@ -138,10 +142,26 @@ uninstall-argocd:
     set -euo pipefail
     echo "══ Uninstalling ArgoCD..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
-    # Delete all ArgoCD Applications first (so they don't block)
-    kubectl delete applications -n argocd --all 2>/dev/null || true
+    # Remove finalizers from applications first (prevents stuck deletions)
+    echo "   Removing application finalizers..."
+    kubectl -n argocd get applications -o name 2>/dev/null | xargs -r -I{} kubectl -n argocd patch {} --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]' 2>/dev/null || true
+    # Delete all ArgoCD Applications
+    kubectl delete applications -n argocd --all --timeout=30s 2>/dev/null || true
+    # Helm uninstall
     helm uninstall argocd -n argocd 2>/dev/null || true
-    kubectl delete namespace argocd --timeout=2m 2>/dev/null || true
+    # Delete ArgoCD CRDs
+    echo "   Deleting ArgoCD CRDs..."
+    kubectl get crd -o name | grep argoproj | xargs -r kubectl delete --timeout=30s 2>/dev/null || true
+    # Clean up namespaces (argocd + any created by apps)
+    echo "   Cleaning up namespaces..."
+    kubectl delete ns argocd cert-manager kadalu sops-secrets-operator --timeout=60s 2>/dev/null || true
+    # Force-remove any stuck namespaces
+    for ns in argocd cert-manager kadalu sops-secrets-operator; do
+        if kubectl get ns "$ns" 2>/dev/null | grep -q Terminating; then
+            echo "   Force-removing stuck namespace: $ns"
+            kubectl get ns "$ns" -o json | jq '.spec.finalizers = []' | kubectl replace --raw "/api/v1/namespaces/$ns/finalize" -f - 2>/dev/null || true
+        fi
+    done
     echo "✓ ArgoCD uninstalled"
 
 # Deploy SOPS age key (required for sops-secrets-operator)
