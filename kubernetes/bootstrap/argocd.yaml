@@ -61,6 +61,24 @@ extraObjects:
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
+      # Ignore controller-managed fields on Gateway API resources
+      ignoreDifferences:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          jsonPointers:
+            - /status
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jsonPointers:
+            - /status
+        - group: gateway.networking.k8s.io
+          kind: TLSRoute
+          jsonPointers:
+            - /status
+        - group: discovery.k8s.io
+          kind: EndpointSlice
+          jqPathExpressions:
+            - .endpoints[].conditions
       syncPolicy:
         automated:
           prune: true
@@ -68,6 +86,7 @@ extraObjects:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          - RespectIgnoreDifferences=true
 
   # User applications root app
   - apiVersion: argoproj.io/v1alpha1
