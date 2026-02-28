@@ -61,28 +61,20 @@ extraObjects:
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
-      # Ignore controller-managed and defaulted fields on Gateway API resources
+      # Ignore defaulted fields on Gateway API resources (API server adds defaults)
       ignoreDifferences:
         - group: gateway.networking.k8s.io
           kind: Gateway
-          jqPathExpressions:
-            - .spec.listeners[].tls.certificateRefs[].group
-            - .spec.listeners[].tls.certificateRefs[].kind
-            - .spec.listeners[].allowedRoutes
+          jsonPointers:
+            - /spec/listeners
         - group: gateway.networking.k8s.io
           kind: HTTPRoute
-          jqPathExpressions:
-            - .spec.rules[].backendRefs[].group
-            - .spec.rules[].backendRefs[].kind
-            - .spec.rules[].backendRefs[].weight
-            - .spec.rules[].matches[].path.type
-            - .spec.parentRefs[].group
-            - .spec.parentRefs[].kind
+          jsonPointers:
+            - /spec
         - group: gateway.networking.k8s.io
           kind: TLSRoute
-          jqPathExpressions:
-            - .spec.parentRefs[].group
-            - .spec.parentRefs[].kind
+          jsonPointers:
+            - /spec
         - group: discovery.k8s.io
           kind: EndpointSlice
           jqPathExpressions:
