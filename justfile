@@ -108,11 +108,27 @@ uninstall-cilium:
     set -euo pipefail
     echo "══ Uninstalling Cilium..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
+    # Delete all Cilium CRs first
+    echo "   Deleting Cilium resources..."
+    kubectl delete ciliuml2announcementpolicies,ciliumloadbalancerippool,ciliumnetworkpolicies,ciliumclusterwidenetworkpolicies -A --all --timeout=30s 2>/dev/null || true
+    # Delete all Gateway API resources
+    echo "   Deleting Gateway API resources..."
+    kubectl delete gateways,httproutes,tlsroutes,referencegrants -A --all --timeout=30s 2>/dev/null || true
+    # Helm uninstall
     helm uninstall cilium -n kube-system 2>/dev/null || true
-    echo "   Deleting Cilium CRDs..."
+    # Delete Cilium + Gateway CRDs
+    echo "   Deleting Cilium + Gateway CRDs..."
     kubectl get crd -o name | grep -E 'cilium|gateway' | xargs -r kubectl delete --timeout=30s 2>/dev/null || true
+    # Clean up namespaces
     echo "   Cleaning up namespaces..."
     kubectl delete ns gateway-system external --timeout=30s 2>/dev/null || true
+    # Force-remove stuck namespaces
+    for ns in gateway-system external; do
+        if kubectl get ns "$ns" 2>/dev/null | grep -q Terminating; then
+            echo "   Force-removing stuck namespace: $ns"
+            kubectl get ns "$ns" -o json | jq '.spec.finalizers = []' | kubectl replace --raw "/api/v1/namespaces/$ns/finalize" -f - 2>/dev/null || true
+        fi
+    done
     echo "✓ Cilium uninstalled"
 
 # ── ArgoCD ────────────────────────────────────────────────────────────────────
@@ -142,11 +158,14 @@ uninstall-argocd:
     set -euo pipefail
     echo "══ Uninstalling ArgoCD..."
     export KUBECONFIG={{cluster_dir}}/kubeconfig
-    # Remove finalizers from applications first (prevents stuck deletions)
-    echo "   Removing application finalizers..."
-    kubectl -n argocd get applications -o name 2>/dev/null | xargs -r -I{} kubectl -n argocd patch {} --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]' 2>/dev/null || true
-    # Delete all ArgoCD Applications
-    kubectl delete applications -n argocd --all --timeout=30s 2>/dev/null || true
+    # Remove finalizers from all ArgoCD resources
+    echo "   Removing ArgoCD resource finalizers..."
+    for resource in applications applicationsets appprojects; do
+        kubectl -n argocd get "$resource" -o name 2>/dev/null | xargs -r -I{} kubectl -n argocd patch {} --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]' 2>/dev/null || true
+    done
+    # Delete all ArgoCD CRs
+    echo "   Deleting ArgoCD resources..."
+    kubectl delete applications,applicationsets,appprojects -A --all --timeout=30s 2>/dev/null || true
     # Helm uninstall
     helm uninstall argocd -n argocd 2>/dev/null || true
     # Delete ArgoCD CRDs
