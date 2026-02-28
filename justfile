@@ -453,6 +453,37 @@ booter-stop: _booter-stop
 apply-node node config:
     talosctl apply-config --insecure --nodes {{node}} --file {{config}}
 
+# === LOCAL MACHINE TOOLS ===
+
+# Install home-root CA to the local Linux machine's trust store
+install-ca:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "══ Installing home-root CA to system trust store..."
+
+    # Extract CA cert from SOPS-encrypted secret
+    CA_CERT=$(cd kubernetes && sops -d secrets/infra/home-root-ca.yaml | yq '.spec.secretTemplates[0].stringData["tls.crt"]')
+
+    if [[ -z "$CA_CERT" || "$CA_CERT" == "null" ]]; then
+        echo "Error: Could not extract CA certificate"
+        exit 1
+    fi
+
+    # Install to system trust store (Arch Linux)
+    TRUST_DIR="/etc/ca-certificates/trust-source/anchors"
+    CA_FILE="home-root-ca.crt"
+
+    echo "   Writing certificate to ${TRUST_DIR}/${CA_FILE}..."
+    echo "$CA_CERT" | sudo tee "${TRUST_DIR}/${CA_FILE}" > /dev/null
+
+    echo "   Updating system trust store..."
+    sudo update-ca-trust
+
+    echo "✓ home-root CA installed to system trust store"
+    echo ""
+    echo "  Browsers may need to be restarted to pick up the change."
+    echo "  Firefox uses its own store - import manually via Preferences > Certificates"
+
 # === DESTRUCTIVE OPERATIONS ===
 
 # Reset all nodes (DESTRUCTIVE - requires confirmation)
