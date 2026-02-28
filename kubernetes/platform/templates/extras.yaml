@@ -78,12 +78,13 @@ spec:
   to:
     - group: ""
       kind: Secret
+{{- if .Values.gateway.infra }}
 ---
-# Internal Gateway (*.home) with TLS termination + passthrough for external services
+# Infra Gateway (*.infra.home) with TLS termination + passthrough for external services
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: internal
+  name: infra
   namespace: gateway-system
   annotations:
     argocd.argoproj.io/sync-wave: "5"
@@ -92,17 +93,17 @@ spec:
   gatewayClassName: cilium
   addresses:
     - type: IPAddress
-      value: {{ .Values.gateway.internal.ip }}
+      value: {{ .Values.gateway.infra.ip }}
   listeners:
     # HTTPS listener for TLS termination (wildcard)
     - name: https
       port: 443
       protocol: HTTPS
-      hostname: "*.{{ .Values.gateway.internal.domain }}"
+      hostname: "*.{{ .Values.gateway.infra.domain }}"
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ .Values.gateway.internal.tlsSecret }}
+          - name: {{ .Values.gateway.infra.tlsSecret }}
             namespace: cert-manager
       allowedRoutes:
         namespaces:
@@ -122,6 +123,38 @@ spec:
 {{- end }}
 {{- end }}
 {{- end }}
+{{- if .Values.gateway.apps }}
+---
+# Apps Gateway (*.apps.home) with TLS termination
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: apps
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.apps.ip }}
+  listeners:
+    # HTTPS listener for TLS termination (wildcard)
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.apps.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.apps.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* CERT ISSUERS                                                                */}}
@@ -139,27 +172,52 @@ metadata:
 spec:
   ca:
     secretName: home-root-ca
+{{- if .Values.gateway.infra }}
 ---
-# Wildcard certificate for *.home
+# Wildcard certificate for *.infra.home
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-home
+  name: wildcard-infra-home
   namespace: cert-manager
   annotations:
     argocd.argoproj.io/sync-wave: "4"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  secretName: {{ .Values.gateway.internal.tlsSecret }}
+  secretName: {{ .Values.gateway.infra.tlsSecret }}
   duration: 8760h
   renewBefore: 720h
-  commonName: "*.{{ .Values.gateway.internal.domain }}"
+  commonName: "*.{{ .Values.gateway.infra.domain }}"
   dnsNames:
-    - "*.{{ .Values.gateway.internal.domain }}"
-    - "{{ .Values.gateway.internal.domain }}"
+    - "*.{{ .Values.gateway.infra.domain }}"
+    - "{{ .Values.gateway.infra.domain }}"
   issuerRef:
     name: home-ca
     kind: ClusterIssuer
+{{- end }}
+{{- if .Values.gateway.apps }}
+---
+# Wildcard certificate for *.apps.home
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-apps-home
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretName: {{ .Values.gateway.apps.tlsSecret }}
+  duration: 8760h
+  renewBefore: 720h
+  commonName: "*.{{ .Values.gateway.apps.domain }}"
+  dnsNames:
+    - "*.{{ .Values.gateway.apps.domain }}"
+    - "{{ .Values.gateway.apps.domain }}"
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer
+{{- end }}
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
@@ -201,7 +259,7 @@ ports:
     port: 443
     protocol: TCP
 ---
-# TLSRoutes for external services (passthrough via internal gateway)
+# TLSRoutes for external services (passthrough via infra gateway)
 {{- range .Values.external.services }}
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
@@ -214,7 +272,7 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - name: internal
+    - name: infra
       namespace: gateway-system
       sectionName: passthrough-{{ .name }}
   hostnames:

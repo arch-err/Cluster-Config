@@ -16,9 +16,10 @@ components:
       name: cilium
       version: 1.16.x
     route:
-      hostname: hubble.home
+      hostname: hubble.infra.home
       service: hubble-ui
       port: 80
+      gateway: infra
 
   - name: cert-manager
     namespace: cert-manager
@@ -36,9 +37,10 @@ components:
       name: argo-cd
     syncWave: "-1"  # ArgoCD manages itself, sync early
     route:
-      hostname: argocd.home
+      hostname: argocd.infra.home
       service: argocd-server
       port: 80
+      gateway: infra
 
   - name: sops-secrets-operator
     namespace: sops-secrets-operator
@@ -75,12 +77,17 @@ gateway:
   pool:
     start: "192.168.1.200"
     stop: "192.168.1.220"
-  internal:
+  infra:
     ip: "192.168.1.200"
-    domain: home
-    tlsSecret: wildcard-home-tls
+    domain: infra.home
+    tlsSecret: wildcard-infra-home-tls
+  apps:
+    ip: "192.168.1.200"
+    domain: apps.home
+    tlsSecret: wildcard-apps-home-tls
 
 # External services (TLS passthrough to Docker host via SNI routing)
+# These stay on *.home - K8s passes through to Docker's Traefik
 external:
   dockerHost: "192.168.1.60"
   services:

@@ -6,6 +6,15 @@ targetRevision: v2
 valuesPath: kubernetes/values/apps
 
 # ══════════════════════════════════════════════════════════════════════════════
+# GATEWAY (apps gateway configuration)
+# ══════════════════════════════════════════════════════════════════════════════
+gateway:
+  apps:
+    ip: "192.168.1.200"
+    domain: apps.home
+    tlsSecret: wildcard-apps-home-tls
+
+# ══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
 components: []
@@ -17,7 +26,8 @@ components: []
   #     repo: https://jameswynn.github.io/helm-charts
   #     name: homepage
   #   route:
-  #     hostname: home.home
+  #     hostname: home.apps.home
+  #     gateway: apps
   #     port: 3000
   #
   # - name: grafana
@@ -26,5 +36,6 @@ components: []
   #     repo: https://grafana.github.io/helm-charts
   #     name: grafana
   #   route:
-  #     hostname: grafana.home
+  #     hostname: grafana.apps.home
+  #     gateway: apps
   #     port: 3000
