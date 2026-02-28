@@ -64,6 +64,7 @@ components:
 # EXTRAS (raw resources managed directly)
 # ══════════════════════════════════════════════════════════════════════════════
 extras:
+  sopsSecretsOperator: true
   gateways: true
   certIssuers: true
   externalServices: true

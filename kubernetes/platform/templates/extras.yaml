@@ -6,6 +6,24 @@ Only rendered when extras.* is enabled in values
 {{- if .Values.extras }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* SOPS SECRETS OPERATOR                                                       */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.sopsSecretsOperator }}
+---
+# sops-secrets-operator namespace with privileged PodSecurity
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sops-secrets-operator
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* GATEWAY SYSTEM                                                              */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.gateways }}

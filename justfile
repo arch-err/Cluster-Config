@@ -141,7 +141,11 @@ install-argocd:
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
     helm repo update argo >/dev/null
-    # Execute the values file directly (shebang has helm install args + extraObjects)
+    # Phase 1: Install ArgoCD (this installs CRDs)
+    echo "   Phase 1: Installing ArgoCD + CRDs..."
+    helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace --wait --timeout 5m
+    # Phase 2: Upgrade with full values (extraObjects now work since CRDs exist)
+    echo "   Phase 2: Applying extraObjects (root Applications)..."
     kubernetes/bootstrap/argocd.yaml --wait --timeout 5m
     echo "✓ ArgoCD installed with root applications"
     echo ""
@@ -168,9 +172,13 @@ uninstall-argocd:
     kubectl delete applications,applicationsets,appprojects -A --all --timeout=30s 2>/dev/null || true
     # Helm uninstall
     helm uninstall argocd -n argocd 2>/dev/null || true
-    # Delete ArgoCD CRDs
+    # Delete all CRDs from ArgoCD-managed apps (helm preserves these by default)
     echo "   Deleting ArgoCD CRDs..."
-    kubectl get crd -o name | grep argoproj | xargs -r kubectl delete --timeout=30s 2>/dev/null || true
+    kubectl delete crd applications.argoproj.io appprojects.argoproj.io applicationsets.argoproj.io --timeout=30s 2>/dev/null || true
+    echo "   Deleting cert-manager CRDs..."
+    kubectl get crd -o name | grep cert-manager | xargs -r kubectl delete --timeout=30s 2>/dev/null || true
+    echo "   Deleting sops-secrets-operator CRDs..."
+    kubectl delete crd sopssecrets.isindir.github.com --timeout=30s 2>/dev/null || true
     # Clean up namespaces (argocd + any created by apps)
     echo "   Cleaning up namespaces..."
     kubectl delete ns argocd cert-manager kadalu sops-secrets-operator --timeout=60s 2>/dev/null || true
@@ -243,15 +251,34 @@ argocd-password:
     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
     echo ""
 
-# Port-forward ArgoCD UI (localhost:8080)
+# Access ArgoCD UI (via Argonaut or browser)
 argocd-ui:
     #!/usr/bin/env bash
+    set -euo pipefail
     export KUBECONFIG={{cluster_dir}}/kubeconfig
-    echo "ArgoCD UI: https://localhost:8080"
-    echo "Username: admin"
-    echo "Password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
-    echo ""
-    kubectl port-forward svc/argocd-server -n argocd 8080:443
+    PORT=41729
+    PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+
+    choice=$(gum choose "Argonaut" "Browser")
+
+    if [[ "$choice" == "Argonaut" ]]; then
+        echo "Logging into ArgoCD CLI..."
+        kubectl port-forward svc/argocd-server -n argocd ${PORT}:80 &>/dev/null &
+        PF_PID=$!
+        sleep 2
+        argocd login localhost:${PORT} --insecure --username admin --password "$PASSWORD"
+        echo "✓ Logged in. Opening Argonaut..."
+        kill $PF_PID 2>/dev/null || true
+        argonaut
+    else
+        echo "Password copied to clipboard"
+        echo "$PASSWORD" | wl-copy
+        echo "Opening http://localhost:${PORT} ..."
+        kubectl port-forward svc/argocd-server -n argocd ${PORT}:80 &
+        sleep 1
+        xdg-open "http://localhost:${PORT}"
+        wait
+    fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TALOS INDIVIDUAL STEPS
