@@ -93,8 +93,21 @@ install-cilium:
     export KUBECONFIG={{cluster_dir}}/kubeconfig
     helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
     helm repo update cilium >/dev/null
-    # Install experimental Gateway API CRDs (TLSRoute, etc. required by Cilium)
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/v1.2.0/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml 2>/dev/null || true
+    # Install Gateway API CRDs (required for Cilium Gateway API support)
+    # Using experimental channel for full feature set (includes standard + experimental)
+    echo "   Installing Gateway API CRDs (experimental channel)..."
+    GWAPI_VERSION=v1.2.0
+    GWAPI_URL="https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/${GWAPI_VERSION}/config/crd/experimental"
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_gatewayclasses.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_gateways.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_httproutes.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_grpcroutes.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_referencegrants.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_tlsroutes.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_tcproutes.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_udproutes.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_backendlbpolicies.yaml
+    kubectl apply -f ${GWAPI_URL}/gateway.networking.k8s.io_backendtlspolicies.yaml
     # Execute the values file directly (shebang has helm install args)
     kubernetes/bootstrap/cilium.yaml --wait --timeout 5m
     echo "✓ Cilium installed"
@@ -113,7 +126,7 @@ uninstall-cilium:
     kubectl delete ciliuml2announcementpolicies,ciliumloadbalancerippool,ciliumnetworkpolicies,ciliumclusterwidenetworkpolicies -A --all --timeout=30s 2>/dev/null || true
     # Delete all Gateway API resources
     echo "   Deleting Gateway API resources..."
-    kubectl delete gateways,httproutes,tlsroutes,referencegrants -A --all --timeout=30s 2>/dev/null || true
+    kubectl delete gateways,httproutes,grpcroutes,tlsroutes,tcproutes,udproutes,referencegrants,backendlbpolicies,backendtlspolicies -A --all --timeout=30s 2>/dev/null || true
     # Helm uninstall
     helm uninstall cilium -n kube-system 2>/dev/null || true
     # Delete Cilium + Gateway CRDs
