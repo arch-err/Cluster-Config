@@ -75,6 +75,10 @@ extraObjects:
           kind: TLSRoute
           jsonPointers:
             - /spec
+        - group: gateway.networking.k8s.io
+          kind: ReferenceGrant
+          jsonPointers:
+            - /spec
         - group: discovery.k8s.io
           kind: EndpointSlice
           jqPathExpressions:
