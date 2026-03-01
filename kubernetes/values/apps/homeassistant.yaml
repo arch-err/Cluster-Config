@@ -1,0 +1,35 @@
+# Home Assistant configuration
+
+# Use StatefulSet for production
+controller:
+  type: StatefulSet
+
+# Persistence for Home Assistant config
+persistence:
+  enabled: true
+  storageClass: kadalu.replica2
+  size: 10Gi
+  accessMode: ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8123
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Security context for Talos (restricted PSS)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
