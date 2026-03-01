@@ -25,3 +25,10 @@ resources:
   limits:
     cpu: 1000m
     memory: 1Gi
+
+# Home Assistant configuration (injected into configuration.yaml)
+configuration:
+  enabled: true
+  forceInit: true
+  trusted_proxies:
+    - 10.244.0.0/16
