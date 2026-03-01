@@ -57,7 +57,7 @@ ipv4NativeRoutingCIDR: 10.244.0.0/16
 
 # eBPF load balancing
 loadBalancer:
-  mode: dsr
+  mode: snat
   algorithm: maglev
 
 # BPF settings
