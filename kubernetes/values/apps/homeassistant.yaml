@@ -1,13 +1,16 @@
 # Home Assistant configuration
 # Note: Namespace is exempted from restricted PSS in Talos config
 
-# Use Deployment without persistence for now
+# Use StatefulSet for persistent storage
 controller:
-  type: Deployment
+  type: StatefulSet
 
-# Persistence disabled until Kadalu storage is fixed
+# Persistence for Home Assistant config
 persistence:
-  enabled: false
+  enabled: true
+  storageClass: kadalu.replica2
+  size: 10Gi
+  accessMode: ReadWriteOnce
 
 # Service configuration
 service:
