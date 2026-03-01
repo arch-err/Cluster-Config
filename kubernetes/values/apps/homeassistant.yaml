@@ -2,14 +2,11 @@
 
 # Use StatefulSet for production
 controller:
-  type: StatefulSet
+  type: Deployment  # Use Deployment without persistence for now
 
-# Persistence for Home Assistant config
+# Persistence disabled until Kadalu storage is fixed
 persistence:
-  enabled: true
-  storageClass: kadalu.replica2
-  size: 10Gi
-  accessMode: ReadWriteOnce
+  enabled: false
 
 # Service configuration
 service:
