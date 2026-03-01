@@ -78,11 +78,11 @@ gateway:
     start: "10.10.10.200"
     stop: "10.10.10.220"
   infra:
-    ip: "10.10.10.200"
+    ip: "10.10.10.201"
     domain: infra.home
     tlsSecret: wildcard-infra-home-tls
   apps:
-    ip: "10.10.10.201"
+    ip: "10.10.10.200"
     domain: apps.home
     tlsSecret: wildcard-apps-home-tls
 

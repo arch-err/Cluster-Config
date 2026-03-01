@@ -10,7 +10,7 @@ valuesPath: kubernetes/values/apps
 # ══════════════════════════════════════════════════════════════════════════════
 gateway:
   apps:
-    ip: "10.10.10.201"
+    ip: "10.10.10.200"
     domain: apps.home
     tlsSecret: wildcard-apps-home-tls
 
