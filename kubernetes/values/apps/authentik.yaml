@@ -1,0 +1,112 @@
+# Authentik SSO configuration
+# Helm chart: https://charts.goauthentik.io
+
+# Global authentik settings
+authentik:
+  log_level: info
+  error_reporting:
+    enabled: false
+  # Database and secret references set via env vars below
+
+# Server (Web UI and API)
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  ingress:
+    enabled: false  # Using Gateway API
+  env:
+    - name: AUTHENTIK_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: secret_key
+    - name: AUTHENTIK_POSTGRESQL__PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres_password
+    - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: bootstrap_password
+    - name: AUTHENTIK_BOOTSTRAP_EMAIL
+      value: "admin@home"
+    # Blueprint environment variables for Home Assistant OAuth2
+    - name: AUTHENTIK_HA_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: ha_client_id
+    - name: AUTHENTIK_HA_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: ha_client_secret
+
+# Worker (background job processing)
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  env:
+    - name: AUTHENTIK_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: secret_key
+    - name: AUTHENTIK_POSTGRESQL__PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres_password
+    # Blueprint environment variables for Home Assistant OAuth2
+    - name: AUTHENTIK_HA_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: ha_client_id
+    - name: AUTHENTIK_HA_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: ha_client_secret
+
+# Blueprints for declarative SSO configuration
+blueprints:
+  configMaps:
+    - authentik-blueprints
+
+# Bundled PostgreSQL (Bitnami subchart)
+postgresql:
+  enabled: true
+  auth:
+    username: authentik
+    database: authentik
+    existingSecret: authentik-secrets
+    secretKeys:
+      userPasswordKey: postgres_password
+  primary:
+    persistence:
+      enabled: true
+      storageClass: kadalu.replica2
+      size: 10Gi
+
+# Bundled Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: false

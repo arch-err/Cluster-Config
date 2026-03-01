@@ -15,9 +15,26 @@ gateway:
     tlsSecret: wildcard-apps-home-tls
 
 # ══════════════════════════════════════════════════════════════════════════════
+# EXTRAS (additional resources deployed by the platform chart)
+# ══════════════════════════════════════════════════════════════════════════════
+extras:
+  authentik: true  # Deploys namespace and blueprints ConfigMap
+
+# ══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
 components:
+  - name: authentik
+    namespace: authentik
+    chart:
+      repo: https://charts.goauthentik.io
+      name: authentik
+    route:
+      hostname: authentik.apps.home
+      gateway: apps
+      service: authentik-server
+      port: 80
+
   - name: homeassistant
     namespace: homeassistant
     chart:

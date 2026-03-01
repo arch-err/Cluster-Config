@@ -285,6 +285,75 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* AUTHENTIK SSO                                                              */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.authentik }}
+---
+# Authentik namespace with baseline PSS
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: authentik
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+---
+# Authentik blueprints for declarative SSO configuration
+# Uses !Env tags to read client_id/secret from environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints
+  namespace: authentik
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+data:
+  home-assistant.yaml: |
+    version: 1
+    metadata:
+      name: Home Assistant SSO
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # OAuth2 Provider for Home Assistant
+      - model: authentik_providers_oauth2.oauth2provider
+        id: provider-homeassistant
+        identifiers:
+          name: homeassistant
+        state: present
+        attrs:
+          name: homeassistant
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          client_type: confidential
+          client_id: !Env AUTHENTIK_HA_CLIENT_ID
+          client_secret: !Env AUTHENTIK_HA_CLIENT_SECRET
+          redirect_uris:
+            - url: "https://homeassistant.apps.home/auth/openid/callback"
+              matching_mode: strict
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      # Application for Home Assistant
+      - model: authentik_core.application
+        id: app-homeassistant
+        identifiers:
+          slug: homeassistant
+        state: present
+        attrs:
+          name: Home Assistant
+          slug: homeassistant
+          provider: !KeyOf provider-homeassistant
+          policy_engine_mode: any
+          meta_launch_url: "https://homeassistant.apps.home"
+          meta_icon: "https://homeassistant.apps.home/static/icons/favicon-192x192.png"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}
