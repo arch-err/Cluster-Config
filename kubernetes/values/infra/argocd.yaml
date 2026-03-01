@@ -22,6 +22,7 @@ configs:
     exec.shells: "bash,sh,zsh"
 
     # Dex OIDC connector configuration for Authentik
+    # Uses internal service URL for cluster DNS resolution
     dex.config: |
       connectors:
         - type: oidc
@@ -32,10 +33,19 @@ configs:
             clientID: d40d62cdba8b176e6f07e5bbc1b4c2d82a6360ddd79a3acfc084679183ff2788
             clientSecret: $client_secret
             insecureEnableGroups: true
+            insecureSkipEmailVerified: true
             scopes:
               - openid
               - profile
               - email
+            # Use internal service for OIDC discovery (cluster can't resolve external DNS)
+            rootCA: ""
+            insecureSkipVerify: true
+            overrideClaimMapping:
+              groups: groups
+            getUserInfo: true
+            userIDKey: sub
+            userNameKey: preferred_username
 
     # Enable helm-secrets plugin
     helm.valuesFileSchemes: >-
