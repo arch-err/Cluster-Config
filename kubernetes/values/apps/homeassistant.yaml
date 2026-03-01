@@ -1,10 +1,6 @@
 # Home Assistant configuration
 # Note: Namespace is exempted from restricted PSS in Talos config
 
-# Use StatefulSet for persistent storage
-controller:
-  type: StatefulSet
-
 # Persistence for Home Assistant config
 persistence:
   enabled: true
@@ -32,3 +28,22 @@ configuration:
   forceInit: true
   trusted_proxies:
     - 10.244.0.0/16
+  # Custom templateConfig to include http section (chart only adds it with ingress.enabled)
+  templateConfig: |-
+    # Loads default set of integrations. Do not remove.
+    default_config:
+
+    http:
+      use_x_forwarded_for: true
+      trusted_proxies:
+        {{- range .Values.configuration.trusted_proxies }}
+        - {{ . }}
+        {{- end }}
+
+    # Load frontend themes from the themes folder
+    frontend:
+      themes: !include_dir_merge_named themes
+
+    automation: !include automations.yaml
+    script: !include scripts.yaml
+    scene: !include scenes.yaml
