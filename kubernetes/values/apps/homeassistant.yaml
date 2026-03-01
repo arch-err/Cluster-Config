@@ -1,8 +1,9 @@
 # Home Assistant configuration
+# Note: Namespace is exempted from restricted PSS in Talos config
 
-# Use StatefulSet for production
+# Use Deployment without persistence for now
 controller:
-  type: Deployment  # Use Deployment without persistence for now
+  type: Deployment
 
 # Persistence disabled until Kadalu storage is fixed
 persistence:
@@ -21,20 +22,3 @@ resources:
   limits:
     cpu: 1000m
     memory: 1Gi
-
-# Pod-level security context
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
-  fsGroup: 1000
-  seccompProfile:
-    type: RuntimeDefault
-
-# Container-level security context (required for restricted PSS)
-securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: false

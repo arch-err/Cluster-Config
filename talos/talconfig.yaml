@@ -69,6 +69,7 @@ controlPlane:
                   namespaces:
                     - cilium
                     - kadalu
+                    - homeassistant
 
     # Controller manager metrics
     - |-
