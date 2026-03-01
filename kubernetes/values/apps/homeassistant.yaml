@@ -22,13 +22,60 @@ resources:
     cpu: 1000m
     memory: 1Gi
 
+# Init containers to install hass-openid and generate secrets.yaml
+initContainers:
+  # Install hass-openid custom component
+  - name: install-hass-openid
+    image: alpine/git:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        git clone --depth 1 https://github.com/cavefire/hass-openid.git /tmp/hass-openid
+        mkdir -p /custom_components/openid
+        cp -r /tmp/hass-openid/custom_components/openid/* /custom_components/openid/
+        chown -R 1000:1000 /custom_components
+    volumeMounts:
+      - name: custom-components
+        mountPath: /custom_components
+  # Generate secrets.yaml from mounted secret
+  - name: generate-secrets
+    image: busybox:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        cat > /config/secrets.yaml << EOF
+        # Auto-generated secrets for Home Assistant
+        openid_client_id: $(cat /secrets/client_id)
+        openid_client_secret: $(cat /secrets/client_secret)
+        EOF
+        chown 1000:1000 /config/secrets.yaml
+    volumeMounts:
+      - name: config
+        mountPath: /config
+      - name: openid-secrets
+        mountPath: /secrets
+        readOnly: true
+
+# Additional volumes
+additionalVolumes:
+  - name: custom-components
+    emptyDir: {}
+  - name: openid-secrets
+    secret:
+      secretName: homeassistant-openid
+
+# Mount custom components into Home Assistant
+additionalMounts:
+  - name: custom-components
+    mountPath: /config/custom_components/openid
+
 # Home Assistant configuration (injected into configuration.yaml)
 configuration:
   enabled: true
   forceInit: true
   trusted_proxies:
     - 10.244.0.0/16
-  # Custom templateConfig to include http section (chart only adds it with ingress.enabled)
+  # Custom templateConfig to include http section and OpenID (chart only adds http with ingress.enabled)
   templateConfig: |-
     # Loads default set of integrations. Do not remove.
     default_config:
@@ -39,6 +86,15 @@ configuration:
         {{- range .Values.configuration.trusted_proxies }}
         - {{ . }}
         {{- end }}
+
+    # OpenID authentication via Authentik
+    openid:
+      client_id: !secret openid_client_id
+      client_secret: !secret openid_client_secret
+      configure_url: "https://authentik.apps.home/application/o/homeassistant/.well-known/openid-configuration"
+      scope: "openid profile email"
+      username_field: "preferred_username"
+      create_user: true
 
     # Load frontend themes from the themes folder
     frontend:

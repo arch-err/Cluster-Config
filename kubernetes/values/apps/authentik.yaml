@@ -48,6 +48,17 @@ server:
         secretKeyRef:
           name: authentik-secrets
           key: ha_client_secret
+    # Blueprint environment variables for ArgoCD OAuth2
+    - name: AUTHENTIK_ARGOCD_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: argocd_client_id
+    - name: AUTHENTIK_ARGOCD_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: argocd_client_secret
 
 # Worker (background job processing)
 worker:
@@ -80,6 +91,17 @@ worker:
         secretKeyRef:
           name: authentik-secrets
           key: ha_client_secret
+    # Blueprint environment variables for ArgoCD OAuth2
+    - name: AUTHENTIK_ARGOCD_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: argocd_client_id
+    - name: AUTHENTIK_ARGOCD_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: argocd_client_secret
 
 # Blueprints for declarative SSO configuration
 blueprints:

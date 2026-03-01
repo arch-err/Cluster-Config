@@ -351,6 +351,56 @@ data:
           policy_engine_mode: any
           meta_launch_url: "https://homeassistant.apps.home"
           meta_icon: "https://homeassistant.apps.home/static/icons/favicon-192x192.png"
+  argocd.yaml: |
+    version: 1
+    metadata:
+      name: ArgoCD SSO
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Admin group for ArgoCD
+      - model: authentik_core.group
+        id: group-argocd-admins
+        identifiers:
+          name: ArgoCD Admins
+        state: present
+        attrs:
+          name: ArgoCD Admins
+      # OAuth2 Provider for ArgoCD (via Dex)
+      - model: authentik_providers_oauth2.oauth2provider
+        id: provider-argocd
+        identifiers:
+          name: argocd
+        state: present
+        attrs:
+          name: argocd
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          client_type: confidential
+          client_id: !Env AUTHENTIK_ARGOCD_CLIENT_ID
+          client_secret: !Env AUTHENTIK_ARGOCD_CLIENT_SECRET
+          redirect_uris:
+            - url: "https://argocd.infra.home/api/dex/callback"
+              matching_mode: strict
+            - url: "http://localhost:8085/auth/callback"
+              matching_mode: strict
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      # Application for ArgoCD
+      - model: authentik_core.application
+        id: app-argocd
+        identifiers:
+          slug: argocd
+        state: present
+        attrs:
+          name: ArgoCD
+          slug: argocd
+          provider: !KeyOf provider-argocd
+          policy_engine_mode: any
+          meta_launch_url: "https://argocd.infra.home"
+          meta_icon: "https://argo-cd.readthedocs.io/en/stable/assets/logo.png"
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}

@@ -3,14 +3,39 @@ server:
   ingress:
     enabled: false  # Using Gateway API instead
 
+# Dex server configuration for Authentik SSO
+dex:
+  envFrom:
+    - secretRef:
+        name: argocd-dex-authentik
+
 configs:
   params:
     server.insecure: true  # TLS terminated at gateway
 
   cm:
+    # Authentik SSO URL (for UI login button)
+    url: https://argocd.infra.home
+
     # Enable web terminal (exec into pods from UI)
     exec.enabled: "true"
     exec.shells: "bash,sh,zsh"
+
+    # Dex OIDC connector configuration for Authentik
+    dex.config: |
+      connectors:
+        - type: oidc
+          id: authentik
+          name: Authentik
+          config:
+            issuer: https://authentik.apps.home/application/o/argocd/
+            clientID: d40d62cdba8b176e6f07e5bbc1b4c2d82a6360ddd79a3acfc084679183ff2788
+            clientSecret: $client_secret
+            insecureEnableGroups: true
+            scopes:
+              - openid
+              - profile
+              - email
 
     # Enable helm-secrets plugin
     helm.valuesFileSchemes: >-
@@ -34,3 +59,9 @@ configs:
           - CiliumIdentity
           - CiliumEndpoint
           - CiliumEndpointSlice
+
+  # RBAC configuration for Authentik groups
+  rbac:
+    policy.csv: |
+      # ArgoCD Admins group from Authentik gets admin role
+      g, ArgoCD Admins, role:admin
