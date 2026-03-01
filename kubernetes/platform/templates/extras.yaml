@@ -299,6 +299,33 @@ metadata:
     pod-security.kubernetes.io/audit: privileged
     pod-security.kubernetes.io/warn: privileged
 ---
+# ClusterRole extension for kadalu-operator to patch StorageClasses
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kadalu-operator-patch
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+rules:
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kadalu-operator-patch
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kadalu-operator-patch
+subjects:
+  - kind: ServiceAccount
+    name: kadalu-operator
+    namespace: kadalu
+---
 # Kadalu Replica2 storage with tiebreaker
 # - node-1: /dev/sda (4TB external)
 # - node-2: /dev/sda (4TB external)
