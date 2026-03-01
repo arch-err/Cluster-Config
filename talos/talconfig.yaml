@@ -3,7 +3,7 @@
 clusterName: cluster
 talosVersion: v1.12.4
 kubernetesVersion: v1.34.0
-endpoint: https://192.168.1.70:6443
+endpoint: https://10.10.10.170:6443
 
 allowSchedulingOnControlPlanes: true
 
@@ -38,7 +38,7 @@ controlPlane:
             - interface: enp1s0
               dhcp: true
               vip:
-                ip: 192.168.1.70
+                ip: 10.10.10.170
 
     # etcd metrics exposure
     - |-
@@ -47,7 +47,7 @@ controlPlane:
           extraArgs:
             listen-metrics-urls: http://0.0.0.0:2381
           advertisedSubnets:
-            - 192.168.1.0/24
+            - 10.10.10.0/24
 
     # Pod Security Standards - restricted
     - |-
@@ -86,16 +86,16 @@ controlPlane:
 
 nodes:
   - hostname: NODE-1
-    ipAddress: 192.168.1.71
+    ipAddress: 10.10.10.171
     controlPlane: true
     installDisk: /dev/nvme0n1
 
   - hostname: NODE-2
-    ipAddress: 192.168.1.72
+    ipAddress: 10.10.10.172
     controlPlane: true
     installDisk: /dev/nvme0n1
 
   - hostname: NODE-3
-    ipAddress: 192.168.1.73
+    ipAddress: 10.10.10.173
     controlPlane: true
     installDisk: /dev/nvme0n1

@@ -75,21 +75,21 @@ extras:
 # Gateway configuration
 gateway:
   pool:
-    start: "192.168.1.200"
-    stop: "192.168.1.220"
+    start: "10.10.10.200"
+    stop: "10.10.10.220"
   infra:
-    ip: "192.168.1.200"
+    ip: "10.10.10.200"
     domain: infra.home
     tlsSecret: wildcard-infra-home-tls
   apps:
-    ip: "192.168.1.200"
+    ip: "10.10.10.201"
     domain: apps.home
     tlsSecret: wildcard-apps-home-tls
 
 # External services (TLS passthrough to Docker host via SNI routing)
 # These stay on *.home - K8s passes through to Docker's Traefik
 external:
-  dockerHost: "192.168.1.60"
+  dockerHost: "10.10.10.160"
   services:
     - name: homeassistant
       hostname: homeassistant.home

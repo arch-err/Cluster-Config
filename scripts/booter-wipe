@@ -215,7 +215,7 @@ start_booter ""
 success "Booter restarted in clean mode"
 
 # Node IPs (derived from standard cluster config)
-NODE_IPS=("192.168.1.71" "192.168.1.72" "192.168.1.73")
+NODE_IPS=("10.10.10.171" "10.10.10.172" "10.10.10.173")
 
 echo -e "\nWaiting for nodes to enter maintenance mode (port 50000)..."
 

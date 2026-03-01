@@ -9,10 +9,10 @@ set shell := ["bash", "-uc"]
 talos_version := "v1.12.4"
 
 # Node configuration
-node1 := "192.168.1.71"
-node2 := "192.168.1.72"
-node3 := "192.168.1.73"
-vip := "192.168.1.70"
+node1 := "10.10.10.171"
+node2 := "10.10.10.172"
+node3 := "10.10.10.173"
+vip := "10.10.10.170"
 
 # MAC addresses (for PXE boot monitoring)
 mac1 := "10:e7:c6:0d:12:be"
