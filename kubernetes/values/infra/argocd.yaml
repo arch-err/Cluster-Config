@@ -30,7 +30,7 @@ configs:
           config:
             issuer: https://authentik.apps.home/application/o/argocd/
             clientID: d40d62cdba8b176e6f07e5bbc1b4c2d82a6360ddd79a3acfc084679183ff2788
-            clientSecret: $dex.client_secret
+            clientSecret: $client_secret
             insecureEnableGroups: true
             insecureSkipVerify: true
             scopes:
