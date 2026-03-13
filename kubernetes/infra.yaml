@@ -103,6 +103,8 @@ external:
       hostname: app.happy.home
     - name: claude-notify
       hostname: claude-notify.home
+    - name: matrix
+      hostname: matrix.home
 
 # Kadalu distributed storage configuration
 kadalu:
