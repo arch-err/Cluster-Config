@@ -1,0 +1,82 @@
+# Matrix Synapse — S.T.A.R. Labs Comms
+# Chart: halkeye/synapse
+
+# Scale down workers for homelab use
+replicaCounts:
+  master: 1
+  generic_worker: 0
+  federation_sender: 0
+
+# Disable chart ingress — Gateway API handles TLS
+ingress:
+  enabled: false
+
+# Persistence for Synapse data
+persistence:
+  enabled: true
+  storageClassName: kadalu.replica2
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+# Database — use Bitnami PostgreSQL subchart
+database:
+  mode: postgresql
+  host: matrix-postgresql
+  port: 5432
+  name: synapse
+  username: synapse
+  password: speed-force-9000
+
+postgresql:
+  enabled: true
+  auth:
+    username: synapse
+    password: speed-force-9000
+    database: synapse
+  primary:
+    persistence:
+      enabled: true
+      storageClass: kadalu.replica2
+      size: 5Gi
+
+# Redis — needed for worker coordination
+redis:
+  enabled: true
+  auth:
+    password: riches-jarring-acts
+
+# Synapse settings
+settings:
+  report_stats: "no"
+
+# Homeserver configuration
+homeserver:
+  # Disable workers for single-instance homelab
+  send_federation: true
+  instance_map: {}
+  federation_sender_instances: []
+  outbound_federation_restricted_to: []
+
+  redis:
+    enabled: false
+
+  server_name: "matrix.apps.home"
+  public_baseurl: "https://matrix.apps.home/"
+  serve_client_wellknown: true
+
+  enable_registration: true
+  enable_registration_without_verification: true
+
+  registration_shared_secret: "speed-force-9000"
+
+  suppress_key_server_warning: true
+
+  listeners:
+    - port: 8008
+      tls: false
+      type: http
+      x_forwarded: true
+      resources:
+        - names: [client, federation]
+          compress: false

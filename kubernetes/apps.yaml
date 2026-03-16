@@ -46,6 +46,17 @@ components:
       service: homeassistant-home-assistant
       port: 8123
 
+  - name: matrix
+    namespace: matrix
+    chart:
+      repo: https://halkeye.github.io/helm-charts
+      name: synapse
+    route:
+      hostname: matrix.apps.home
+      gateway: apps
+      service: matrix-synapse
+      port: 8443
+
   # Example apps (uncomment when ready):
   #
   # - name: homepage
