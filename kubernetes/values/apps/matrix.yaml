@@ -11,6 +11,29 @@ replicaCounts:
 ingress:
   enabled: false
 
+# Pod security context (restricted PSS compliant)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 991
+  runAsGroup: 991
+  fsGroup: 991
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 991
+  seccompProfile:
+    type: RuntimeDefault
+
+# Skip extra python modules — they require root for pip/apt
+extra_python_modules: []
+
 # Persistence for Synapse data
 persistence:
   enabled: true
@@ -39,15 +62,67 @@ postgresql:
       enabled: true
       storageClass: kadalu.replica2
       size: 5Gi
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+      runAsUser: 1001
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
 
-# Redis — needed for worker coordination
+# Redis
 redis:
   enabled: true
   auth:
     password: riches-jarring-acts
+  master:
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+      runAsUser: 1001
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+  replica:
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+      runAsUser: 1001
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
 
 # Synapse settings
 settings:
+  uid: "991"
+  gid: "991"
   report_stats: "no"
 
 # Homeserver configuration
