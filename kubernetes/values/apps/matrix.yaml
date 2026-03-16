@@ -11,27 +11,7 @@ replicaCounts:
 ingress:
   enabled: false
 
-# Pod security context (restricted PSS compliant)
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 991
-  runAsGroup: 991
-  fsGroup: 991
-  seccompProfile:
-    type: RuntimeDefault
-
-securityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: false
-  runAsNonRoot: true
-  runAsUser: 991
-  seccompProfile:
-    type: RuntimeDefault
-
-# Skip extra python modules — they require root for pip/apt
+# Skip extra python modules — they require pip/apt at build time
 extra_python_modules: []
 
 # Persistence for Synapse data + sqlite db
