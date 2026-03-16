@@ -60,6 +60,9 @@ homeserver:
 
   suppress_key_server_warning: true
 
+  experimental_features:
+    msc3575_enabled: true
+
   listeners:
     - port: 8008
       tls: false
