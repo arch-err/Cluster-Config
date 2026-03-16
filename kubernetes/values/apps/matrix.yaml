@@ -53,6 +53,8 @@ database:
 
 postgresql:
   enabled: true
+  image:
+    tag: 16-debian-12
   auth:
     username: synapse
     password: speed-force-9000
@@ -82,6 +84,8 @@ postgresql:
 # Redis
 redis:
   enabled: true
+  image:
+    tag: 7-debian-12
   auth:
     password: riches-jarring-acts
   master:
