@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Matrix User Provisioning
+# Creates accounts on Synapse using the shared registration secret.
+# Usage: ./scripts/matrix-users [--dry-run]
+
+set -euo pipefail
+
+SYNAPSE_URL="https://matrix.apps.home"
+SHARED_SECRET="speed-force-9000"
+
+# ── User definitions ────────────────────────────────────────────────────────
+# Format: "username:displayname:password:admin(true/false)"
+USERS=(
+  "j:J:speed-force-9000:true"
+  "cisco:Cisco Ramon:vibe-check-9000:false"
+  # Add more users here:
+  # "caitlin:Caitlin Snow:frost-bite-9000:false"
+  # "wells:Harrison Wells:think-fast-9000:false"
+)
+
+# ── Helpers ─────────────────────────────────────────────────────────────────
+DRY_RUN=false
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+
+generate_mac() {
+  local user="$1" pass="$2" admin="$3"
+  local nonce="$4"
+  # HMAC = HMAC-SHA1(shared_secret, nonce\0user\0pass\0admin)
+  local admin_flag="notadmin"
+  [[ "$admin" == "true" ]] && admin_flag="admin"
+  printf '%s\0%s\0%s\0%s' "$nonce" "$user" "$pass" "$admin_flag" \
+    | openssl dgst -sha1 -hmac "$SHARED_SECRET" -r | awk '{print $1}'
+}
+
+register_user() {
+  local user="$1" display="$2" pass="$3" admin="$4"
+
+  echo -n "  $user ($display)... "
+
+  if $DRY_RUN; then
+    echo "would create (dry-run)"
+    return
+  fi
+
+  # Get nonce
+  local nonce
+  nonce=$(curl -sk "$SYNAPSE_URL/_synapse/admin/v1/register" 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['nonce'])")
+
+  # Generate HMAC
+  local mac
+  mac=$(generate_mac "$user" "$pass" "$admin" "$nonce")
+
+  # Register
+  local result
+  result=$(curl -sk -X POST "$SYNAPSE_URL/_synapse/admin/v1/register" \
+    -H "Content-Type: application/json" \
+    -d "$(python3 -c "
+import json
+print(json.dumps({
+    'nonce': '$nonce',
+    'username': '$user',
+    'password': '$pass',
+    'displayname': '$display',
+    'admin': '$admin' == 'true',
+    'mac': '$mac'
+}))")" 2>&1)
+
+  if echo "$result" | grep -q "user_id"; then
+    echo "✓ created"
+  elif echo "$result" | grep -q "User ID already taken"; then
+    echo "already exists"
+  else
+    echo "✗ $(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','unknown error'))" 2>/dev/null || echo "$result")"
+  fi
+}
+
+# ── Main ────────────────────────────────────────────────────────────────────
+echo "══ Matrix User Provisioning"
+echo "   Server: $SYNAPSE_URL"
+$DRY_RUN && echo "   Mode: DRY RUN"
+echo ""
+
+for entry in "${USERS[@]}"; do
+  IFS=':' read -r user display pass admin <<< "$entry"
+  register_user "$user" "$display" "$pass" "$admin"
+done
+
+echo ""
+echo "Done!"
