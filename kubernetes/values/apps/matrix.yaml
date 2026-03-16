@@ -1,7 +1,7 @@
 # Matrix Synapse — S.T.A.R. Labs Comms
 # Chart: halkeye/synapse
 
-# Scale down workers for homelab use
+# Single instance — no workers
 replicaCounts:
   master: 1
   generic_worker: 0
@@ -34,7 +34,7 @@ securityContext:
 # Skip extra python modules — they require root for pip/apt
 extra_python_modules: []
 
-# Persistence for Synapse data
+# Persistence for Synapse data + sqlite db
 persistence:
   enabled: true
   storageClassName: kadalu.replica2
@@ -42,86 +42,16 @@ persistence:
     - ReadWriteOnce
   size: 5Gi
 
-# Database — use Bitnami PostgreSQL subchart
+# SQLite — no external DB needed for homelab scale
 database:
-  mode: postgresql
-  host: matrix-postgresql
-  port: 5432
-  name: synapse
-  username: synapse
-  password: speed-force-9000
+  mode: sqlite
 
+# Disable subcharts
 postgresql:
-  enabled: true
-  image:
-    tag: latest
-  auth:
-    username: synapse
-    password: speed-force-9000
-    database: synapse
-  primary:
-    persistence:
-      enabled: true
-      storageClass: kadalu.replica2
-      size: 5Gi
-    podSecurityContext:
-      enabled: true
-      fsGroup: 1001
-      runAsUser: 1001
-      seccompProfile:
-        type: RuntimeDefault
-    containerSecurityContext:
-      enabled: true
-      runAsUser: 1001
-      runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
+  enabled: false
 
-# Redis
 redis:
-  enabled: true
-  image:
-    tag: latest
-  auth:
-    password: riches-jarring-acts
-  master:
-    podSecurityContext:
-      enabled: true
-      fsGroup: 1001
-      runAsUser: 1001
-      seccompProfile:
-        type: RuntimeDefault
-    containerSecurityContext:
-      enabled: true
-      runAsUser: 1001
-      runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
-  replica:
-    podSecurityContext:
-      enabled: true
-      fsGroup: 1001
-      runAsUser: 1001
-      seccompProfile:
-        type: RuntimeDefault
-    containerSecurityContext:
-      enabled: true
-      runAsUser: 1001
-      runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
+  enabled: false
 
 # Synapse settings
 settings:
@@ -131,7 +61,6 @@ settings:
 
 # Homeserver configuration
 homeserver:
-  # Disable workers for single-instance homelab
   send_federation: true
   instance_map: {}
   federation_sender_instances: []
