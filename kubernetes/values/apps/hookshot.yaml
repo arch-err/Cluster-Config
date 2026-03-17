@@ -61,7 +61,7 @@ passkey: |
 config:
   bridge:
     domain: matrix.apps.home
-    url: http://matrix-synapse:8008
+    url: http://matrix-synapse:8443
     mediaUrl: https://matrix.apps.home
     port: 9993
     bindAddress: 0.0.0.0
