@@ -57,6 +57,17 @@ components:
       service: matrix-synapse
       port: 8443
 
+  - name: hookshot
+    namespace: matrix
+    chart:
+      repo: https://arch-err.github.io/charts
+      name: hookshot
+    route:
+      hostname: hookshot.apps.home
+      gateway: apps
+      service: hookshot
+      port: 9000
+
   # Example apps (uncomment when ready):
   #
   # - name: homepage

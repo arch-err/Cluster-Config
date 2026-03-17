@@ -1,0 +1,97 @@
+# Matrix Hookshot — Cortex Link Webhook Bridge
+# Chart: arch-err/hookshot
+
+image:
+  tag: "latest"
+
+passkey: |
+  -----BEGIN PRIVATE KEY-----
+  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
+  vVe4wSOw/17a7Y/bbtNNHCO01FTVaw==
+  -----END PRIVATE KEY-----
+
+config:
+  bridge:
+    domain: matrix.apps.home
+    url: http://matrix-synapse:8008
+    mediaUrl: https://matrix.apps.home
+    port: 9993
+    bindAddress: 0.0.0.0
+  logging:
+    level: info
+    colorize: false
+    json: false
+    timestampFormat: "HH:mm:ss:SSS"
+  listeners:
+    - port: 9000
+      bindAddress: 0.0.0.0
+      resources:
+        - webhooks
+  passFile: /data/passkey.pem
+  generic:
+    enabled: true
+    urlPrefix: https://hookshot.apps.home/webhook/
+    allowJsTransformationFunctions: false
+    userIdPrefix: _hookshot_
+
+registration:
+  id: matrix-hookshot
+  as_token: "38d1239056de14d9de8f41ef0a1b9ba47cd5487e28bfb3c147458ae2d7fca14a"
+  hs_token: "1c3385bc0a7329fa419a4b887a5ceb70a2b5f39a19742aa84a10f1679129bbd5"
+  url: "http://hookshot:9993"
+  sender_localpart: hookshot
+  rate_limited: false
+  namespaces:
+    users:
+      - regex: "@_hookshot_.*:matrix\\.apps\\.home"
+        exclusive: true
+    rooms: []
+    aliases: []

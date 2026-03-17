@@ -64,6 +64,9 @@ homeserver:
 
   suppress_key_server_warning: true
 
+  app_service_config_files:
+    - /data/hookshot-registration.yml
+
   experimental_features:
     msc3575_enabled: true
 
@@ -75,3 +78,19 @@ homeserver:
       resources:
         - names: [client, federation]
           compress: false
+
+# Hookshot appservice registration — mounted as /data/hookshot-registration.yml
+extraConfigs:
+  hookshot-registration.yml:
+    id: matrix-hookshot
+    as_token: "38d1239056de14d9de8f41ef0a1b9ba47cd5487e28bfb3c147458ae2d7fca14a"
+    hs_token: "1c3385bc0a7329fa419a4b887a5ceb70a2b5f39a19742aa84a10f1679129bbd5"
+    url: "http://hookshot:9993"
+    sender_localpart: hookshot
+    rate_limited: false
+    namespaces:
+      users:
+        - regex: "@_hookshot_.*:matrix\\.apps\\.home"
+          exclusive: true
+      rooms: []
+      aliases: []
