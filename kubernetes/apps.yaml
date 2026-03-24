@@ -89,3 +89,31 @@ components:
   #     hostname: grafana.apps.home
   #     gateway: apps
   #     port: 3000
+
+  - name: plane
+    namespace: plane
+    chart:
+      repo: https://helm.plane.so/
+      name: plane-ce
+    route:
+      hostname: plane.apps.home
+      gateway: apps
+      rules:
+        - path: /api
+          service: plane-api
+          port: 8000
+        - path: /auth
+          service: plane-api
+          port: 8000
+        - path: /live
+          service: plane-live
+          port: 3000
+        - path: /spaces
+          service: plane-space
+          port: 3000
+        - path: /god-mode
+          service: plane-admin
+          port: 3000
+        - path: /
+          service: plane-web
+          port: 3000
