@@ -105,6 +105,8 @@ external:
       hostname: claude-notify.home
     - name: matrix
       hostname: matrix.home
+    - name: syncthing
+      hostname: syncthing.home
 
 # Kadalu distributed storage configuration
 kadalu:
