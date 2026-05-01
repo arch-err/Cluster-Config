@@ -1,0 +1,118 @@
+# Grafana — dashboards UI
+# Chart: grafana/grafana
+# Dashboards via git-sync sidecar from arch-err/grafana-dashboards
+
+# Persistence for grafana DB (sqlite by default)
+persistence:
+  enabled: true
+  storageClassName: kadalu.replica2
+  size: 5Gi
+
+# Admin password set via ConfigMap reference (TODO: move to SopsSecret)
+adminUser: admin
+adminPassword: changeme  # OVERRIDE via SopsSecret in next iteration
+
+# Disable the dashboard ConfigMap sidecar — we use git-sync instead
+sidecar:
+  dashboards:
+    enabled: false
+  datasources:
+    enabled: false  # We provision via values below
+
+# Datasources — declarative, baked into helm values
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        type: prometheus
+        access: proxy
+        url: http://mimir-monolithic.monitoring.svc:8080/prometheus
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: 30s
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc:3100
+        jsonData:
+          maxLines: 1000
+
+# Dashboard provider — points at the git-sync mount
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: git
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/git
+          foldersFromFilesStructure: true
+
+# Git-sync sidecar pulls dashboards from arch-err/grafana-dashboards every 30s
+extraContainers: |
+  - name: git-sync
+    image: registry.k8s.io/git-sync/git-sync:v4.4.0
+    args:
+      - --repo=https://github.com/arch-err/grafana-dashboards
+      - --ref=main
+      - --root=/dashboards
+      - --period=30s
+      - --link=current
+    volumeMounts:
+      - name: dashboards-git
+        mountPath: /dashboards
+    securityContext:
+      runAsUser: 65533
+      runAsNonRoot: true
+
+# Init container: clone once before grafana starts (so dashboards exist on first boot)
+extraInitContainers:
+  - name: git-sync-init
+    image: registry.k8s.io/git-sync/git-sync:v4.4.0
+    args:
+      - --repo=https://github.com/arch-err/grafana-dashboards
+      - --ref=main
+      - --root=/dashboards
+      - --one-time
+      - --link=current
+    volumeMounts:
+      - name: dashboards-git
+        mountPath: /dashboards
+    securityContext:
+      runAsUser: 65533
+      runAsNonRoot: true
+
+extraVolumes:
+  - name: dashboards-git
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: dashboards-git
+    mountPath: /var/lib/grafana/dashboards/git
+    subPath: current
+
+# Grafana config
+grafana.ini:
+  server:
+    root_url: https://grafana.infra.home
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  log:
+    mode: console
+  auth.anonymous:
+    enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi

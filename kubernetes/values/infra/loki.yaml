@@ -1,0 +1,62 @@
+# Loki — log aggregation (single-binary mode for homelab)
+# Chart: grafana/loki
+
+deploymentMode: SingleBinary
+
+# Loki runtime config
+loki:
+  auth_enabled: false  # Disable multi-tenancy
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 30d
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+
+# Single binary mode
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: kadalu.replica2
+    size: 30Gi
+
+# Disable microservices components
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Disable bundled MinIO + chunks-cache; use filesystem
+minio:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Disable test resources
+test:
+  enabled: false
+lokiCanary:
+  enabled: false
+
+# Disable gateway (we expose loki internally only)
+gateway:
+  enabled: false

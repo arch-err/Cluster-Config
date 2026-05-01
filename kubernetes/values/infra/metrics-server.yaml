@@ -1,0 +1,12 @@
+# metrics-server — provides Metrics API for `kubectl top` + HPA
+# Talos uses self-signed kubelet certs, so we need --kubelet-insecure-tls
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    memory: 200Mi

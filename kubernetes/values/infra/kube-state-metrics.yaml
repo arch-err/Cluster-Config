@@ -1,0 +1,11 @@
+# kube-state-metrics — exports cluster-object metrics
+# Scraped by Alloy; no service annotations needed for that
+
+namespaceOverride: monitoring
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    memory: 200Mi

@@ -1,0 +1,25 @@
+# node-exporter — host-level hardware/OS metrics
+# Runs as a DaemonSet with hostNetwork + hostPID
+
+namespaceOverride: monitoring
+
+# Talos exposes /proc, /sys, /host:/ — defaults work
+hostNetwork: true
+hostPID: true
+
+# PodSecurity baseline-friendly tweaks
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 50Mi
+  limits:
+    memory: 100Mi
+
+# Tolerate control-plane taint (we run mixed nodes)
+tolerations:
+  - effect: NoSchedule
+    operator: Exists

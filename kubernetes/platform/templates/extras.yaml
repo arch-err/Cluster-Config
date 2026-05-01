@@ -488,4 +488,23 @@ volumeBindingMode: Immediate
 allowVolumeExpansion: true
 {{- end }}
 
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* MONITORING                                                                 */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.monitoring }}
+---
+# Monitoring namespace with privileged PodSecurity
+# (required for alloy hostPath log scraping + node-exporter hostNetwork/hostPID)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
 {{- end }}
