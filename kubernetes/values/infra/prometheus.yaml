@@ -21,10 +21,12 @@ server:
     storageClass: kadalu.replica2
     size: 30Gi
 
-  # Enable remote-write receiver so Alloy can push, plus 15d retention
+  # 15d retention (set via chart's `server.retention`, which renders the flag).
+  retention: 15d
+
+  # Enable remote-write receiver so Alloy can push.
   extraArgs:
     web.enable-remote-write-receiver: ""
-    storage.tsdb.retention.time: 15d
 
   resources:
     requests:
