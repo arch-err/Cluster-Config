@@ -40,3 +40,15 @@ components:
       service: hookshot
       port: 9000
 
+  - name: audiobookshelf
+    namespace: audiobookshelf
+    chart:
+      repo: https://charts.christianhuth.de
+      name: audiobookshelf
+      version: 2.2.0
+    route:
+      hostname: audiobookshelf.apps.home
+      gateway: apps
+      service: audiobookshelf
+      port: 8080
+
