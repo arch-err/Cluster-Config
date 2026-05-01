@@ -28,6 +28,7 @@ datasources:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus  # Stable UID so dashboards can reference by uid
         type: prometheus
         access: proxy
         url: http://prometheus-server.monitoring.svc
@@ -36,6 +37,7 @@ datasources:
           httpMethod: POST
           timeInterval: 30s
       - name: Loki
+        uid: loki  # Stable UID so dashboards can reference by uid
         type: loki
         access: proxy
         url: http://loki.monitoring.svc:3100
