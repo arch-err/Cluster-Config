@@ -2780,9 +2780,9 @@
     "list": [
       {
         "current": {
-          "selected": false,
-          "text": "",
-          "value": ""
+          "selected": true,
+          "text": "Prometheus",
+          "value": "prometheus"
         },
         "includeAll": false,
         "name": "datasource",
