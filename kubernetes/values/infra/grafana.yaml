@@ -8,9 +8,12 @@ persistence:
   storageClassName: kadalu.replica2
   size: 5Gi
 
-# Admin password set via ConfigMap reference (TODO: move to SopsSecret)
+# Admin: chart auto-generates random 40-char password if adminPassword is unset.
+# Retrieve with:
+#   kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
+# On re-install, argocd preserves the existing Secret (helm only creates if missing),
+# so the password persists across syncs unless the Secret is manually deleted.
 adminUser: admin
-adminPassword: changeme  # OVERRIDE via SopsSecret in next iteration
 
 # Disable the dashboard ConfigMap sidecar — we use git-sync instead
 sidecar:
