@@ -40,14 +40,3 @@ components:
       service: hookshot
       port: 9000
 
-  - name: audiobookshelf
-    namespace: audiobookshelf
-    chart:
-      repo: https://arch-err.github.io/charts
-      name: audiobookshelf
-      version: 0.1.0
-    route:
-      hostname: audiobookshelf.apps.home
-      gateway: apps
-      service: audiobookshelf
-      port: 80
