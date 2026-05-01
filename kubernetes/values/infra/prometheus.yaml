@@ -1,0 +1,39 @@
+# Prometheus — TSDB + scraper
+# Chart: prometheus-community/prometheus
+# Alloy push-writes metrics here via remote_write.
+# We use standalone kube-state-metrics + prometheus-node-exporter, so disable bundled.
+
+alertmanager:
+  enabled: false  # add later if you want alerting
+
+kube-state-metrics:
+  enabled: false  # standalone
+
+prometheus-node-exporter:
+  enabled: false  # standalone
+
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  persistentVolume:
+    enabled: true
+    storageClass: kadalu.replica2
+    size: 30Gi
+
+  # Enable remote-write receiver so Alloy can push, plus 15d retention
+  extraArgs:
+    web.enable-remote-write-receiver: ""
+    storage.tsdb.retention.time: 15d
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+# Empty scrape config — Alloy pushes everything via remote-write
+serverFiles:
+  prometheus.yml:
+    scrape_configs: []

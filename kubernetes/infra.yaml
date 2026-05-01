@@ -85,12 +85,12 @@ components:
       version: 4.39.x
     syncWave: "2"
 
-  - name: mimir
+  - name: prometheus
     namespace: monitoring
     chart:
-      repo: https://grafana.github.io/helm-charts
-      name: mimir-distributed
-      version: 5.7.x
+      repo: https://prometheus-community.github.io/helm-charts
+      name: prometheus
+      version: 27.x
     syncWave: "2"
 
   - name: loki

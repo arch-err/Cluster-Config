@@ -24,10 +24,10 @@ datasources:
   datasources.yaml:
     apiVersion: 1
     datasources:
-      - name: Mimir
+      - name: Prometheus
         type: prometheus
         access: proxy
-        url: http://mimir-monolithic.monitoring.svc:8080/prometheus
+        url: http://prometheus-server.monitoring.svc
         isDefault: true
         jsonData:
           httpMethod: POST
