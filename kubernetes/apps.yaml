@@ -24,17 +24,6 @@ extras:
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
 components:
-  - name: authentik
-    namespace: authentik
-    chart:
-      repo: https://charts.goauthentik.io
-      name: authentik
-    route:
-      hostname: authentik.apps.home
-      gateway: apps
-      service: authentik-server
-      port: 80
-
   - name: homeassistant
     namespace: homeassistant
     chart:
@@ -67,53 +56,3 @@ components:
       gateway: apps
       service: hookshot
       port: 9000
-
-  # Example apps (uncomment when ready):
-  #
-  # - name: homepage
-  #   namespace: homepage
-  #   chart:
-  #     repo: https://jameswynn.github.io/helm-charts
-  #     name: homepage
-  #   route:
-  #     hostname: home.apps.home
-  #     gateway: apps
-  #     port: 3000
-  #
-  # - name: grafana
-  #   namespace: monitoring
-  #   chart:
-  #     repo: https://grafana.github.io/helm-charts
-  #     name: grafana
-  #   route:
-  #     hostname: grafana.apps.home
-  #     gateway: apps
-  #     port: 3000
-
-  - name: plane
-    namespace: plane
-    chart:
-      repo: https://helm.plane.so/
-      name: plane-ce
-    route:
-      hostname: plane.apps.home
-      gateway: apps
-      rules:
-        - path: /api
-          service: plane-api
-          port: 8000
-        - path: /auth
-          service: plane-api
-          port: 8000
-        - path: /live
-          service: plane-live
-          port: 3000
-        - path: /spaces
-          service: plane-space
-          port: 3000
-        - path: /god-mode
-          service: plane-admin
-          port: 3000
-        - path: /
-          service: plane-web
-          port: 3000
