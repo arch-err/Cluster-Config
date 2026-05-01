@@ -39,7 +39,7 @@ datasources:
         jsonData:
           maxLines: 1000
 
-# Dashboard provider — points at the git-sync mount
+# Dashboard provider — points at the git-sync mount + subfolder in the repo
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1
@@ -52,16 +52,16 @@ dashboardProviders:
         editable: false
         updateIntervalSeconds: 30
         options:
-          path: /var/lib/grafana/dashboards/git
+          path: /var/lib/grafana/dashboards/git/kubernetes/extras/grafana-dashboards
           foldersFromFilesStructure: true
 
-# Git-sync sidecar pulls dashboards from arch-err/grafana-dashboards every 30s
+# Git-sync sidecar pulls Cluster-Config every 30s; we mount the dashboards subfolder
 extraContainers: |
   - name: git-sync
     image: registry.k8s.io/git-sync/git-sync:v4.4.0
     args:
-      - --repo=https://github.com/arch-err/grafana-dashboards
-      - --ref=main
+      - --repo=https://github.com/arch-err/Cluster-Config
+      - --ref=v2
       - --root=/dashboards
       - --period=30s
       - --link=current
@@ -77,8 +77,8 @@ extraInitContainers:
   - name: git-sync-init
     image: registry.k8s.io/git-sync/git-sync:v4.4.0
     args:
-      - --repo=https://github.com/arch-err/grafana-dashboards
-      - --ref=main
+      - --repo=https://github.com/arch-err/Cluster-Config
+      - --ref=v2
       - --root=/dashboards
       - --one-time
       - --link=current
