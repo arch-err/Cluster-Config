@@ -14,7 +14,7 @@ components:
     chart:
       repo: https://helm.cilium.io
       name: cilium
-      version: 1.16.x
+      version: 1.19.x
     route:
       hostname: hubble.infra.home
       service: hubble-ui
