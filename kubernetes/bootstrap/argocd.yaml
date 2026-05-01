@@ -112,6 +112,24 @@ extraObjects:
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
+      # Ignore defaulted fields on Gateway API resources (API server adds defaults)
+      ignoreDifferences:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          jsonPointers:
+            - /spec/listeners
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jsonPointers:
+            - /spec
+        - group: gateway.networking.k8s.io
+          kind: TLSRoute
+          jsonPointers:
+            - /spec
+        - group: gateway.networking.k8s.io
+          kind: ReferenceGrant
+          jsonPointers:
+            - /spec
       syncPolicy:
         automated:
           prune: true
@@ -119,6 +137,7 @@ extraObjects:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          - RespectIgnoreDifferences=true
 
   # Infrastructure secrets (SopsSecrets managed by sops-secrets-operator)
   # Syncs after cert-manager creates its namespace (wave 2 > cert-manager default wave)

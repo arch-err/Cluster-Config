@@ -18,17 +18,6 @@ gateway:
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
 components:
-  - name: homeassistant
-    namespace: homeassistant
-    chart:
-      repo: https://pajikos.github.io/home-assistant-helm-chart
-      name: home-assistant
-    route:
-      hostname: homeassistant.apps.home
-      gateway: apps
-      service: homeassistant-home-assistant
-      port: 8123
-
   - name: matrix
     namespace: matrix
     chart:
