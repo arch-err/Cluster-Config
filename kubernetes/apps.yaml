@@ -15,12 +15,6 @@ gateway:
     tlsSecret: wildcard-apps-home-tls
 
 # ══════════════════════════════════════════════════════════════════════════════
-# EXTRAS (additional resources deployed by the platform chart)
-# ══════════════════════════════════════════════════════════════════════════════
-extras:
-  authentik: true  # Deploys namespace and blueprints ConfigMap
-
-# ══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
 components:
