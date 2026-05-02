@@ -20,6 +20,12 @@ components:
       service: hubble-ui
       port: 80
       gateway: infra
+      dashboard:
+        enabled: true
+        name: Hubble
+        group: Network
+        icon: cilium.svg
+        app: hubble-ui  # workload name differs from route name
 
   - name: cert-manager
     namespace: cert-manager
@@ -41,6 +47,10 @@ components:
       service: argocd-server
       port: 80
       gateway: infra
+      dashboard:
+        enabled: true
+        group: GitOps
+        icon: argocd.svg
 
   - name: sops-secrets-operator
     namespace: sops-secrets-operator
@@ -121,6 +131,50 @@ components:
       gateway: infra
       service: grafana
       port: 80
+      dashboard:
+        enabled: true
+        group: Observability
+        icon: grafana.svg
+        app: grafana
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: homepage-infra
+    namespace: homepage-infra
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: homepage.infra.home
+      gateway: infra
+      service: homepage-infra
+      port: 3000
+      dashboard:
+        enabled: true
+        name: Homepage
+        group: Infra
+        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
+        description: This dashboard
+
+  # Catch-all backend for *.infra.home — any hostname that doesn't match a more
+  # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
+  # gives precedence to more-specific HTTPRoutes, so existing infra is unaffected.
+  - name: error-pages-infra
+    namespace: error-pages-infra
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "5"  # after the real infra; doesn't matter much, but explicit
+    route:
+      hostname: "*.infra.home"
+      gateway: infra
+      service: error-pages-infra
+      port: 80
+      dashboard: false   # never on the dashboard
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EXTRAS (raw resources managed directly)

@@ -1,0 +1,86 @@
+# homepage-infra — chart: jameswynn/homepage v2.1.0 (gethomepage)
+# https://artifacthub.io/packages/helm/jameswynn/homepage
+#
+# Second homepage instance dedicated to infrastructure/admin services.
+# Filters to routes annotated with `gethomepage.dev/instance: infra`.
+
+# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
+image:
+  tag: v1.2.0
+
+# Next.js host validation — must list every Host header the app will see.
+env:
+  - name: HOMEPAGE_ALLOWED_HOSTS
+    value: "homepage.infra.home"
+
+# Disable chart's built-in ingress — platform chart's HTTPRoute handles routing
+ingress:
+  main:
+    enabled: false
+
+# RBAC: ServiceAccount with cluster-wide read on Gateway API + core resources.
+# Distinct SA name from the apps-side homepage to avoid RBAC collision; same policy.
+serviceAccount:
+  create: true
+  name: homepage-infra
+enableRbac: true
+
+# Cluster-wide kubernetes integration:
+#   - mode=cluster: in-cluster service account (uses RBAC above)
+#   - gateway=true: discover Gateway API HTTPRoutes (not just classic Ingress)
+config:
+  kubernetes:
+    mode: cluster
+    ingress: false   # we don't use classic Ingress — only HTTPRoute
+    gateway: true
+    services: true   # also discover Service-level annotations as a fallback
+    instance: infra  # only show routes annotated with `gethomepage.dev/instance: infra`
+
+  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
+  # Empty services.yaml means: render only what's annotated.
+  services: []
+
+  # Cross-link to the apps dashboard.
+  bookmarks:
+    - Other dashboards:
+        - Apps Homepage:
+            - abbr: AH
+              href: https://homepage.apps.home
+
+  widgets: []
+
+  settings:
+    title: Infrastructure
+    theme: dark
+    color: slate
+    headerStyle: clean
+    hideVersion: true
+    statusStyle: dot
+    cardBlur: sm
+    background:
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/mono_dark_distortion_1.jpg
+      blur: sm
+      opacity: 80
+      brightness: 60
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# Restricted PSS compliance — chart ships no securityContext by default.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # homepage writes a logs dir; flip to true if it doesn't
+  capabilities:
+    drop:
+      - ALL
