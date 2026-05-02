@@ -38,60 +38,15 @@ config:
   # Empty services.yaml means: render only what's annotated.
   services: []
 
-  # Bookmarks: pinned static links above the auto-discovered grid.
-  bookmarks:
-    - Repos:
-        - Cluster-Config:
-            - abbr: CC
-              href: https://github.com/arch-err/Cluster-Config
-        - arch-err:
-            - abbr: AE
-              href: https://github.com/arch-err
+  # No bookmarks, no widgets — keep the dashboard to just the auto-discovered links.
+  bookmarks: []
+  widgets: []
 
-  # Widgets: rendered top-of-page. Search + datetime + cluster status.
-  widgets:
-    - search:
-        provider: duckduckgo
-        target: _blank
-    - datetime:
-        text_size: xl
-        format:
-          timeStyle: short
-          dateStyle: long
-    - kubernetes:
-        cluster:
-          show: true
-          cpu: true
-          memory: true
-          showLabel: true
-          label: "home"
-        nodes:
-          show: true
-          cpu: true
-          memory: true
-
-  # Settings: visual + behavioral
   settings:
     title: home
     theme: dark
     color: slate
     headerStyle: clean
-    layout:
-      Media:
-        style: row
-        columns: 4
-      Tools:
-        style: row
-        columns: 4
-      Comms:
-        style: row
-        columns: 4
-      Observability:
-        style: row
-        columns: 4
-      Infra:
-        style: row
-        columns: 4
 
 resources:
   requests:

@@ -110,6 +110,23 @@ components:
         group: Infra
         description: This dashboard
 
+  # Catch-all backend for *.apps.home — any hostname that doesn't match a more
+  # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
+  # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
+  - name: error-pages
+    namespace: error-pages
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "5"  # after the real apps; doesn't matter much, but explicit
+    route:
+      hostname: "*.apps.home"
+      gateway: apps
+      service: error-pages
+      port: 80
+      dashboard: false   # never on the dashboard
+
 # ══════════════════════════════════════════════════════════════════════════════
 # EXTRAS (raw resources for apps that need pre-deploy infra)
 # ══════════════════════════════════════════════════════════════════════════════
