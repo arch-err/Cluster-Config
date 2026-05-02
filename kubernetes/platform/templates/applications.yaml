@@ -36,6 +36,22 @@ spec:
     server: https://kubernetes.default.svc
     namespace: {{ .namespace | default .name }}
 
+  # Ignore API-server-defaulted fields on Gateway API resources so children
+  # don't perma-OutOfSync when cilium adds defaults (group/kind/weight, etc.).
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jsonPointers:
+        - /spec
+    - group: gateway.networking.k8s.io
+      kind: TLSRoute
+      jsonPointers:
+        - /spec
+    - group: gateway.networking.k8s.io
+      kind: ReferenceGrant
+      jsonPointers:
+        - /spec
+
   syncPolicy:
     automated:
       prune: true
@@ -43,4 +59,5 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 {{- end }}
