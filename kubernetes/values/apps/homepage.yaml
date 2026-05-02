@@ -92,3 +92,18 @@ resources:
     memory: 64Mi
   limits:
     memory: 256Mi
+
+# Restricted PSS compliance — chart ships no securityContext by default.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # homepage writes a logs dir; flip to true if it doesn't
+  capabilities:
+    drop:
+      - ALL
