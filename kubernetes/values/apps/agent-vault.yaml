@@ -18,12 +18,12 @@ env:
   # 90 day audit retention
   AGENT_VAULT_LOGS_MAX_AGE_HOURS: "2160"
 
-# First boot uses interactive setup via the UI to set the master password.
-# To survive restarts non-interactively, populate a sops-encrypted Secret
-# named e.g. `agent-vault-master` with key AGENT_VAULT_MASTER_PASSWORD,
-# then set:
-#   masterPassword:
-#     existingSecret: agent-vault-master
+# Master password sourced from sops-encrypted SopsSecret in
+# kubernetes/secrets/apps/agent-vault-master.yaml. To rotate: edit that file
+# (sops will re-encrypt on save), commit, push.
+masterPassword:
+  existingSecret: agent-vault-master
+  secretKey: AGENT_VAULT_MASTER_PASSWORD
 
 persistence:
   enabled: true
