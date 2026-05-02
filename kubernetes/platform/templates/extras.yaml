@@ -524,11 +524,16 @@ metadata:
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.immich }}
 ---
-# Immich namespace
+# Immich namespace — baseline PSS so postgres init container can chown the
+# kadalu-mounted PVC. fsGroup alone doesn't suffice on kadalu volumes.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: immich
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
@@ -599,19 +604,32 @@ spec:
         app: immich-postgres
     spec:
       securityContext:
-        runAsUser: 999
-        runAsGroup: 999
         fsGroup: 999
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
+      initContainers:
+        # kadalu PVCs initialize as root-owned. Postgres needs uid 999 to own
+        # the data dir + the dir mode 0700. fsGroup alone isn't enough.
+        - name: chown-pgdata
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /var/lib/postgresql/data/pgdata
+              chown -R 999:999 /var/lib/postgresql/data
+              chmod 700 /var/lib/postgresql/data/pgdata
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
       containers:
         - name: postgres
           image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
           securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
           ports:
             - name: postgres
               containerPort: 5432
