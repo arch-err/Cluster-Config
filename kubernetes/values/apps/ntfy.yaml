@@ -1,0 +1,54 @@
+# ntfy — chart: helmforge/ntfy v1.1.8
+# https://artifacthub.io/packages/helm/helmforge/ntfy
+# Self-hosted push notifications, single-user (arch-err), behind home network.
+
+# Override release-prefixed naming so resources are just "ntfy" (svc, deploy, pvc)
+fullnameOverride: ntfy
+
+# Pin the binwiederhier/ntfy image (chart default tracks v2.22.0)
+image:
+  repository: docker.io/binwiederhier/ntfy
+  tag: "v2.22.0"
+
+# ntfy server config
+ntfy:
+  baseUrl: "https://ntfy.apps.home"
+  # single-user behind the home network — no auth/users yet
+  authDefaultAccess: "read-write"
+  # apps gateway terminates TLS and forwards — trust X-Forwarded-For
+  behindProxy: true
+
+# Disable chart's built-in routing — platform chart owns HTTPRoute
+ingress:
+  enabled: false
+gateway:
+  enabled: false
+
+# SQLite db on kadalu.replica2 (cluster default storageClass)
+persistence:
+  enabled: true
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# Restricted PSS compliance — chart ships no securityContext by default
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false  # ntfy writes sqlite + cache to the PVC
+  capabilities:
+    drop:
+      - ALL
