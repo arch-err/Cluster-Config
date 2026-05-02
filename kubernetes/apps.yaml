@@ -66,3 +66,23 @@ components:
       service: agent-vault
       port: 14321
 
+  - name: immich
+    namespace: immich
+    chart:
+      repo: https://immich-app.github.io/immich-charts
+      name: immich
+      version: 0.11.1
+    syncWave: "3"  # after extras (ns/PVC/postgres) settle
+    route:
+      hostname: immich.apps.home
+      gateway: apps
+      service: immich-server
+      port: 2283
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EXTRAS (raw resources for apps that need pre-deploy infra)
+# ══════════════════════════════════════════════════════════════════════════════
+extras:
+  immich:
+    librarySize: 200Gi
+    postgresSize: 20Gi

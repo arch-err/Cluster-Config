@@ -1,0 +1,68 @@
+# immich — chart: immich/immich v0.11.1 (immich-app official)
+# https://artifacthub.io/packages/helm/immich/immich
+#
+# Postgres + library PVC + namespace are created via the platform chart's
+# `extras.immich` block (see kubernetes/apps.yaml + platform/templates/extras.yaml).
+# Postgres password lives in SopsSecret `immich-db` (kubernetes/secrets/apps/immich-db.yaml).
+
+# Pin image tag for reproducibility (chart default tracks 2.6.3 at chart 0.11.1)
+image:
+  tag: v2.6.3
+
+# DB + redis env vars wired into ALL components (server + machine-learning)
+# via the shared `controllers.main.containers.main.env` map.
+controllers:
+  main:
+    containers:
+      main:
+        env:
+          DB_HOSTNAME: immich-postgres
+          DB_USERNAME: immich
+          DB_DATABASE_NAME: immich
+          DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db
+                key: DB_PASSWORD
+          # Chart default REDIS_HOSTNAME points at <release>-valkey which the
+          # bundled valkey subchart provisions.
+
+immich:
+  persistence:
+    library:
+      existingClaim: immich-library
+  # Storage Template: human-portable layout — exit-portable.
+  configuration:
+    storageTemplate:
+      enabled: true
+      template: "{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}"
+    trash:
+      enabled: true
+      days: 30
+
+# Bundled valkey (redis-compatible) — keep ON.
+valkey:
+  enabled: true
+  persistence:
+    data:
+      enabled: true
+      size: 1Gi
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
+
+# Disable chart's built-in ingress — platform chart's HTTPRoute handles routing.
+server:
+  enabled: true
+  ingress:
+    main:
+      enabled: false
+
+# Machine learning component — required for face/object/CLIP search.
+machine-learning:
+  enabled: true
+  persistence:
+    cache:
+      enabled: true
+      size: 10Gi
+      type: persistentVolumeClaim
+      accessMode: ReadWriteOnce
