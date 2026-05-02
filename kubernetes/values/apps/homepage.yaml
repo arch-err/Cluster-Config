@@ -5,6 +5,13 @@
 image:
   tag: v1.2.0
 
+# Next.js host validation — must list every Host header the app will see.
+# Without this, requests fail with "Host validation failed for: <host>" and the UI
+# shows app-errors. Comma-separated, no scheme, no port unless non-default.
+env:
+  - name: HOMEPAGE_ALLOWED_HOSTS
+    value: "homepage.apps.home"
+
 # Disable chart's built-in ingress — platform chart's HTTPRoute handles routing
 ingress:
   main:
