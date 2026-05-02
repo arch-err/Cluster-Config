@@ -84,5 +84,5 @@ components:
 # ══════════════════════════════════════════════════════════════════════════════
 extras:
   immich:
-    librarySize: 200Gi
+    librarySize: 1Ti
     postgresSize: 20Gi
