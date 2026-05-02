@@ -28,7 +28,11 @@ components:
       gateway: apps
       service: matrix-synapse
       port: 8443
+      dashboard:
+        group: Comms
+        icon: matrix.svg
 
+  # hookshot is a backend bridge — keep it off the dashboard
   - name: hookshot
     namespace: matrix
     chart:
@@ -39,6 +43,7 @@ components:
       gateway: apps
       service: hookshot
       port: 9000
+      dashboard: false
 
   - name: audiobookshelf
     namespace: audiobookshelf
@@ -51,6 +56,9 @@ components:
       gateway: apps
       service: audiobookshelf
       port: 8080
+      dashboard:
+        group: Media
+        description: Audiobooks + podcasts
 
   - name: agent-vault
     namespace: agent-vault
@@ -65,6 +73,11 @@ components:
       gateway: apps
       service: agent-vault
       port: 14321
+      dashboard:
+        name: Agent Vault
+        group: Tools
+        icon: bitwarden.svg
+        description: Secrets vault for agents
 
   - name: immich
     namespace: immich
@@ -78,6 +91,24 @@ components:
       gateway: apps
       service: immich-server
       port: 2283
+      dashboard:
+        group: Media
+        description: Photos + memories
+
+  - name: homepage
+    namespace: homepage
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: homepage.apps.home
+      gateway: apps
+      service: homepage
+      port: 3000
+      dashboard:
+        group: Infra
+        description: This dashboard
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EXTRAS (raw resources for apps that need pre-deploy infra)

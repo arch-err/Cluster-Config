@@ -1,0 +1,94 @@
+# homepage — chart: jameswynn/homepage v2.1.0 (gethomepage)
+# https://artifacthub.io/packages/helm/jameswynn/homepage
+
+# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
+image:
+  tag: v1.2.0
+
+# Disable chart's built-in ingress — platform chart's HTTPRoute handles routing
+ingress:
+  main:
+    enabled: false
+
+# RBAC: ServiceAccount with cluster-wide read on Gateway API + core resources.
+# Required for auto-discovery to enumerate HTTPRoutes across all namespaces.
+serviceAccount:
+  create: true
+  name: homepage
+enableRbac: true
+
+# Cluster-wide kubernetes integration:
+#   - mode=cluster: in-cluster service account (uses RBAC above)
+#   - gateway=true: discover Gateway API HTTPRoutes (not just classic Ingress)
+config:
+  kubernetes:
+    mode: cluster
+    ingress: false   # we don't use classic Ingress — only HTTPRoute
+    gateway: true
+    services: true   # also discover Service-level annotations as a fallback
+
+  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
+  # Empty services.yaml means: render only what's annotated.
+  services: []
+
+  # Bookmarks: pinned static links above the auto-discovered grid.
+  bookmarks:
+    - Repos:
+        - Cluster-Config:
+            - abbr: CC
+              href: https://github.com/arch-err/Cluster-Config
+        - arch-err:
+            - abbr: AE
+              href: https://github.com/arch-err
+
+  # Widgets: rendered top-of-page. Search + datetime + cluster status.
+  widgets:
+    - search:
+        provider: duckduckgo
+        target: _blank
+    - datetime:
+        text_size: xl
+        format:
+          timeStyle: short
+          dateStyle: long
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: "home"
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+
+  # Settings: visual + behavioral
+  settings:
+    title: home
+    theme: dark
+    color: slate
+    headerStyle: clean
+    layout:
+      Media:
+        style: row
+        columns: 4
+      Tools:
+        style: row
+        columns: 4
+      Comms:
+        style: row
+        columns: 4
+      Observability:
+        style: row
+        columns: 4
+      Infra:
+        style: row
+        columns: 4
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

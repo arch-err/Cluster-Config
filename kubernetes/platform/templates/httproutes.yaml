@@ -1,5 +1,36 @@
 {{- range $.Values.components }}
 {{- if .route }}
+{{- $name := .name }}
+{{- $isApps := eq (.route.gateway | default "internal") "apps" }}
+{{- /* Compute whether this route should appear on the gethomepage dashboard.
+       - dashboard omitted (nil)  → default-show on apps gateway, default-hide on infra
+       - dashboard: false         → always hide
+       - dashboard: true          → always show with auto-derived name/icon
+       - dashboard: { ... }       → show unless `enabled: false`; map fields override defaults */ -}}
+{{- $dash := .route.dashboard }}
+{{- $dashKind := kindOf $dash }}
+{{- $show := false }}
+{{- if eq $dashKind "invalid" }}
+  {{- $show = $isApps }}
+{{- else if eq $dashKind "bool" }}
+  {{- $show = $dash }}
+{{- else if eq $dashKind "map" }}
+  {{- if hasKey $dash "enabled" }}
+    {{- $show = (index $dash "enabled") }}
+  {{- else }}
+    {{- $show = $isApps }}
+  {{- end }}
+{{- end }}
+{{- $dashName := "" }}
+{{- $dashIcon := "" }}
+{{- $dashGroup := "" }}
+{{- $dashDesc := "" }}
+{{- if eq $dashKind "map" }}
+  {{- $dashName = default "" (index $dash "name") }}
+  {{- $dashIcon = default "" (index $dash "icon") }}
+  {{- $dashGroup = default "" (index $dash "group") }}
+  {{- $dashDesc = default "" (index $dash "description") }}
+{{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -9,6 +40,20 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    {{- if $show }}
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: {{ ternary ($name | title) $dashName (eq $dashName "") | quote }}
+    gethomepage.dev/icon: {{ ternary (printf "%s.svg" $name) $dashIcon (eq $dashIcon "") | quote }}
+    {{- if ne $dashGroup "" }}
+    gethomepage.dev/group: {{ $dashGroup | quote }}
+    {{- end }}
+    {{- if ne $dashDesc "" }}
+    gethomepage.dev/description: {{ $dashDesc | quote }}
+    {{- end }}
+    {{- end }}
+{{- with .route.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
 spec:
   parentRefs:
     - name: {{ .route.gateway | default "internal" }}
