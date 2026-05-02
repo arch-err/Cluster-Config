@@ -57,7 +57,7 @@ components:
     chart:
       repo: https://arch-err.github.io/charts
       name: agent-vault
-      version: 0.1.0
+      version: 0.1.1
     # UI HTTPRoute (port 14321) — proxy port (14322) is exposed via the
     # passthrough listener on the apps gateway, see chart's tlsRoute.
     route:
