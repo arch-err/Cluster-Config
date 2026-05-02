@@ -1,0 +1,49 @@
+# agent-vault — chart: arch-err/agent-vault v0.1.0
+# https://github.com/Infisical/agent-vault (research preview)
+#
+# Two ports: 14321 (UI/API) + 14322 (TLS forward proxy, AV mints per-host certs).
+# UI is exposed via the platform chart's HTTPRoute on agent-vault.apps.home.
+# Proxy is exposed via the chart's TLSRoute → apps gateway passthrough listener
+#   on agent-vault-proxy.apps.home:443.
+
+image:
+  tag: "0.14.0"
+
+externalAddr: "https://agent-vault.apps.home"
+
+env:
+  AGENT_VAULT_LOG_LEVEL: info
+  # Required so AV will proxy to RFC1918 upstreams when we test from-cluster.
+  AGENT_VAULT_ALLOW_PRIVATE_RANGES: "true"
+  # 90 day audit retention
+  AGENT_VAULT_LOGS_MAX_AGE_HOURS: "2160"
+
+# First boot uses interactive setup via the UI to set the master password.
+# To survive restarts non-interactively, populate a sops-encrypted Secret
+# named e.g. `agent-vault-master` with key AGENT_VAULT_MASTER_PASSWORD,
+# then set:
+#   masterPassword:
+#     existingSecret: agent-vault-master
+
+persistence:
+  enabled: true
+  size: 2Gi
+  # storageClass empty → cluster default (kadalu.replica2)
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+# Expose proxy port via Gateway API TLS passthrough on the apps gateway.
+# The passthrough listener `passthrough-agent-vault-proxy` is defined in
+# kubernetes/infra.yaml under gateway.apps.passthroughs.
+tlsRoute:
+  enabled: true
+  hostname: agent-vault-proxy.apps.home
+  parentRef:
+    name: apps
+    namespace: gateway-system
+    sectionName: passthrough-agent-vault-proxy

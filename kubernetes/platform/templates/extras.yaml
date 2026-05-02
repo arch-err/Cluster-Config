@@ -153,6 +153,18 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    # TLS passthrough listeners (SNI-routed, share port 443 with the terminate listener)
+{{- range .Values.gateway.apps.passthroughs }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
 {{- end }}
 {{- end }}
 

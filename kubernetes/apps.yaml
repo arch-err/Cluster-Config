@@ -52,3 +52,17 @@ components:
       service: audiobookshelf
       port: 8080
 
+  - name: agent-vault
+    namespace: agent-vault
+    chart:
+      repo: https://arch-err.github.io/charts
+      name: agent-vault
+      version: 0.1.0
+    # UI HTTPRoute (port 14321) — proxy port (14322) is exposed via the
+    # passthrough listener on the apps gateway, see chart's tlsRoute.
+    route:
+      hostname: agent-vault.apps.home
+      gateway: apps
+      service: agent-vault
+      port: 14321
+
