@@ -33,17 +33,23 @@ config:
     ingress: false   # we don't use classic Ingress — only HTTPRoute
     gateway: true
     services: true   # also discover Service-level annotations as a fallback
+    instance: apps   # only show routes annotated with `gethomepage.dev/instance: apps`
 
   # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
   # Empty services.yaml means: render only what's annotated.
   services: []
 
-  # No bookmarks, no widgets — keep the dashboard to just the auto-discovered links.
-  bookmarks: []
+  # Cross-link to the infra dashboard.
+  bookmarks:
+    - Other dashboards:
+        - Infrastructure Homepage:
+            - abbr: II
+              href: https://homepage.infra.home
+
   widgets: []
 
   settings:
-    title: home
+    title: Apps
     theme: dark
     color: slate
     headerStyle: clean

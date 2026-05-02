@@ -25,11 +25,15 @@
 {{- $dashIcon := "" }}
 {{- $dashGroup := "" }}
 {{- $dashDesc := "" }}
+{{- $dashApp := "" }}
+{{- $dashSiteMonitor := "" }}
 {{- if eq $dashKind "map" }}
   {{- $dashName = default "" (index $dash "name") }}
   {{- $dashIcon = default "" (index $dash "icon") }}
   {{- $dashGroup = default "" (index $dash "group") }}
   {{- $dashDesc = default "" (index $dash "description") }}
+  {{- $dashApp = default "" (index $dash "app") }}
+  {{- $dashSiteMonitor = default "" (index $dash "siteMonitor") }}
 {{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -41,16 +45,23 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     {{- if $show }}
-    {{- $dashSiteMonitor := "" }}
-    {{- if eq $dashKind "map" }}
-      {{- $dashSiteMonitor = default "" (index $dash "siteMonitor") }}
-    {{- end }}
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: {{ ternary ($name | title) $dashName (eq $dashName "") | quote }}
     gethomepage.dev/icon: {{ ternary (printf "%s.svg" $name) $dashIcon (eq $dashIcon "") | quote }}
-    # siteMonitor: HTTP-ping URL for the status dot. Defaults to the route's
-    # own hostname (HTTPS) — universal check, no HTTPRoute/Deployment label gymnastics.
-    gethomepage.dev/siteMonitor: {{ ternary (printf "https://%s" .route.hostname) $dashSiteMonitor (eq $dashSiteMonitor "") | quote }}
+    # instance: derived from gateway name. Lets each homepage filter to only
+    # the routes attached to its own gateway via `kubernetes.instance: apps|infra`.
+    gethomepage.dev/instance: {{ .route.gateway | default "internal" | quote }}
+    {{- if ne $dashApp "" }}
+    # app: kubernetes Deployment/StatefulSet name for kubernetes-side workload status.
+    # Use this when the HTTPRoute name doesn't match the workload name (matrix vs
+    # matrix-synapse, immich vs immich-server, etc).
+    gethomepage.dev/app: {{ $dashApp | quote }}
+    {{- end }}
+    {{- if ne $dashSiteMonitor "" }}
+    # siteMonitor: HTTP-ping URL for status dot. Opt-in only; prefer `app:` for
+    # k8s workload status (lighter weight, more accurate).
+    gethomepage.dev/siteMonitor: {{ $dashSiteMonitor | quote }}
+    {{- end }}
     {{- if ne $dashGroup "" }}
     gethomepage.dev/group: {{ $dashGroup | quote }}
     {{- end }}

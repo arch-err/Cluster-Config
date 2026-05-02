@@ -31,6 +31,7 @@ components:
       dashboard:
         group: Comms
         icon: matrix.svg
+        app: matrix-synapse  # workload name differs from route name
 
   # hookshot is a backend bridge — keep it off the dashboard
   - name: hookshot
@@ -94,6 +95,24 @@ components:
       dashboard:
         group: Media
         description: Photos + memories
+        app: immich-server  # workload name differs from route name
+
+  - name: ntfy
+    namespace: ntfy
+    chart:
+      repo: https://repo.helmforge.dev
+      name: ntfy
+      version: 1.1.8
+    route:
+      hostname: ntfy.apps.home
+      gateway: apps
+      service: ntfy
+      port: 80
+      dashboard:
+        group: Tools
+        icon: ntfy.svg
+        description: Push notifications
+        app: ntfy
 
   - name: homepage
     namespace: homepage
@@ -108,7 +127,7 @@ components:
       port: 3000
       dashboard:
         group: Infra
-        icon: mdi-view-dashboard-#0ea5e9
+        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
         description: This dashboard
 
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
