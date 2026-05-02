@@ -47,6 +47,14 @@ config:
     theme: dark
     color: slate
     headerStyle: clean
+    hideVersion: true
+    statusStyle: dot
+    cardBlur: sm
+    background:
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/blue_distortion_2.jpg
+      blur: sm
+      opacity: 80
+      brightness: 60
 
 resources:
   requests:

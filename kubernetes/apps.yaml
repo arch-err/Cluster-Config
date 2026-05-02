@@ -76,7 +76,7 @@ components:
       dashboard:
         name: Agent Vault
         group: Tools
-        icon: bitwarden.svg
+        icon: infisical.svg
         description: Secrets vault for agents
 
   - name: immich
@@ -108,6 +108,7 @@ components:
       port: 3000
       dashboard:
         group: Infra
+        icon: mdi-view-dashboard-#0ea5e9
         description: This dashboard
 
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more

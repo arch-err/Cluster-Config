@@ -41,9 +41,16 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     {{- if $show }}
+    {{- $dashSiteMonitor := "" }}
+    {{- if eq $dashKind "map" }}
+      {{- $dashSiteMonitor = default "" (index $dash "siteMonitor") }}
+    {{- end }}
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: {{ ternary ($name | title) $dashName (eq $dashName "") | quote }}
     gethomepage.dev/icon: {{ ternary (printf "%s.svg" $name) $dashIcon (eq $dashIcon "") | quote }}
+    # siteMonitor: HTTP-ping URL for the status dot. Defaults to the route's
+    # own hostname (HTTPS) — universal check, no HTTPRoute/Deployment label gymnastics.
+    gethomepage.dev/siteMonitor: {{ ternary (printf "https://%s" .route.hostname) $dashSiteMonitor (eq $dashSiteMonitor "") | quote }}
     {{- if ne $dashGroup "" }}
     gethomepage.dev/group: {{ $dashGroup | quote }}
     {{- end }}
@@ -59,7 +66,7 @@ spec:
     - name: {{ .route.gateway | default "internal" }}
       namespace: gateway-system
   hostnames:
-    - {{ .route.hostname }}
+    - {{ .route.hostname | quote }}
   rules:
 {{- if .route.rules }}
 {{- range .route.rules }}
