@@ -312,6 +312,7 @@ metadata:
     pod-security.kubernetes.io/warn: baseline
   annotations:
     argocd.argoproj.io/sync-wave: "8"
+{{- if .Values.extras.authentik.blueprints }}
 ---
 # Authentik blueprints for declarative SSO configuration
 # Uses !Env tags to read client_id/secret from environment variables
@@ -415,6 +416,7 @@ data:
           policy_engine_mode: any
           meta_launch_url: "https://argocd.infra.home"
           meta_icon: "https://argo-cd.readthedocs.io/en/stable/assets/logo.png"
+{{- end }}
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}

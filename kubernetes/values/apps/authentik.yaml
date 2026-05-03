@@ -1,0 +1,86 @@
+# authentik — chart: goauthentik/authentik v2026.2.2
+# https://artifacthub.io/packages/helm/goauthentik/authentik
+#
+# Phase 1: deploy + verify only. Blueprints (groups, users, OIDC providers, app
+# integrations) are phase 2 — gated separately via extras.authentik.blueprints
+# in apps.yaml.
+#
+# Bundled Bitnami postgres subchart (postgresql.enabled: true). No redis/valkey:
+# authentik 2026.x dropped the redis dependency in favour of postgres-backed
+# caching, so the chart no longer ships one.
+#
+# Bootstrap admin credentials + secret_key + db password live in the
+# `authentik-secrets` SopsSecret (kubernetes/secrets/apps/authentik-secrets.yaml).
+
+global:
+  # Pull all secret-backed config (secret_key, bootstrap admin pw + token,
+  # postgres password) via envFrom on every authentik component.
+  envFrom:
+    - secretRef:
+        name: authentik-secrets
+
+authentik:
+  log_level: info
+  # secret_key, postgresql.password come from the envFrom secret above:
+  #   AUTHENTIK_SECRET_KEY, AUTHENTIK_POSTGRESQL__PASSWORD.
+  postgresql:
+    # Hostname template uses Release.Name; release name is `authentik`.
+    host: "authentik-postgresql"
+    name: authentik
+    user: authentik
+  error_reporting:
+    enabled: false
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  # Disable chart's built-in ingress — platform chart owns HTTPRoute.
+  ingress:
+    enabled: false
+
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 384Mi
+    limits:
+      memory: 1Gi
+
+# Bundled Bitnami postgres subchart. Storage uses the cluster default
+# (kadalu.replica2). Password sourced from the existing authentik-secrets
+# secret to keep all credentials in one place.
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: authentik-secrets
+    secretKeys:
+      adminPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
+      userPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
+      replicationPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+# Don't deploy the remote-cluster RBAC ServiceAccount — single-cluster setup.
+serviceAccount:
+  create: true
+
+# GeoIP downloads MaxMind data; needs an account key. Skip for phase 1.
+geoip:
+  enabled: false
+
+# Prometheus scrape opt-out — leave defaults (no ServiceMonitor / PrometheusRule
+# created unless explicitly enabled).

@@ -127,6 +127,25 @@ components:
       port: 3000
       dashboard: false   # don't link to ourselves
 
+  - name: authentik
+    namespace: authentik
+    chart:
+      repo: https://charts.goauthentik.io
+      name: authentik
+      version: 2026.2.2
+    syncWave: "3"  # after extras (ns label) settle
+    route:
+      hostname: auth.apps.home
+      gateway: apps
+      service: authentik-server
+      port: 80
+      dashboard:
+        name: Authentik
+        group: Tools
+        icon: authentik.svg
+        description: SSO / Identity Provider
+        app: authentik-server  # workload name differs from route name
+
   - name: excalidash
     namespace: excalidash
     chart:
@@ -168,3 +187,8 @@ extras:
   immich:
     librarySize: 1Ti
     postgresSize: 20Gi
+  # Authentik phase 1: namespace only (baseline PSS for postgres init).
+  # Blueprints (Home Assistant, ArgoCD SSO etc.) ship in phase 2 by setting
+  # `blueprints: true` here.
+  authentik:
+    blueprints: false
