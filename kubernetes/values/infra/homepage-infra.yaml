@@ -4,9 +4,10 @@
 # Second homepage instance dedicated to infrastructure/admin services.
 # Filters to routes annotated with `gethomepage.dev/instance: infra`.
 
-# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
+# Bump app image to current upstream (chart's default v1.2.0 is 10 minor versions
+# behind; HTTPRoute auto-discovery was added/fixed after v1.2.0).
 image:
-  tag: v1.2.0
+  tag: v1.12.3
 
 # Next.js host validation — must list every Host header the app will see.
 env:
