@@ -55,7 +55,10 @@ config:
   # auto-discovery appends to existing groups rather than creating new ones.
   # Add an empty `<Group>:` entry below for every group used by an apps-side route.
   services:
-    - Media: []
+    - Media:
+        - Immich (manual test):
+            href: https://immich.apps.home
+            description: Manual entry to validate services.yaml loading
     - Tools: []
     - Comms: []
     - Infra: []
