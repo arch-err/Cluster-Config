@@ -16,9 +16,11 @@ components:
       name: cilium
       version: 1.19.x
     route:
+      # Behind a tiny caddy basic-auth proxy (see extras.hubbleAuth) so LAN
+      # drive-by attackers can't read the cluster network topology + flows.
       hostname: hubble.infra.home
-      service: hubble-ui
-      port: 80
+      service: hubble-auth
+      port: 8080
       gateway: infra
       dashboard:
         enabled: true
@@ -181,6 +183,7 @@ extras:
   externalServices: true
   kadalu: true
   monitoring: true
+  hubbleAuth: true
 
 # Gateway configuration
 gateway:

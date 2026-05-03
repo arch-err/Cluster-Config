@@ -520,6 +520,119 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* HUBBLE BASIC-AUTH PROXY                                                    */}}
+{{/* Tiny caddy in front of hubble-ui to keep LAN drive-by attackers out.       */}}
+{{/* htpasswd bcrypt hash comes from SopsSecret `hubble-auth` in kube-system.   */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.hubbleAuth }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hubble-auth-caddyfile
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+data:
+  Caddyfile: |
+    {
+      auto_https off
+      admin off
+    }
+    :8080 {
+      basicauth * {
+        admin {env.BASIC_AUTH_HASH}
+      }
+      reverse_proxy hubble-ui:80
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hubble-auth
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hubble-auth
+  template:
+    metadata:
+      labels:
+        app: hubble-auth
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2.8.4-alpine
+          args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BASIC_AUTH_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: hubble-auth
+                  key: BASIC_AUTH_HASH
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: hubble-auth-caddyfile
+        - name: data
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hubble-auth
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  selector:
+    app: hubble-auth
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* IMMICH (namespace + library PVC + postgres + postgres PVC)                 */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.immich }}
