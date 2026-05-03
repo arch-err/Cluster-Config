@@ -4,9 +4,10 @@
 # Second homepage instance dedicated to infrastructure/admin services.
 # Filters to routes annotated with `gethomepage.dev/instance: infra`.
 
-# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
+# Bump app to current upstream. Chart default v1.2.0 doesn't support `instanceName`
+# filtering (added in later versions); needed to scope each homepage to its gateway.
 image:
-  tag: v1.2.0
+  tag: v1.12.3
 
 # Next.js host validation — must list every Host header the app will see.
 env:
@@ -53,6 +54,7 @@ config:
 
   settings:
     title: Infrastructure
+    instanceName: infra   # scopes auto-discovery to routes annotated `gethomepage.dev/instance: infra`
     theme: dark
     color: slate
     headerStyle: clean
