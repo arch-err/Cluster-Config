@@ -51,10 +51,10 @@ config:
   # Auto-discovered services land in groups matching their `gethomepage.dev/group`
   # annotation. Each group MUST be declared (empty) here for routes to appear.
   services:
-    - GitOps:
-    - Observability:
-    - Network:
-    - Infra:
+    - GitOps: []
+    - Observability: []
+    - Network: []
+    - Infra: []
 
   # Cross-link to the apps dashboard.
   bookmarks:

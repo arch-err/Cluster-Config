@@ -53,10 +53,10 @@ config:
   # auto-discovery appends to existing groups rather than creating new ones.
   # Add an empty `<Group>:` entry below for every group used by an apps-side route.
   services:
-    - Media:
-    - Tools:
-    - Comms:
-    - Infra:
+    - Media: []
+    - Tools: []
+    - Comms: []
+    - Infra: []
 
   # Cross-link to the infra dashboard.
   bookmarks:
