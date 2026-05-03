@@ -52,8 +52,10 @@ metadata:
     # routes with this matching its instanceName; same for infra. Routes without an
     # instance annotation are visible on every homepage.
     gethomepage.dev/instance: {{ .route.gateway | default "internal" | quote }}
-    # siteMonitor: HTTP-ping URL for the status dot. Defaults to the route's own hostname.
-    gethomepage.dev/siteMonitor: {{ ternary (printf "https://%s" .route.hostname) $dashSiteMonitor (eq $dashSiteMonitor "") | quote }}
+    {{- if ne $dashSiteMonitor "" }}
+    # siteMonitor: HTTP-ping URL for the status dot. Opt-in only.
+    gethomepage.dev/siteMonitor: {{ $dashSiteMonitor | quote }}
+    {{- end }}
     {{- if ne $dashGroup "" }}
     gethomepage.dev/group: {{ $dashGroup | quote }}
     {{- end }}
