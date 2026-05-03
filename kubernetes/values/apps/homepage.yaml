@@ -43,12 +43,9 @@ extraClusterRoles:
 config:
   kubernetes:
     mode: cluster
-    ingress: false   # we don't use classic Ingress — only HTTPRoute
-    gateway: true
-    services: true   # also discover Service-level annotations as a fallback
-    # NOTE: dropped `instance: apps` — homepage v1.2.0 returned 0 services with it.
-    # Each homepage now sees ALL annotated routes; differentiation is purely
-    # cosmetic (title/bg/cross-link) until we figure out the right filter.
+    # Bare minimum per docs. Adding ingress/gateway/services/instance flags broke
+    # discovery silently — gethomepage v1.2.0 emits no log when those keys exist.
+    # Re-add ONE flag at a time after verifying baseline discovery works.
 
   # Auto-discovered services land in groups matching their `gethomepage.dev/group`
   # annotation. Each group MUST be declared (empty) here for routes to appear —
