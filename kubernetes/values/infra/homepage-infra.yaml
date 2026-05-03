@@ -34,7 +34,9 @@ config:
     ingress: false   # we don't use classic Ingress — only HTTPRoute
     gateway: true
     services: true   # also discover Service-level annotations as a fallback
-    instance: infra  # only show routes annotated with `gethomepage.dev/instance: infra`
+    # NOTE: `instance:` filter dropped — homepage v1.2.0 silently drops routes
+    # carrying the `gethomepage.dev/instance` annotation. Both dashboards now
+    # show ALL routes; cosmetic differentiation only via title + bg + cross-link.
 
   # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
   # Empty services.yaml means: render only what's annotated.

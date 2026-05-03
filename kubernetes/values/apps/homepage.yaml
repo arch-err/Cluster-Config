@@ -38,12 +38,17 @@ config:
   # Empty services.yaml means: render only what's annotated.
   services: []
 
-  # No bookmarks, no widgets — keep the dashboard to just the auto-discovered links.
-  bookmarks: []
+  # Cross-link to the infrastructure dashboard.
+  bookmarks:
+    - Other dashboards:
+        - Infrastructure Homepage:
+            - abbr: II
+              href: https://homepage.infra.home
+
   widgets: []
 
   settings:
-    title: home
+    title: Apps
     theme: dark
     color: slate
     headerStyle: clean
