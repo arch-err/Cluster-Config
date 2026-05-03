@@ -48,7 +48,13 @@ config:
     # NOTE: dropped `instance: infra` — homepage v1.2.0 returned 0 services with it.
     # Both homepages now show ALL annotated routes; cosmetic differentiation only.
 
-  # No `services:` key at all — empty list `[]` was overriding auto-discovery.
+  # Auto-discovered services land in groups matching their `gethomepage.dev/group`
+  # annotation. Each group MUST be declared (empty) here for routes to appear.
+  services:
+    - GitOps:
+    - Observability:
+    - Network:
+    - Infra:
 
   # Cross-link to the apps dashboard.
   bookmarks:
