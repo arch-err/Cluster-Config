@@ -50,7 +50,15 @@ config:
   # annotation. Each group MUST be declared (empty) here for routes to appear —
   # auto-discovery appends to existing groups rather than creating new ones.
   # Add an empty `<Group>:` entry below for every group used by an apps-side route.
-  services: []
+  # Auto-discovered routes get appended to groups matching their `gethomepage.dev/group`
+  # annotation. Each group MUST be declared (with `[]` not just `:`) for routes
+  # to land in. When `services:` is empty/null/[], gethomepage skips discovery
+  # entirely (services.yaml renders 0 bytes → loader exits early).
+  services:
+    - Media: []
+    - Tools: []
+    - Comms: []
+    - Infra: []
 
   # Cross-link to the infra dashboard.
   bookmarks:
