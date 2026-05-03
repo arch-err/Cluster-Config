@@ -50,7 +50,7 @@ components:
       dashboard:
         enabled: true
         group: GitOps
-        icon: argocd.svg
+        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/argo-cd.png
 
   - name: sops-secrets-operator
     namespace: sops-secrets-operator
@@ -152,12 +152,7 @@ components:
       gateway: infra
       service: homepage-infra
       port: 3000
-      dashboard:
-        enabled: true
-        name: Homepage
-        group: Infra
-        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
-        description: This dashboard
+      dashboard: false   # don't link to ourselves
 
   # Catch-all backend for *.infra.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
