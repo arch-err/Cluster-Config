@@ -130,6 +130,23 @@ components:
         icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
         description: This dashboard
 
+  - name: excalidash
+    namespace: excalidash
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    route:
+      hostname: excalidash.apps.home
+      gateway: apps
+      service: excalidash
+      port: 80
+      dashboard:
+        group: Tools
+        icon: excalidraw.svg
+        description: Excalidraw dashboard + collab
+        app: excalidash
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.

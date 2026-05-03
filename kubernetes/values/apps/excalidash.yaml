@@ -1,0 +1,124 @@
+# excalidash — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted dashboard + organizer for Excalidraw with live collab, version
+# history, scoped sharing, search, collections.
+# Upstream: https://github.com/ZimengXiong/ExcaliDash
+#
+# Two-container pod:
+#   - backend  : zimengxiong/excalidash-backend:0.5.0   listens on :8000, owns SQLite at /app/prisma
+#   - frontend : zimengxiong/excalidash-frontend:0.5.0  nginx on :80, proxies to BACKEND_URL
+#
+# Single user, internal — no OIDC, JWT/CSRF auto-generated and persisted in the
+# backend PVC on first start (per upstream README).
+
+controllers:
+  main:
+    strategy: Recreate          # SQLite + RWO PVC → no rolling
+    containers:
+      backend:
+        image:
+          repository: zimengxiong/excalidash-backend
+          tag: "0.5.0"
+        env:
+          DATABASE_URL: "file:/app/prisma/dev.db"
+          PORT: "8000"
+          NODE_ENV: production
+          AUTH_MODE: local
+          TRUST_PROXY: "true"   # behind cilium gateway
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8000
+              initialDelaySeconds: 15
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8000
+              initialDelaySeconds: 5
+              periodSeconds: 10
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # prisma writes the SQLite db + JWT secret
+          capabilities:
+            drop:
+              - ALL
+
+      frontend:
+        image:
+          repository: zimengxiong/excalidash-frontend
+          tag: "0.5.0"
+        env:
+          # Same pod → backend reachable via loopback
+          BACKEND_URL: "localhost:8000"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 80
+              initialDelaySeconds: 10
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 80
+              initialDelaySeconds: 3
+              periodSeconds: 10
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # nginx needs /var/cache/nginx + /var/run
+          capabilities:
+            drop:
+              - ALL
+
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 80    # frontend container listens on :80
+
+persistence:
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    # storageClass empty → cluster default (kadalu.replica2)
+    advancedMounts:
+      main:
+        backend:
+          - path: /app/prisma
