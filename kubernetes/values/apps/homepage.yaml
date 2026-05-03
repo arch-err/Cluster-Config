@@ -1,10 +1,9 @@
 # homepage — chart: jameswynn/homepage v2.1.0 (gethomepage)
 # https://artifacthub.io/packages/helm/jameswynn/homepage
 
-# Bump app image to current upstream (chart's default v1.2.0 is 10 minor versions
-# behind; HTTPRoute auto-discovery was added/fixed after v1.2.0).
+# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
 image:
-  tag: v1.12.3
+  tag: v1.2.0
 
 # Next.js host validation — must list every Host header the app will see.
 # Without this, requests fail with "Host validation failed for: <host>" and the UI
@@ -12,8 +11,6 @@ image:
 env:
   - name: HOMEPAGE_ALLOWED_HOSTS
     value: "homepage.apps.home"
-  - name: LOG_LEVEL
-    value: debug
 
 # Disable chart's built-in ingress — platform chart's HTTPRoute handles routing
 ingress:
@@ -27,51 +24,26 @@ serviceAccount:
   name: homepage
 enableRbac: true
 
-# Chart's default ClusterRole grants httproutes/pods/nodes/ingresses but NOT
-# services or workloads. Without these, kubernetes auto-discovery returns 0
-# services even when annotations are correct. Add them.
-extraClusterRoles:
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
-    verbs: ["get", "list"]
-
 # Cluster-wide kubernetes integration:
 #   - mode=cluster: in-cluster service account (uses RBAC above)
 #   - gateway=true: discover Gateway API HTTPRoutes (not just classic Ingress)
 config:
   kubernetes:
     mode: cluster
-    ingress: false
+    ingress: false   # we don't use classic Ingress — only HTTPRoute
     gateway: true
+    services: true   # also discover Service-level annotations as a fallback
 
-  # Auto-discovered services land in groups matching their `gethomepage.dev/group`
-  # annotation. Each group MUST be declared (empty) here for routes to appear —
-  # auto-discovery appends to existing groups rather than creating new ones.
-  # Add an empty `<Group>:` entry below for every group used by an apps-side route.
-  # Auto-discovered routes get appended to groups matching their `gethomepage.dev/group`
-  # annotation. Each group MUST be declared (with `[]` not just `:`) for routes
-  # to land in. When `services:` is empty/null/[], gethomepage skips discovery
-  # entirely (services.yaml renders 0 bytes → loader exits early).
-  services:
-    - Media: []
-    - Tools: []
-    - Comms: []
-    - Infra: []
+  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
+  # Empty services.yaml means: render only what's annotated.
+  services: []
 
-  # Cross-link to the infra dashboard.
-  bookmarks:
-    - Other dashboards:
-        - Infrastructure Homepage:
-            - abbr: II
-              href: https://homepage.infra.home
-
+  # No bookmarks, no widgets — keep the dashboard to just the auto-discovered links.
+  bookmarks: []
   widgets: []
 
   settings:
-    title: Apps
+    title: home
     theme: dark
     color: slate
     headerStyle: clean

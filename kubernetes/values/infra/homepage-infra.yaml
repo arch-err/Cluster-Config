@@ -4,10 +4,9 @@
 # Second homepage instance dedicated to infrastructure/admin services.
 # Filters to routes annotated with `gethomepage.dev/instance: infra`.
 
-# Bump app image to current upstream (chart's default v1.2.0 is 10 minor versions
-# behind; HTTPRoute auto-discovery was added/fixed after v1.2.0).
+# Pin app image tag for reproducibility (chart default tracks v1.2.0 at chart 2.1.0)
 image:
-  tag: v1.12.3
+  tag: v1.2.0
 
 # Next.js host validation — must list every Host header the app will see.
 env:
@@ -26,17 +25,6 @@ serviceAccount:
   name: homepage-infra
 enableRbac: true
 
-# Chart's default ClusterRole grants httproutes/pods/nodes/ingresses but NOT
-# services or workloads. Without these, kubernetes auto-discovery returns 0
-# services even when annotations are correct. Add them.
-extraClusterRoles:
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
-    verbs: ["get", "list"]
-
 # Cluster-wide kubernetes integration:
 #   - mode=cluster: in-cluster service account (uses RBAC above)
 #   - gateway=true: discover Gateway API HTTPRoutes (not just classic Ingress)
@@ -46,16 +34,11 @@ config:
     ingress: false   # we don't use classic Ingress — only HTTPRoute
     gateway: true
     services: true   # also discover Service-level annotations as a fallback
-    # NOTE: dropped `instance: infra` — homepage v1.2.0 returned 0 services with it.
-    # Both homepages now show ALL annotated routes; cosmetic differentiation only.
+    instance: infra  # only show routes annotated with `gethomepage.dev/instance: infra`
 
-  # Auto-discovered services land in groups matching their `gethomepage.dev/group`
-  # annotation. Each group MUST be declared (empty) here for routes to appear.
-  services:
-    - GitOps: []
-    - Observability: []
-    - Network: []
-    - Infra: []
+  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
+  # Empty services.yaml means: render only what's annotated.
+  services: []
 
   # Cross-link to the apps dashboard.
   bookmarks:
