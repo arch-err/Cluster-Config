@@ -24,6 +24,17 @@ serviceAccount:
   name: homepage
 enableRbac: true
 
+# Chart's default ClusterRole grants httproutes/pods/nodes/ingresses but NOT
+# services or workloads. Without these, kubernetes auto-discovery returns 0
+# services even when annotations are correct. Add them.
+extraClusterRoles:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list"]
+
 # Cluster-wide kubernetes integration:
 #   - mode=cluster: in-cluster service account (uses RBAC above)
 #   - gateway=true: discover Gateway API HTTPRoutes (not just classic Ingress)
