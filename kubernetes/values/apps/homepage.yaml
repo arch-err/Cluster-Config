@@ -43,22 +43,14 @@ extraClusterRoles:
 config:
   kubernetes:
     mode: cluster
-    # Bare minimum per docs. Adding ingress/gateway/services/instance flags broke
-    # discovery silently — gethomepage v1.2.0 emits no log when those keys exist.
-    # Re-add ONE flag at a time after verifying baseline discovery works.
+    ingress: false
+    gateway: true
 
   # Auto-discovered services land in groups matching their `gethomepage.dev/group`
   # annotation. Each group MUST be declared (empty) here for routes to appear —
   # auto-discovery appends to existing groups rather than creating new ones.
   # Add an empty `<Group>:` entry below for every group used by an apps-side route.
-  services:
-    - Media:
-        - Immich (manual test):
-            href: https://immich.apps.home
-            description: Manual entry to validate services.yaml loading
-    - Tools: []
-    - Comms: []
-    - Infra: []
+  services: []
 
   # Cross-link to the infra dashboard.
   bookmarks:
