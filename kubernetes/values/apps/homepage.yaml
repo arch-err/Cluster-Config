@@ -48,9 +48,8 @@ config:
     # Each homepage now sees ALL annotated routes; differentiation is purely
     # cosmetic (title/bg/cross-link) until we figure out the right filter.
 
-  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
-  # Empty services.yaml means: render only what's annotated.
-  services: []
+  # No `services:` key at all — empty list `[]` was overriding auto-discovery to
+  # "no services, period". Omitting lets the kubernetes integration drive the list.
 
   # Cross-link to the infra dashboard.
   bookmarks:

@@ -48,9 +48,7 @@ config:
     # NOTE: dropped `instance: infra` — homepage v1.2.0 returned 0 services with it.
     # Both homepages now show ALL annotated routes; cosmetic differentiation only.
 
-  # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
-  # Empty services.yaml means: render only what's annotated.
-  services: []
+  # No `services:` key at all — empty list `[]` was overriding auto-discovery.
 
   # Cross-link to the apps dashboard.
   bookmarks:
