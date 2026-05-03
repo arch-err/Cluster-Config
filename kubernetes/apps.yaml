@@ -125,10 +125,7 @@ components:
       gateway: apps
       service: homepage
       port: 3000
-      dashboard:
-        group: Infra
-        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
-        description: This dashboard
+      dashboard: false   # don't link to ourselves
 
   - name: excalidash
     namespace: excalidash
