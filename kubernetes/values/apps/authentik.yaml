@@ -59,6 +59,8 @@ postgresql:
   enabled: true
   auth:
     existingSecret: authentik-secrets
+    username: authentik
+    database: authentik
     secretKeys:
       adminPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
       userPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
