@@ -1,0 +1,51 @@
+# stirling-pdf — chart: stirling-pdf/stirling-pdf-chart v3.1.0 (appVersion 2.5.1)
+# https://github.com/Stirling-Tools/Stirling-PDF-chart
+# Locally-hosted web PDF tool (split, merge, OCR, convert, etc.)
+
+# Clean service name: stirling-pdf (instead of stirling-pdf-stirling-pdf-chart)
+fullnameOverride: stirling-pdf
+
+# Pin image tag to chart's appVersion for reproducibility
+image:
+  registry: docker.stirlingpdf.com
+  repository: stirlingtools/stirling-pdf
+  tag: "2.5.1"
+  pullPolicy: IfNotPresent
+
+# Disable chart's built-in ingress — platform chart handles routing via HTTPRoute
+ingress:
+  enabled: false
+
+# ClusterIP only; clear externalTrafficPolicy (Local is irrelevant for ClusterIP)
+service:
+  type: ClusterIP
+  externalTrafficPolicy: ""
+  externalPort: 8080
+
+# Small writable PVC for tessdata, custom configs, scratch
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 2Gi
+  # storageClass empty → cluster default (kadalu.replica2)
+
+# UID/GID 1000 = stirling-pdf user inside the image
+securityContext:
+  enabled: true
+  fsGroup: 1000
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+# Branding + sane defaults; login disabled (single-user homelab, behind LAN)
+envs:
+  - name: UI_APPNAME
+    value: "Stirling PDF"
+  - name: SYSTEM_DEFAULTLOCALE
+    value: "en-GB"
+  - name: SECURITY_ENABLELOGIN
+    value: "false"
