@@ -94,7 +94,24 @@ postgresql:
     configuration: ""
     pgHbaConfiguration: ""
     extendedConfiguration: ""
-    extraEnvVars: []
+    # The chart was designed for `library/postgres` (docker-style env names:
+    # POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD_FILE). We're using the
+    # bitnamilegacy image, whose init script expects POSTGRESQL_*-prefixed
+    # vars (POSTGRESQL_USERNAME, POSTGRESQL_DATABASE, POSTGRESQL_PASSWORD).
+    # Add both styles so the bitnami init flow actually creates the
+    # authentik role + database (without these the worker crashloops on
+    # "role authentik does not exist").
+    extraEnvVars:
+      - name: POSTGRES_DB
+        value: '{{ (include "postgresql.v1.database" .) }}'
+      - name: POSTGRESQL_USERNAME
+        value: '{{ (include "postgresql.v1.username" .) }}'
+      - name: POSTGRESQL_DATABASE
+        value: '{{ (include "postgresql.v1.database" .) }}'
+      - name: POSTGRESQL_PASSWORD_FILE
+        value: /opt/bitnami/postgresql/secrets/AUTHENTIK_POSTGRESQL__PASSWORD
+      - name: POSTGRESQL_POSTGRES_PASSWORD_FILE
+        value: /opt/bitnami/postgresql/secrets/AUTHENTIK_POSTGRESQL__PASSWORD
     # Drop the chart's readOnlyRootFilesystem + extraVolumeMounts for the
     # postgresql socket — the legacy image expects to write to default paths.
     containerSecurityContext: {}
