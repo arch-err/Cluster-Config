@@ -41,10 +41,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "10"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     {{- if $show }}
-    {{- $dashSiteMonitor := "" }}
-    {{- if eq $dashKind "map" }}
-      {{- $dashSiteMonitor = default "" (index $dash "siteMonitor") }}
-    {{- end }}
+    {{- $defaultSiteMonitor := printf "https://%s" .route.hostname }}
+    {{- $hasSiteMonitor := and (eq $dashKind "map") (hasKey ($dash | default dict) "siteMonitor") }}
+    {{- $siteMonitorVal := ternary (index $dash "siteMonitor") $defaultSiteMonitor $hasSiteMonitor }}
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: {{ ternary ($name | title) $dashName (eq $dashName "") | quote }}
     gethomepage.dev/icon: {{ ternary (printf "%s.svg" $name) $dashIcon (eq $dashIcon "") | quote }}
@@ -52,9 +51,10 @@ metadata:
     # routes with this matching its instanceName; same for infra. Routes without an
     # instance annotation are visible on every homepage.
     gethomepage.dev/instance: {{ .route.gateway | default "internal" | quote }}
-    {{- if ne $dashSiteMonitor "" }}
-    # siteMonitor: HTTP-ping URL for the status dot. Opt-in only.
-    gethomepage.dev/siteMonitor: {{ $dashSiteMonitor | quote }}
+    {{- if ne (printf "%v" $siteMonitorVal) "false" }}
+    # siteMonitor: HTTP-ping URL for the status dot. Defaults to https://<hostname>;
+    # override with `dashboard.siteMonitor: <url>`; opt out with `dashboard.siteMonitor: false`.
+    gethomepage.dev/siteMonitor: {{ $siteMonitorVal | quote }}
     {{- end }}
     {{- if ne $dashGroup "" }}
     gethomepage.dev/group: {{ $dashGroup | quote }}
