@@ -29,10 +29,28 @@ persistence:
   size: 2Gi
   # storageClass empty → cluster default (kadalu.replica2)
 
-# UID/GID 1000 = stirling-pdf user inside the image
+# UID/GID 1000 = stirling-pdf user inside the image (since v0.8.0)
+# Pod-level securityContext for restricted PSS compliance
 securityContext:
   enabled: true
   fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level securityContext — required by restricted PSS
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
 
 resources:
   requests:
