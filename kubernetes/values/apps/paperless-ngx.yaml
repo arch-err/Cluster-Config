@@ -63,8 +63,14 @@ resources:
 
 # Bundled bitnami postgres — pilot only, NO persistence (emptyDir).
 # Avoids kadalu chown init headache; data wipes on pod restart, fine for pilot.
+# Bitnami pulled their tagged images from docker.io/bitnami/* (Aug 2025); use
+# bitnamilegacy mirror with a pinned debian-12 r-tag.
 postgresql:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 16.2.0-debian-12-r9
   auth:
     database: paperless
     username: paperless
@@ -83,6 +89,10 @@ postgresql:
 # Bundled bitnami redis — pilot only, NO persistence (emptyDir).
 redis:
   enabled: true
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
+    tag: 7.4.2-debian-12-r9
   auth:
     enabled: true
   master:
