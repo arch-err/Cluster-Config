@@ -16,6 +16,13 @@
 image:
   tag: "2.14.7"
 
+# Bitnami pulled images from docker.io/bitnami/* in 2025; we use the
+# bitnamilegacy mirror for the bundled subcharts. Bitnami's NOTES.txt aborts
+# rendering unless we explicitly opt-in via this flag.
+global:
+  security:
+    allowInsecureImages: true
+
 # Disable chart's built-in ingress — platform chart owns HTTPRoute.
 ingress:
   main:
