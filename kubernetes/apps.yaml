@@ -241,6 +241,67 @@ components:
         icon: paperless-ngx.png
         description: Document mgmt + OCR
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # ARR STACK — 3 apps in one shared `arr` ns (extras.arr provides ns + PVCs).
+  # qBittorrent egress is forced through gluetun (Mullvad WireGuard) sidecar
+  # with FIREWALL=on killswitch. wg config is a SopsSecret with REPLACE_ME
+  # placeholders — gluetun crashloops dormant until user populates it.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: prowlarr
+    namespace: arr
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + shared PVCs) settle
+    route:
+      hostname: prowlarr.apps.home
+      gateway: apps
+      service: prowlarr
+      port: 9696
+      dashboard:
+        group: Media
+        icon: prowlarr.svg
+        description: Indexer manager / proxy
+        app: prowlarr
+
+  - name: readarr
+    namespace: arr
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: readarr.apps.home
+      gateway: apps
+      service: readarr
+      port: 8787
+      dashboard:
+        group: Media
+        icon: readarr.svg
+        description: Audiobook manager (Sonarr-for-books)
+        app: readarr
+
+  - name: qbittorrent
+    namespace: arr
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: qbittorrent.apps.home
+      gateway: apps
+      service: qbittorrent
+      port: 8080
+      dashboard:
+        name: qBittorrent
+        group: Media
+        icon: qbittorrent.svg
+        description: Torrent client (via Mullvad VPN)
+        app: qbittorrent
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -280,3 +341,8 @@ extras:
   # dropping to uid 1000, which restricted PSS rejects).
   stirling-pdf:
     enabled: true
+  # arr stack: shared `arr` ns (baseline PSS for gluetun NET_ADMIN +
+  # linuxserver s6-overlay) + two RWX PVCs shared by qbit/readarr.
+  arr:
+    downloadsSize: 100Gi
+    librarySize: 200Gi

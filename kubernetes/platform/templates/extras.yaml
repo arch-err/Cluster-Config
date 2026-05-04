@@ -460,6 +460,59 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* ARR STACK (prowlarr + readarr + qbittorrent+gluetun share one ns)          */}}
+{{/* baseline PSS — gluetun needs NET_ADMIN; linuxserver images run s6-overlay  */}}
+{{/* as root then drop, neither passes restricted PSS.                          */}}
+{{/* Two shared PVCs (RWX) live here so qbit + readarr can both mount them.     */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.arr }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: arr
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-downloads — qBit drops finished torrents here, readarr post-processes
+# from here into /library. Shared between containers (qbit) and pods (readarr).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-downloads
+  namespace: arr
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.extras.arr.downloadsSize | default "100Gi" }}
+---
+# audiobooks-library — readarr's move-completed target. RWX to make a future
+# Audiobookshelf cross-mount easier (user will wire ABS to read this in a
+# follow-up; for now only readarr writes).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audiobooks-library
+  namespace: arr
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.extras.arr.librarySize | default "200Gi" }}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}

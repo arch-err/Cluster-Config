@@ -1,0 +1,90 @@
+# readarr — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Book / audiobook manager — fork of Sonarr. Watches wanted-list, queries
+# Prowlarr for releases, sends torrents to qBittorrent, post-processes finished
+# downloads into /library.
+# Upstream: https://wiki.servarr.com/readarr  Image: linuxserver/readarr (develop).
+#
+# Mounts:
+#   /config        — own RWO PVC (sqlite + settings)
+#   /downloads     — shared RWX PVC `media-downloads` (read+remove from qbit's drop dir)
+#   /library       — shared RWX PVC `audiobooks-library` (move-completed target)
+# Lives in the shared `arr` namespace.
+
+controllers:
+  main:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          # readarr only ships :develop / :nightly (see linuxserver docs).
+          # Pinned to a specific dated develop tag for reproducibility.
+          repository: lscr.io/linuxserver/readarr
+          tag: "develop-version-0.4.18.2805"
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "Europe/Amsterdam"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8787
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8787
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8787
+        targetPort: 8787
+
+persistence:
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+  downloads:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-downloads     # shared RWX PVC, also mounted by qbit
+    advancedMounts:
+      main:
+        app:
+          - path: /downloads
+  library:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: audiobooks-library  # move-completed target
+    advancedMounts:
+      main:
+        app:
+          - path: /library

@@ -1,0 +1,159 @@
+# qbittorrent — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# qBittorrent + gluetun (Mullvad WireGuard) sidecar. All qBit egress goes
+# through gluetun's tunnel; gluetun runs FIREWALL=on as killswitch so qBit
+# cannot leak if the tunnel is down.
+#
+# Two containers in ONE pod → they automatically share the network namespace.
+# That's the whole architecture: qBit binds to localhost ports, gluetun owns
+# the wg interface, and cluster→pod traffic on the WebUI port still works
+# because gluetun's outbound firewall whitelists RFC1918 ranges.
+#
+# DORMANT-BY-DEFAULT: the `mullvad-wireguard` SopsSecret ships with
+# REPLACE_ME placeholders. gluetun WILL fail wg handshake on first boot and
+# crashloop until the user populates the secret with their Mullvad config.
+# qBit is unreachable from inside the pod's egress until then — by design.
+# The cluster→qBit WebUI path still works because firewall is set up before
+# wg handshake happens (see gluetun docs).
+#
+# Mounts:
+#   qbittorrent: /config (RWO PVC), /downloads (shared RWX `media-downloads`)
+#   gluetun: /tmp/gluetun (emptyDir, runtime state)
+#
+# Lives in the shared `arr` namespace (baseline PSS — gluetun needs NET_ADMIN).
+
+controllers:
+  main:
+    strategy: Recreate                 # both containers depend on RWO config PVC + netns
+    containers:
+      # ────────────────────────────────────────────────────────────────────────
+      # gluetun — VPN client + killswitch. Owns the network namespace egress.
+      # ────────────────────────────────────────────────────────────────────────
+      gluetun:
+        image:
+          repository: ghcr.io/qdm12/gluetun
+          tag: "v3.40.0"               # pinned (no floating tags)
+        env:
+          VPN_SERVICE_PROVIDER: mullvad
+          VPN_TYPE: wireguard
+          # killswitch: on. Drops all egress not via the tunnel.
+          FIREWALL: "on"
+          # Allow inbound + cluster-internal traffic so the WebUI Service still
+          # works while the tunnel is down/up. Covers RFC1918 + the cluster
+          # service CIDR (kube default 10.96.0.0/12 is inside 10.0.0.0/8).
+          FIREWALL_OUTBOUND_SUBNETS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+          # Mullvad-specific: pick a city. Amsterdam is reasonable for EU.
+          # User can override post-install via ConfigMap edit if desired.
+          SERVER_CITIES: "Amsterdam"
+          # Logging — keep info; debug fills logs fast.
+          LOG_LEVEL: info
+          TZ: "Europe/Amsterdam"
+          # Health check — gluetun pings a public IP through the tunnel. With
+          # placeholder wg config this WILL fail; that's expected dormant state.
+          HEALTH_VPN_DURATION_INITIAL: "30s"
+        envFrom:
+          - secretRef:
+              name: mullvad-wireguard
+        probes:
+          liveness:
+            enabled: false             # gluetun's own healthcheck handles it
+          readiness:
+            enabled: false
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          # NET_ADMIN required to manage the wg interface. baseline PSS
+          # accepts NET_ADMIN; restricted does not. Hence ns is baseline.
+          capabilities:
+            add:
+              - NET_ADMIN
+            drop:
+              - ALL
+          allowPrivilegeEscalation: false
+          # Many guides set runAsNonRoot=false for gluetun because of how it
+          # mucks with iptables; with capabilities approach it can run as
+          # nonroot, but upstream defaults are easier — let image decide.
+
+      # ────────────────────────────────────────────────────────────────────────
+      # qBittorrent — egress is via gluetun (shared netns), WebUI on :8080.
+      # ────────────────────────────────────────────────────────────────────────
+      qbittorrent:
+        image:
+          repository: lscr.io/linuxserver/qbittorrent
+          tag: "5.1.2"                 # appVersion 5.1.2, pinned
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "Europe/Amsterdam"
+          WEBUI_PORT: "8080"
+          # qBit listens on 6881/tcp+udp for peer traffic by default — that
+          # binds to the shared netns (gluetun's tunnel) automatically.
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 60   # allow gluetun firewall to come up first
+              periodSeconds: 30
+              failureThreshold: 6       # tolerant — gluetun handshake may flap
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        targetPort: 8080
+
+persistence:
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    advancedMounts:
+      main:
+        qbittorrent:
+          - path: /config
+  downloads:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-downloads     # shared RWX with readarr
+    advancedMounts:
+      main:
+        qbittorrent:
+          - path: /downloads
+  gluetun-tmp:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        gluetun:
+          - path: /tmp/gluetun

@@ -1,0 +1,70 @@
+# prowlarr — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Universal indexer manager/proxy that aggregates trackers and feeds *arr apps.
+# Upstream: https://wiki.servarr.com/prowlarr  Image: linuxserver/prowlarr.
+#
+# Single container, single PVC for /config (sqlite + settings).
+# Lives in the shared `arr` namespace (baseline PSS — see extras.arr in apps.yaml)
+# alongside readarr + qbittorrent+gluetun.
+
+controllers:
+  main:
+    strategy: Recreate          # sqlite on RWO PVC
+    containers:
+      app:
+        image:
+          repository: lscr.io/linuxserver/prowlarr
+          tag: "1.39.4"          # appVersion 1.39.4.5462, pinned for reproducibility
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "Europe/Amsterdam"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 9696
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 9696
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        # linuxserver init runs as root via s6-overlay then drops to PUID/PGID.
+        # baseline PSS on the `arr` ns allows this; restricted would not.
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 9696
+        targetPort: 9696
+
+persistence:
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
