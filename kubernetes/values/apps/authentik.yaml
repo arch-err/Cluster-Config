@@ -126,6 +126,29 @@ postgresql:
         memory: 256Mi
       limits:
         memory: 512Mi
+    # Kadalu-backed PVCs are slow on first init — initdb + user/db creation
+    # can blow past the default 90s liveness window, getting the pod killed
+    # mid-init and leaving a half-populated data dir that bitnami then
+    # treats as "persisted data" on the next boot (skipping init forever).
+    # Generous startupProbe + slacker liveness fixes this.
+    startupProbe:
+      enabled: true
+      failureThreshold: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      initialDelaySeconds: 30
+    livenessProbe:
+      enabled: true
+      failureThreshold: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      initialDelaySeconds: 60
+    readinessProbe:
+      enabled: true
+      failureThreshold: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      initialDelaySeconds: 30
 
 # Don't deploy the remote-cluster RBAC ServiceAccount — single-cluster setup.
 serviceAccount:
