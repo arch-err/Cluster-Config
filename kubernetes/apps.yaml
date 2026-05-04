@@ -163,6 +163,24 @@ components:
         description: Excalidraw dashboard + collab
         app: excalidash
 
+  - name: it-tools
+    namespace: it-tools
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    route:
+      hostname: it-tools.apps.home
+      gateway: apps
+      service: it-tools
+      port: 80
+      dashboard:
+        name: IT Tools
+        group: Tools
+        icon: it-tools.png
+        description: Handy dev tools collection
+        app: it-tools
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.

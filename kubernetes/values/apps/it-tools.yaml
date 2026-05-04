@@ -1,0 +1,65 @@
+# it-tools — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Collection of handy online tools for developers (formatters, converters,
+# generators, encoders, etc.) — stateless, single-container, nginx-served SPA.
+# Upstream: https://github.com/CorentinTh/it-tools
+#
+# Single container:
+#   - corentinth/it-tools: nginx:stable-alpine serving the built SPA on :80
+#
+# Stateless — no DB, no PVCs.
+
+controllers:
+  main:
+    containers:
+      app:
+        image:
+          repository: corentinth/it-tools
+          tag: "2024.10.22-7ca5933"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 80
+              initialDelaySeconds: 10
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 80
+              initialDelaySeconds: 3
+              periodSeconds: 10
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # nginx needs /var/cache/nginx + /var/run
+          capabilities:
+            drop:
+              - ALL
+
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101            # nginx user in nginx:alpine
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 80
