@@ -1,13 +1,23 @@
-# authentik — chart: goauthentik/authentik v2026.2.2
+# authentik — chart: goauthentik/authentik v2025.12.4
 # https://artifacthub.io/packages/helm/goauthentik/authentik
+#
+# Pinned to 2025.12.4 (the 2025.12 LTS line). The 2026.2.x line is broken on
+# our cluster (postgres init flow + a migration bug on
+# 0002_alter_authenticatorsmsstage_from_number). Stay on 2025.12 until upstream
+# resolves. No redis dep here either — 2025.12 already uses postgres-backed
+# caching, no separate redis subchart.
 #
 # Phase 1: deploy + verify only. Blueprints (groups, users, OIDC providers, app
 # integrations) are phase 2 — gated separately via extras.authentik.blueprints
 # in apps.yaml.
 #
-# Bundled Bitnami postgres subchart (postgresql.enabled: true). No redis/valkey:
-# authentik 2026.x dropped the redis dependency in favour of postgres-backed
-# caching, so the chart no longer ships one.
+# Bundled Bitnami postgres subchart, overridden to the bitnamilegacy mirror
+# because Bitnami pulled their public docker.io/bitnami images (Aug 2025). The
+# upstream chart's default (`library/postgres` with custom `primary.args`
+# pointing at `/bitnami/postgresql/conf/`) is broken: that path only exists on
+# bitnami images and the custom args bypass POSTGRES_DB creation. We override
+# the image AND null out the chart's pg primary args/configuration so the
+# bitnami init flow runs normally.
 #
 # Bootstrap admin credentials + secret_key + db password live in the
 # `authentik-secrets` SopsSecret (kubernetes/secrets/apps/authentik-secrets.yaml).
@@ -18,6 +28,10 @@ global:
   envFrom:
     - secretRef:
         name: authentik-secrets
+  # Bitnami's chart aborts unless we explicitly opt-in to non-bitnami-registry
+  # images (we use the bitnamilegacy mirror for the bundled postgres subchart).
+  security:
+    allowInsecureImages: true
 
 authentik:
   log_level: info
@@ -57,6 +71,13 @@ worker:
 # secret to keep all credentials in one place.
 postgresql:
   enabled: true
+  # Override the chart's broken default (`library/postgres`) with the
+  # bitnamilegacy mirror so the standard bitnami init flow runs and creates
+  # POSTGRES_DB on first boot.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 16.2.0-debian-12-r9
   auth:
     existingSecret: authentik-secrets
     username: authentik
@@ -66,6 +87,19 @@ postgresql:
       userPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
       replicationPasswordKey: AUTHENTIK_POSTGRESQL__PASSWORD
   primary:
+    # Null-out the chart's custom args/configuration that point at
+    # /bitnami/postgresql/conf paths and bypass init. Letting bitnamilegacy run
+    # its default entrypoint creates POSTGRES_DB correctly.
+    args: []
+    configuration: ""
+    pgHbaConfiguration: ""
+    extendedConfiguration: ""
+    extraEnvVars: []
+    # Drop the chart's readOnlyRootFilesystem + extraVolumeMounts for the
+    # postgresql socket — the legacy image expects to write to default paths.
+    containerSecurityContext: {}
+    extraVolumeMounts: []
+    extraVolumes: []
     persistence:
       enabled: true
       size: 8Gi

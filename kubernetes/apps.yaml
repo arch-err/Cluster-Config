@@ -134,7 +134,7 @@ components:
     chart:
       repo: https://charts.goauthentik.io
       name: authentik
-      version: 2026.2.2
+      version: 2025.12.4
     syncWave: "3"  # after extras (ns label) settle
     route:
       hostname: auth.apps.home
