@@ -216,6 +216,29 @@ components:
         icon: stirling-pdf.png
         description: Web PDF toolbox
 
+  # paperless-ngx — pilot install. Bundled bitnami pg + redis (emptyDir; pilot
+  # data loss on restart is acceptable). Future prod work: shared volumes for
+  # external file-manager access, proper backups, SMTP. NS is baseline-PSS
+  # (extras.paperless-ngx) — paperless image's supervisord and bitnami init
+  # bits don't pass restricted PSS.
+  - name: paperless-ngx
+    namespace: paperless-ngx
+    chart:
+      repo: https://charts.gabe565.com
+      name: paperless-ngx
+      version: 0.24.1
+    syncWave: "3"  # after extras (ns label) settle
+    route:
+      hostname: paperless.apps.home
+      gateway: apps
+      service: paperless-paperless-ngx
+      port: 8000
+      dashboard:
+        name: Paperless
+        group: Documents
+        icon: paperless-ngx.png
+        description: Document mgmt + OCR
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -245,3 +268,8 @@ extras:
   # `blueprints: true` here.
   authentik:
     blueprints: false
+  # paperless-ngx pilot: namespace only (baseline PSS — paperless image's
+  # supervisord runs as root then drops, and the bundled bitnami subcharts'
+  # init paths don't all pass restricted PSS).
+  paperless-ngx:
+    enabled: true
