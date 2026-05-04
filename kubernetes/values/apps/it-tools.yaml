@@ -42,7 +42,7 @@ controllers:
             memory: 128Mi
         securityContext:
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false   # nginx needs /var/cache/nginx + /var/run
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - ALL
@@ -63,3 +63,25 @@ service:
       http:
         port: 80
         targetPort: 80
+
+# nginx needs writable cache + run + tmp dirs at runtime. Use emptyDirs so we can
+# keep the rootfs read-only and stay PSS-restricted.
+persistence:
+  cache:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /var/cache/nginx
+  run:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /var/run
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
