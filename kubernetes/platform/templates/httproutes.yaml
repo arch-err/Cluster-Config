@@ -73,18 +73,30 @@ spec:
   hostnames:
     - {{ .route.hostname | quote }}
   rules:
+{{- /* timeout: optional opt-in. Sets spec.rules[].timeouts.request to override
+       the gateway's default request timeout (Cilium/Envoy default is too short
+       for large uploads). Only `request` is supported here — not `backendRequest`. */ -}}
 {{- if .route.rules }}
 {{- range .route.rules }}
     - matches:
         - path:
             type: PathPrefix
             value: {{ .path }}
+{{- if $.route.timeout }}
+      timeouts:
+        request: {{ $.route.timeout | quote }}
+{{- end }}
       backendRefs:
         - name: {{ .service }}
           port: {{ .port }}
 {{- end }}
 {{- else }}
-    - backendRefs:
+    -
+{{- if .route.timeout }}
+      timeouts:
+        request: {{ .route.timeout | quote }}
+{{- end }}
+      backendRefs:
         - name: {{ .route.service | default .name }}
           port: {{ .route.port | default 80 }}
 {{- end }}

@@ -57,6 +57,7 @@ components:
       gateway: apps
       service: audiobookshelf
       port: 8080
+      timeout: 30m  # large audiobook uploads via API
       dashboard:
         group: Media
         description: Audiobooks + podcasts
@@ -92,6 +93,7 @@ components:
       gateway: apps
       service: immich-server
       port: 2283
+      timeout: 30m  # large photo/video uploads
       dashboard:
         group: Media
         description: Photos + memories
