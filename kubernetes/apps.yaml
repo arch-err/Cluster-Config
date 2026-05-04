@@ -275,3 +275,8 @@ extras:
   # init paths don't all pass restricted PSS).
   paperless-ngx:
     enabled: true
+  # stirling-pdf: namespace only (baseline PSS — image's entrypoint runs as
+  # root to set up tessdata + /usr/local/bin/diagnostics symlinks before
+  # dropping to uid 1000, which restricted PSS rejects).
+  stirling-pdf:
+    enabled: true

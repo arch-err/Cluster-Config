@@ -440,6 +440,26 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* STIRLING-PDF (namespace baseline-PSS for image's root-init entrypoint)     */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if index .Values.extras "stirling-pdf" }}
+---
+# stirling-pdf namespace — baseline PSS. The image's entrypoint runs as root
+# to set up tessdata and /usr/local/bin/diagnostics symlinks before dropping
+# to uid 1000 internally; restricted PSS rejects that root-init step.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stirling-pdf
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}
