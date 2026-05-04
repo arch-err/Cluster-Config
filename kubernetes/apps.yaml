@@ -233,7 +233,7 @@ components:
     route:
       hostname: paperless.apps.home
       gateway: apps
-      service: paperless-paperless-ngx
+      service: paperless-ngx
       port: 8000
       dashboard:
         name: Paperless
