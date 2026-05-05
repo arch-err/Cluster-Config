@@ -90,3 +90,17 @@ ingress:
 service:
   type: ClusterIP
   port: 80
+
+# ──────────────────────────────────────────────────────────────────────────
+# Probes — generous startup window. SQLite migrations on the kadalu (replica2,
+# networked) volume take longer than the chart's default startup-probe budget.
+# `failureThreshold: 60 × periodSeconds: 5` = up to 5 minutes for first boot.
+# Liveness/readiness keep tight defaults (chart provides /healthz).
+# ──────────────────────────────────────────────────────────────────────────
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  failureThreshold: 60
+  periodSeconds: 5
+  timeoutSeconds: 3
