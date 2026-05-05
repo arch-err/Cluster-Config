@@ -283,16 +283,20 @@ components:
         description: Audiobook manager (Sonarr-for-books)
         app: readarr
 
+  # qbittorrent lives in its OWN namespace (privileged PSS — gluetun NET_ADMIN)
+  # and is exposed only via the INFRA gateway (not apps), so the WebUI is
+  # reachable only from LAN-privileged devices. Cross-ns sharing of media
+  # PVCs into the `arr` ns is via an in-cluster NFS bridge (see extras.arr).
   - name: qbittorrent
-    namespace: arr
+    namespace: qbittorrent
     chart:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
       version: 4.6.2
-    syncWave: "3"
+    syncWave: "4"  # after extras (ns + PVCs + nfs-server) settle
     route:
-      hostname: qbittorrent.apps.home
-      gateway: apps
+      hostname: qbittorrent.infra.home
+      gateway: infra
       service: qbittorrent
       port: 8080
       dashboard:
@@ -341,8 +345,11 @@ extras:
   # dropping to uid 1000, which restricted PSS rejects).
   stirling-pdf:
     enabled: true
-  # arr stack: shared `arr` ns (baseline PSS for gluetun NET_ADMIN +
-  # linuxserver s6-overlay) + two RWX PVCs shared by qbit/readarr.
+  # arr stack — split-architecture:
+  #   `arr` ns (baseline PSS): prowlarr + readarr (linuxserver s6-overlay)
+  #   `qbittorrent` ns (privileged PSS, authorized): qBit+gluetun (NET_ADMIN)
+  #     owns two RWX kadalu PVCs + an nfs-server bridge re-exporting them
+  #     into `arr` ns as NFS PVs (single export per mount → hardlinks intact).
   arr:
-    downloadsSize: 100Gi
-    librarySize: 200Gi
+    downloadsSize: 200Gi
+    librarySize: 1500Gi

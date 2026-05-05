@@ -3,23 +3,23 @@
 # through gluetun's tunnel; gluetun runs FIREWALL=on as killswitch so qBit
 # cannot leak if the tunnel is down.
 #
+# Lives in the dedicated `qbittorrent` namespace (privileged PSS — gluetun
+# needs NET_ADMIN, which baseline rejects). Webui exposed via INFRA gateway
+# only (qbittorrent.infra.home), not apps gateway — blast-radius reduction.
+#
 # Two containers in ONE pod → they automatically share the network namespace.
-# That's the whole architecture: qBit binds to localhost ports, gluetun owns
-# the wg interface, and cluster→pod traffic on the WebUI port still works
-# because gluetun's outbound firewall whitelists RFC1918 ranges.
+# qBit binds to all-ifaces :8080, gluetun owns the wg interface, and
+# cluster→pod WebUI traffic still works because gluetun's FIREWALL_OUTBOUND
+# whitelists RFC1918 ranges (covers cluster service CIDR + LAN).
 #
 # DORMANT-BY-DEFAULT: the `mullvad-wireguard` SopsSecret ships with
 # REPLACE_ME placeholders. gluetun WILL fail wg handshake on first boot and
 # crashloop until the user populates the secret with their Mullvad config.
-# qBit is unreachable from inside the pod's egress until then — by design.
-# The cluster→qBit WebUI path still works because firewall is set up before
-# wg handshake happens (see gluetun docs).
+# qBit egress through the tunnel won't work until then — by design.
 #
 # Mounts:
-#   qbittorrent: /config (RWO PVC), /downloads (shared RWX `media-downloads`)
-#   gluetun: /tmp/gluetun (emptyDir, runtime state)
-#
-# Lives in the shared `arr` namespace (baseline PSS — gluetun needs NET_ADMIN).
+#   qbittorrent: /config (RWO PVC), /downloads, /library (shared RWX kadalu)
+#   gluetun: /tmp/gluetun (emptyDir)
 
 controllers:
   main:
@@ -31,7 +31,7 @@ controllers:
       gluetun:
         image:
           repository: ghcr.io/qdm12/gluetun
-          tag: "v3.40.0"               # pinned (no floating tags)
+          tag: "v3.40.4"               # pinned (no floating tags)
         env:
           VPN_SERVICE_PROVIDER: mullvad
           VPN_TYPE: wireguard
@@ -54,38 +54,28 @@ controllers:
           - secretRef:
               name: mullvad-wireguard
         probes:
-          liveness:
-            enabled: false             # gluetun's own healthcheck handles it
-          readiness:
-            enabled: false
-          startup:
-            enabled: false
+          liveness:   { enabled: false }
+          readiness:  { enabled: false }
+          startup:    { enabled: false }
         resources:
-          requests:
-            cpu: 25m
-            memory: 64Mi
-          limits:
-            memory: 256Mi
+          requests: { cpu: 25m, memory: 64Mi }
+          limits:   { memory: 256Mi }
         securityContext:
-          # NET_ADMIN required to manage the wg interface. baseline PSS
-          # accepts NET_ADMIN; restricted does not. Hence ns is baseline.
+          # NET_ADMIN required to manage the wg interface. Baseline PSS
+          # rejects NET_ADMIN — that's why this ns is privileged.
           capabilities:
-            add:
-              - NET_ADMIN
-            drop:
-              - ALL
+            add: [NET_ADMIN]
           allowPrivilegeEscalation: false
-          # Many guides set runAsNonRoot=false for gluetun because of how it
-          # mucks with iptables; with capabilities approach it can run as
-          # nonroot, but upstream defaults are easier — let image decide.
 
       # ────────────────────────────────────────────────────────────────────────
       # qBittorrent — egress is via gluetun (shared netns), WebUI on :8080.
+      # linuxserver image runs s6-overlay as root then drops to PUID/PGID.
+      # Don't drop ALL caps — s6-applyuidgid needs SETUID/SETGID/CHOWN.
       # ────────────────────────────────────────────────────────────────────────
       qbittorrent:
         image:
           repository: lscr.io/linuxserver/qbittorrent
-          tag: "5.1.2"                 # appVersion 5.1.2, pinned
+          tag: "5.1.2-r1-ls404"        # pinned linuxserver build
         env:
           PUID: "1000"
           PGID: "1000"
@@ -98,8 +88,7 @@ controllers:
             enabled: true
             custom: true
             spec:
-              tcpSocket:
-                port: 8080
+              tcpSocket: { port: 8080 }
               initialDelaySeconds: 60   # allow gluetun firewall to come up first
               periodSeconds: 30
               failureThreshold: 6       # tolerant — gluetun handshake may flap
@@ -107,23 +96,15 @@ controllers:
             enabled: true
             custom: true
             spec:
-              tcpSocket:
-                port: 8080
+              tcpSocket: { port: 8080 }
               initialDelaySeconds: 20
               periodSeconds: 15
-          startup:
-            enabled: false
+          startup: { enabled: false }
         resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-          limits:
-            memory: 2Gi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
+          requests: { cpu: 100m, memory: 256Mi }
+          limits:   { memory: 2Gi }
+        # No capabilities.drop:ALL — linuxserver s6-overlay needs SETUID/SETGID/
+        # CHOWN/FOWNER/DAC_OVERRIDE/KILL/etc. to drop privileges to PUID:PGID.
 
 service:
   main:
@@ -145,11 +126,19 @@ persistence:
   downloads:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: media-downloads     # shared RWX with readarr
+    existingClaim: media-downloads     # owned by qbittorrent ns (kadalu RWX)
     advancedMounts:
       main:
         qbittorrent:
           - path: /downloads
+  library:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-library       # owned by qbittorrent ns (kadalu RWX)
+    advancedMounts:
+      main:
+        qbittorrent:
+          - path: /library
   gluetun-tmp:
     enabled: true
     type: emptyDir

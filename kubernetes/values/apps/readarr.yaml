@@ -6,9 +6,13 @@
 #
 # Mounts:
 #   /config        — own RWO PVC (sqlite + settings)
-#   /downloads     — shared RWX PVC `media-downloads` (read+remove from qbit's drop dir)
-#   /library       — shared RWX PVC `audiobooks-library` (move-completed target)
-# Lives in the shared `arr` namespace.
+#   /downloads     — NFS-backed RWX PVC `media-downloads` (cross-ns from qbittorrent)
+#   /library       — NFS-backed RWX PVC `media-library` (cross-ns from qbittorrent)
+# Both downloads + library are NFS mounts re-exported by nfs-server in the
+# qbittorrent ns from the same backing kadalu volumes that qBit writes to.
+# Single export per mount → hardlinks within a mount work (essential for
+# hardlink-based atomic moves between subdirs of /library).
+# Lives in the `arr` namespace.
 
 controllers:
   main:
@@ -49,11 +53,11 @@ controllers:
             memory: 256Mi
           limits:
             memory: 1Gi
+        # linuxserver s6-overlay starts as root, uses s6-applyuidgid to drop to
+        # PUID:PGID. Dropping ALL caps removes SETUID/SETGID and breaks the
+        # privilege drop. Baseline PSS allows the default cap set, leave it.
         securityContext:
           allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
 
 service:
   main:
@@ -83,7 +87,7 @@ persistence:
   library:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: audiobooks-library  # move-completed target
+    existingClaim: media-library       # cross-ns NFS to qbittorrent ns
     advancedMounts:
       main:
         app:

@@ -460,10 +460,14 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
-{{/* ARR STACK (prowlarr + readarr + qbittorrent+gluetun share one ns)          */}}
-{{/* baseline PSS — gluetun needs NET_ADMIN; linuxserver images run s6-overlay  */}}
-{{/* as root then drop, neither passes restricted PSS.                          */}}
-{{/* Two shared PVCs (RWX) live here so qbit + readarr can both mount them.     */}}
+{{/* ARR STACK — split-architecture                                              */}}
+{{/* `arr` ns (baseline PSS): prowlarr + readarr + future *arr apps              */}}
+{{/* `qbittorrent` ns (privileged PSS): qBit+gluetun (NET_ADMIN) + media PVCs    */}}
+{{/*                                  + NFS-server bridging volumes into arr ns. */}}
+{{/* Cross-ns sharing: qbittorrent ns owns two RWX kadalu PVCs (media-library    */}}
+{{/* + media-downloads). A small nfs-server Deployment exports both, and arr     */}}
+{{/* ns has matching NFS-backed PVs claimed by readarr — same backing data,     */}}
+{{/* hardlinks work within each pod's view (single NFS export per mount).        */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.arr }}
 ---
@@ -478,38 +482,233 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
-# media-downloads — qBit drops finished torrents here, readarr post-processes
-# from here into /library. Shared between containers (qbit) and pods (readarr).
+# qbittorrent namespace — privileged PSS. Required because gluetun adds
+# NET_ADMIN (baseline rejects). Explicitly authorized by user; only this ns
+# carries privileged in the apps tree. Blast-radius reduction: qBit's WebUI
+# is exposed only via the infra gateway (LAN-privileged devices only),
+# never via apps gateway.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qbittorrent
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-downloads — qBit drops finished torrents here, readarr (cross-ns via
+# NFS) post-processes into media-library. Owned by qbittorrent ns.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-downloads
+  namespace: qbittorrent
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
+---
+# media-library — canonical media root. Subdirs by category: audiobooks/,
+# books/, etc. Future ABS migrates to read from here. Owned by qbittorrent ns.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: qbittorrent
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
+---
+# nfs-server bridge — mounts both kadalu RWX PVCs and exports them so the
+# `arr` namespace (which can't mount them directly across ns) can consume
+# the same backing data via NFS PVs. Single replica (Recreate) — one writer
+# pod that re-exports the kadalu mounts.
+#
+# Image runs nfsd in-pod and needs CAP_SYS_ADMIN, hence privileged ns.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nfs-server
+  namespace: qbittorrent
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nfs-server
+  template:
+    metadata:
+      labels:
+        app: nfs-server
+    spec:
+      containers:
+        - name: nfs-server
+          image: itsthenetwork/nfs-server-alpine:12
+          ports:
+            - { name: nfs,    containerPort: 2049, protocol: TCP }
+            - { name: mountd, containerPort: 32767, protocol: TCP }
+            - { name: rpcbind, containerPort: 111, protocol: TCP }
+          env:
+            # Single export root with both subdirs visible. We bind-mount the
+            # PVCs into /exports/{downloads,library} below, then export /exports
+            # so a single NFS mount in arr ns sees both as /downloads and
+            # /library, preserving same-filesystem hardlinks across them.
+            - name: SHARED_DIRECTORY
+              value: /exports
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - { name: downloads, mountPath: /exports/downloads }
+            - { name: library,   mountPath: /exports/library }
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: media-downloads
+        - name: library
+          persistentVolumeClaim:
+            claimName: media-library
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nfs-server
+  namespace: qbittorrent
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    app: nfs-server
+  ports:
+    - { name: nfs,     port: 2049,  targetPort: 2049,  protocol: TCP }
+    - { name: mountd,  port: 32767, targetPort: 32767, protocol: TCP }
+    - { name: rpcbind, port: 111,   targetPort: 111,   protocol: TCP }
+---
+# arr-ns side: static NFS PV + PVC for /downloads. Backed by the nfs-server
+# Service in qbittorrent ns. Single export → hardlink-safe within the mount.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: arr-media-downloads
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  capacity:
+    storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""   # static, no SC
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: nfs-server.qbittorrent.svc.cluster.local
+    path: /downloads
+  claimRef:
+    name: media-downloads
+    namespace: arr
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: media-downloads
   namespace: arr
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: ""
   resources:
     requests:
-      storage: {{ .Values.extras.arr.downloadsSize | default "100Gi" }}
+      storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
+  volumeName: arr-media-downloads
 ---
-# audiobooks-library — readarr's move-completed target. RWX to make a future
-# Audiobookshelf cross-mount easier (user will wire ABS to read this in a
-# follow-up; for now only readarr writes).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: arr-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  capacity:
+    storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: nfs-server.qbittorrent.svc.cluster.local
+    path: /library
+  claimRef:
+    name: media-library
+    namespace: arr
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: audiobooks-library
+  name: media-library
   namespace: arr
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: ""
   resources:
     requests:
-      storage: {{ .Values.extras.arr.librarySize | default "200Gi" }}
+      storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
+  volumeName: arr-media-library
+# ──────────────────────────────────────────────────────────────────────────
+# Future NetworkPolicy stub (commented) — tighten arr ↔ qbittorrent traffic
+# to only what's needed. Today there's no NP enforcement so default-allow
+# applies. Uncomment + apply when ready to harden.
+#
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: allow-arr-to-qbittorrent
+#   namespace: qbittorrent
+# spec:
+#   podSelector:
+#     matchLabels:
+#       app.kubernetes.io/name: qbittorrent
+#   policyTypes: [Ingress]
+#   ingress:
+#     - from:
+#         - namespaceSelector:
+#             matchLabels:
+#               kubernetes.io/metadata.name: arr
+#       ports:
+#         - { protocol: TCP, port: 8080 }
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}

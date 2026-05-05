@@ -12,8 +12,9 @@ controllers:
     containers:
       app:
         image:
+          # linuxserver tags are <upstream>-ls<build>; bare "1.39.4" doesn't exist.
           repository: lscr.io/linuxserver/prowlarr
-          tag: "1.39.4"          # appVersion 1.39.4.5462, pinned for reproducibility
+          tag: "2.3.5.5327-ls144"
         env:
           PUID: "1000"
           PGID: "1000"
@@ -43,13 +44,11 @@ controllers:
             memory: 128Mi
           limits:
             memory: 512Mi
-        # linuxserver init runs as root via s6-overlay then drops to PUID/PGID.
-        # baseline PSS on the `arr` ns allows this; restricted would not.
+        # linuxserver s6-overlay starts as root, uses s6-applyuidgid to drop to
+        # PUID:PGID. Dropping ALL caps removes SETUID/SETGID and breaks the
+        # privilege drop. Baseline PSS allows the default cap set, leave it.
         securityContext:
           allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
 
 service:
   main:
