@@ -66,15 +66,21 @@ Pocket-ID uses a single concept — **user groups** — for both authorization (
    - `users` — regular accounts (J, E). Maps to user/viewer roles in each app.
 2. Add memberships once user accounts exist (step 4).
 
-### 4. Create the user accounts
+### 4. Onboard non-admin users via Signup Tokens
 
-For each non-admin user (J, E):
-1. UI → Users → New
-2. Email + display name
-3. **Do NOT** set a password — pocket-id is passkey-only
-4. Add to `users` user group
-5. Generate a one-time enrollment link from the user's detail page → **send via secure channel** (Signal, in-person QR, Bitwarden Send, etc.). Link expires after first use or after a TTL.
-6. User clicks link, enrolls their passkey, account is live
+Pocket-ID's onboarding model is **token-based, not per-user**. As admin, you generate a Signup Token (URL with a random token), the user opens it in their browser, fills email/name, enrolls their passkey, and an account is created. There is no "send link to existing user" — the user is *created* by the act of redeeming the token.
+
+1. UI → **Signup Tokens** → New
+2. Configure:
+   - **Max uses** — `1` for a one-shot personal link; higher for shared bulk onboarding (e.g. one token for several family members)
+   - **Expiry** — short (1–24h) is healthy hygiene
+   - **Pre-assigned user groups** — e.g. `apps-users` for gf/family. The new account inherits these on creation. Skip if you want to assign manually after.
+3. Save → pocket-id shows a URL like `https://auth.apps.home/signup?token=<random>`
+4. **Send via secure channel** — Signal, in-person QR, Bitwarden Send (encrypted+expiring). Never plaintext email/SMS.
+5. User opens link → fills email + display name → enrolls passkey → account is live with the pre-assigned groups
+6. (Optional) After-the-fact: as admin, edit the user to fine-tune group memberships if pre-assignment didn't cover their tier
+
+To enroll multi-device (user wants both phone + laptop passkeys): they log in once with the first passkey, then their own Settings → Add Passkey → enroll second.
 
 ### 5. Per-app: declare `oidc.enabled: true` in `apps.yaml`
 
