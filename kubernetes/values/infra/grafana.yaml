@@ -8,6 +8,15 @@ persistence:
   storageClassName: kadalu.replica2
   size: 5Gi
 
+# SQLite + RWX kadalu volume = two pods can't safely share. RollingUpdate spawns
+# a new pod while the old one still holds the DB open, and the new pod sees
+# stale/out-of-sync state across replica2 (most visibly: "data key not found"
+# during datasource provisioning when the encrypted secrets row has been
+# updated by the running pod but its data_keys row hasn't yet propagated to
+# the other node's replica). Recreate guarantees the old pod is gone first.
+deploymentStrategy:
+  type: Recreate
+
 # Admin: chart auto-generates random 40-char password if adminPassword is unset.
 # Retrieve with:
 #   kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
