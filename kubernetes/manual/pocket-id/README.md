@@ -14,9 +14,9 @@ Pocket-ID is our OIDC IDP. Most config is interactive (passkey enrollment, OIDC 
 
 ### 1. First-admin bootstrap
 
-When the SQLite DB is empty, the first visitor at `/login/setup` becomes the admin.
+When the SQLite DB is empty, the first visitor at `/setup` becomes the admin.
 
-1. Browse to **https://auth.apps.home/login/setup** (or just `https://auth.apps.home/` — it'll redirect)
+1. Browse to [https://auth.apps.home/setup](https://auth.apps.home/setup)
 2. Enroll a passkey for the admin account (use a Yubikey if you want hardware-backed)
 3. Note: there is NO password — passkey-only
 
@@ -57,13 +57,13 @@ The token Secret is **not** backed up by GitOps (intentional). Recovery path if 
 2. Re-apply via the `kubectl` block above
 3. The OIDC bootstrap Jobs auto-fire on next argocd sync, all per-app client secrets regenerate
 
-### 3. Create groups
+### 3. Create user groups
 
-OIDC client policies bind to group membership.
+Pocket-ID uses a single concept — **user groups** — for both authorization (which users can access which OIDC clients) and per-app role mapping. There's no separate "role" or "policy" object; group membership is the only knob.
 
-1. UI → Groups → New
-   - `admins` — Admin user goes here. Future MFA-required policies + per-app admin role mappings.
-   - `users` — regular accounts (J, E). Per-app user/viewer role.
+1. UI → **User Groups** → New
+   - `admins` — Admin account goes here. Maps to admin/owner roles in each app.
+   - `users` — regular accounts (J, E). Maps to user/viewer roles in each app.
 2. Add memberships once user accounts exist (step 4).
 
 ### 4. Create the user accounts
@@ -72,7 +72,7 @@ For each non-admin user (J, E):
 1. UI → Users → New
 2. Email + display name
 3. **Do NOT** set a password — pocket-id is passkey-only
-4. Add to `users` group
+4. Add to `users` user group
 5. Generate a one-time enrollment link from the user's detail page → **send via secure channel** (Signal, in-person QR, Bitwarden Send, etc.). Link expires after first use or after a TTL.
 6. User clicks link, enrolls their passkey, account is live
 
@@ -99,14 +99,19 @@ For each app you want to integrate:
 
 **No more manual UI clicks per app** beyond step 6 below.
 
-### 6. Per-app: bind groups → roles (still manual)
+### 6. Per-app: bind user groups → app roles (still manual)
 
-For each new app integrated via OIDC:
-1. UI → Applications → `<app-name>`
-2. Configure group→role/scope mapping per app's OIDC requirements (e.g. `admins → role:admin`, `users → role:viewer`)
-3. Save
+Pocket-ID emits the user's group memberships in the OIDC `groups` claim. Each downstream app reads that claim and maps groups → its own role schema. **The mapping itself lives in the app's config, not in pocket-id.**
 
-Why manual: app-specific role schemas vary too much to encode in `apps.yaml`. The OIDC client itself auto-registers; the *what does each group get inside this app* mapping is per-app config.
+So the per-app work is:
+1. In **pocket-id UI** → OIDC Clients → `<app-name>` → ensure `groups` is in the requested scopes (it should be by default if the platform chart's `oidc.scopes` includes `groups`).
+2. In **the app's helm values** (e.g. `kubernetes/values/apps/<app>.yaml`): configure the app's OIDC role-mapping. Examples:
+   - **Grafana**: `auth.generic_oauth.role_attribute_path: contains(groups[*], 'admins') && 'GrafanaAdmin' || contains(groups[*], 'users') && 'Viewer'`
+   - **Argo CD**: RBAC policy CSV referencing `g, admins, role:admin`
+   - **Immich**: configure OAuth-managed admin via `oauth.adminGroup: admins`
+   - Each chart has its own knob — read its OIDC docs.
+
+Why this is manual: pocket-id doesn't store app-side role schemas (they belong to each app). The OIDC client auto-registers via the bootstrap Job; the per-app role-mapping in helm values is yours to set per chart.
 
 ## State this creates
 
