@@ -299,6 +299,7 @@ components:
       service: qbittorrent
       port: 8080
       dashboard:
+        enabled: true   # gateway:infra defaults to hidden; opt in explicitly
         name: qBittorrent
         group: Media
         icon: qbittorrent.svg
