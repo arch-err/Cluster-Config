@@ -41,6 +41,11 @@ controllers:
           # works while the tunnel is down/up. Covers RFC1918 + the cluster
           # service CIDR (kube default 10.96.0.0/12 is inside 10.0.0.0/8).
           FIREWALL_OUTBOUND_SUBNETS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+          # Allow inbound on qBit's WebUI port through gluetun's killswitch
+          # iptables; without this the gateway → pod :8080 traffic gets dropped
+          # and HTTPRoute returns 503. Do NOT add 6881 (peer port) — peer
+          # connections must traverse the VPN tunnel, not the gateway.
+          FIREWALL_INPUT_PORTS: "8080"
           # Mullvad-specific: pick a city. Amsterdam is reasonable for EU.
           # User can override post-install via ConfigMap edit if desired.
           SERVER_CITIES: "Amsterdam"
