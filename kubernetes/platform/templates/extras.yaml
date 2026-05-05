@@ -674,7 +674,7 @@ spec:
     - retrans=2
   nfs:
     server: 10.111.111.111
-    path: /library
+    path: /
   claimRef:
     name: media-library
     namespace: arr
