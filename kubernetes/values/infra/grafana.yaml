@@ -143,6 +143,11 @@ grafana.ini:
   auth:
     disable_login_form: true
     oauth_auto_login: true
+    # Required when allow_sign_up is false: lets grafana match an OIDC user back
+    # to an existing local user by email when no `sub`-linked account exists.
+    # Without this, signup-disabled + first-time OIDC login fails outright.
+    # Per https://pocket-id.org/docs/client-examples/grafana
+    oauth_allow_insecure_email_lookup: true
   # Pocket-ID OIDC. Endpoints come from
   # https://auth.apps.home/.well-known/openid-configuration — exact URLs, not
   # guessed. Client_id/secret file-mounted from grafana-oidc-client Secret
@@ -152,11 +157,19 @@ grafana.ini:
     enabled: true
     name: Pocket ID
     icon: signin
-    allow_sign_up: true
+    # Users are admin-provisioned in pocket-id (Signup Tokens flow); grafana
+    # should not auto-create local accounts on first OIDC login.
+    allow_sign_up: false
     auto_login: false
     client_id: $__file{/etc/secrets/oidc/client_id}
     client_secret: $__file{/etc/secrets/oidc/client_secret}
     scopes: openid profile email groups
+    # Pocket-id's userinfo returns `email` as primary; `email:primary` tells
+    # grafana to read it directly. Per upstream pocket-id docs.
+    email_attribute_name: "email:primary"
+    # Don't sync org role from OIDC into grafana's per-org membership; we use
+    # role_attribute_path below for the global role only.
+    skip_org_role_sync: true
     # PKCE is required by the pocket-id client (pkceEnabled: true on the
     # registered OIDC client). Without this grafana doesn't send a
     # code_verifier on the token exchange and pocket-id rejects with
