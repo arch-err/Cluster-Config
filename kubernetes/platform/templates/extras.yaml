@@ -596,6 +596,11 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
+  # Fixed ClusterIP — NFS PVs reference this directly because kubelet (which
+  # performs the NFS mount on Talos host) does NOT resolve *.svc.cluster.local.
+  # Stable IP > DNS for cross-ns NFS PVs. Picked free of the cluster service
+  # range (10.96.0.0/12).
+  clusterIP: 10.111.111.111
   selector:
     app: nfs-server
   ports:
@@ -624,7 +629,7 @@ spec:
     - timeo=600
     - retrans=2
   nfs:
-    server: nfs-server.qbittorrent.svc.cluster.local
+    server: 10.111.111.111
     path: /downloads
   claimRef:
     name: media-downloads
@@ -665,7 +670,7 @@ spec:
     - timeo=600
     - retrans=2
   nfs:
-    server: nfs-server.qbittorrent.svc.cluster.local
+    server: 10.111.111.111
     path: /library
   claimRef:
     name: media-library
