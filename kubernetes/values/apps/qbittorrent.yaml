@@ -109,6 +109,11 @@ controllers:
 service:
   main:
     controller: main
+    # In dormant state, gluetun crashloops (placeholder wg secret) and the pod
+    # is "1/2 ready" → endpoint excluded by default → 503 at the gateway. With
+    # publishNotReadyAddresses=true the Service includes the qBit container
+    # regardless of pod-level readiness, so the WebUI is reachable.
+    publishNotReadyAddresses: true
     ports:
       http:
         port: 8080
