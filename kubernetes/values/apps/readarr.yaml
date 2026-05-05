@@ -6,12 +6,10 @@
 #
 # Mounts:
 #   /config        — own RWO PVC (sqlite + settings)
-#   /downloads     — NFS-backed RWX PVC `media-downloads` (cross-ns from qbittorrent)
-#   /library       — NFS-backed RWX PVC `media-library` (cross-ns from qbittorrent)
-# Both downloads + library are NFS mounts re-exported by nfs-server in the
-# qbittorrent ns from the same backing kadalu volumes that qBit writes to.
-# Single export per mount → hardlinks within a mount work (essential for
-# hardlink-based atomic moves between subdirs of /library).
+#   /downloads     — kadalu RWX PVC `media-downloads` (shared subvol w/ qbittorrent ns)
+#   /library       — kadalu RWX PVC `media-library` (shared subvol w/ qbittorrent ns)
+# Cross-ns sharing via two static kadalu PVs per subvol — see platform extras.
+# Hardlinks within each mount work natively (single fs per mount).
 # Lives in the `arr` namespace.
 
 controllers:
@@ -76,23 +74,21 @@ persistence:
       main:
         app:
           - path: /config
-  # Both NFS PVCs mount the same NFS pseudo-root; subPath selects the right
-  # bind-mount subdir on the server side. See platform extras for why.
+  # Both PVCs are static kadalu PVs sharing subvol paths with qbittorrent ns
+  # (see platform extras). Same backing data, hardlink-safe within each mount.
   downloads:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: media-downloads     # NFS-bridge from qbittorrent ns
+    existingClaim: media-downloads
     advancedMounts:
       main:
         app:
           - path: /downloads
-            subPath: downloads
   library:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: media-library       # NFS-bridge from qbittorrent ns
+    existingClaim: media-library
     advancedMounts:
       main:
         app:
           - path: /library
-            subPath: library

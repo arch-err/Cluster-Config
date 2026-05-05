@@ -462,12 +462,14 @@ metadata:
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* ARR STACK — split-architecture                                              */}}
 {{/* `arr` ns (baseline PSS): prowlarr + readarr + future *arr apps              */}}
-{{/* `qbittorrent` ns (privileged PSS): qBit+gluetun (NET_ADMIN) + media PVCs    */}}
-{{/*                                  + NFS-server bridging volumes into arr ns. */}}
-{{/* Cross-ns sharing: qbittorrent ns owns two RWX kadalu PVCs (media-library    */}}
-{{/* + media-downloads). A small nfs-server Deployment exports both, and arr     */}}
-{{/* ns has matching NFS-backed PVs claimed by readarr — same backing data,     */}}
-{{/* hardlinks work within each pod's view (single NFS export per mount).        */}}
+{{/* `qbittorrent` ns (privileged PSS): qBit+gluetun (NET_ADMIN, authorized)     */}}
+{{/*                                                                              */}}
+{{/* Cross-ns sharing: TWO statically-provisioned kadalu CSI PVs per shared      */}}
+{{/* volume (one bound in each ns), both pointing at the same kadalu subvol      */}}
+{{/* path. Kadalu's CSI driver mounts the subvol in any pod whose PVC binds      */}}
+{{/* such a PV — verified at runtime that two PVs sharing one subvol-path mount  */}}
+{{/* the same backing data, with full RWX semantics + hardlinks across subdirs.  */}}
+{{/* (NFS bridge approach failed — Talos has no in-kernel nfsd module.)          */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.arr }}
 ---
@@ -497,203 +499,57 @@ metadata:
     pod-security.kubernetes.io/warn: privileged
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+{{- $kadaluCommon := dict "fstype" "xfs" "hostvol" "replica2" "pvtype" "subvol" "single_pv_per_pool" "False" "type" "Replica2" -}}
+{{- range $vol := list (dict "name" "media-downloads" "size" (.Values.extras.arr.downloadsSize | default "200Gi") "subvol" "subvol/ar/dl/media-downloads") (dict "name" "media-library" "size" (.Values.extras.arr.librarySize | default "1500Gi") "subvol" "subvol/ar/lb/media-library") }}
+{{- range $ns := list "qbittorrent" "arr" }}
 ---
-# media-downloads — qBit drops finished torrents here, readarr (cross-ns via
-# NFS) post-processes into media-library. Owned by qbittorrent ns.
+# {{ $vol.name }} — static kadalu PV claimed in {{ $ns }} ns. Both ns's PVs
+# point at the SAME subvol path, giving cross-ns access to the same backing
+# data. Hardlinks work within the mount (single subvol = single fs).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $ns }}-{{ $vol.name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ $vol.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: {{ $ns }}-{{ $vol.name }}
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: {{ $vol.subvol }}
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: {{ $vol.name }}
+    namespace: {{ $ns }}
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: media-downloads
-  namespace: qbittorrent
+  name: {{ $vol.name }}
+  namespace: {{ $ns }}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
     - ReadWriteMany
-  resources:
-    requests:
-      storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
----
-# media-library — canonical media root. Subdirs by category: audiobooks/,
-# books/, etc. Future ABS migrates to read from here. Owned by qbittorrent ns.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: media-library
-  namespace: qbittorrent
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-spec:
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
----
-# nfs-server bridge — mounts both kadalu RWX PVCs and exports them so the
-# `arr` namespace (which can't mount them directly across ns) can consume
-# the same backing data via NFS PVs. Single replica (Recreate) — one writer
-# pod that re-exports the kadalu mounts.
-#
-# Image runs nfsd in-pod and needs CAP_SYS_ADMIN, hence privileged ns.
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nfs-server
-  namespace: qbittorrent
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: nfs-server
-  template:
-    metadata:
-      labels:
-        app: nfs-server
-    spec:
-      containers:
-        - name: nfs-server
-          image: itsthenetwork/nfs-server-alpine:12
-          ports:
-            - { name: nfs,    containerPort: 2049, protocol: TCP }
-            - { name: mountd, containerPort: 32767, protocol: TCP }
-            - { name: rpcbind, containerPort: 111, protocol: TCP }
-          env:
-            # Single export root with both subdirs visible. We bind-mount the
-            # PVCs into /exports/{downloads,library} below, then export /exports
-            # so a single NFS mount in arr ns sees both as /downloads and
-            # /library, preserving same-filesystem hardlinks across them.
-            - name: SHARED_DIRECTORY
-              value: /exports
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - { name: downloads, mountPath: /exports/downloads }
-            - { name: library,   mountPath: /exports/library }
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              memory: 512Mi
-      volumes:
-        - name: downloads
-          persistentVolumeClaim:
-            claimName: media-downloads
-        - name: library
-          persistentVolumeClaim:
-            claimName: media-library
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nfs-server
-  namespace: qbittorrent
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  # Fixed ClusterIP — NFS PVs reference this directly because kubelet (which
-  # performs the NFS mount on Talos host) does NOT resolve *.svc.cluster.local.
-  # Stable IP > DNS for cross-ns NFS PVs. Picked free of the cluster service
-  # range (10.96.0.0/12).
-  clusterIP: 10.111.111.111
-  selector:
-    app: nfs-server
-  ports:
-    - { name: nfs,     port: 2049,  targetPort: 2049,  protocol: TCP }
-    - { name: mountd,  port: 32767, targetPort: 32767, protocol: TCP }
-    - { name: rpcbind, port: 111,   targetPort: 111,   protocol: TCP }
----
-# arr-ns side: static NFS PV + PVC for /downloads. Backed by the nfs-server
-# Service in qbittorrent ns. Single export → hardlink-safe within the mount.
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: arr-media-downloads
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-spec:
-  capacity:
-    storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""   # static, no SC
-  mountOptions:
-    - nfsvers=4.1
-    - hard
-    - timeo=600
-    - retrans=2
-  nfs:
-    server: 10.111.111.111
-    path: /
-  # The NFS server exports only /exports root (pseudo-fs); both PVs mount the
-  # pseudo-root and the consumer pod uses volumeMounts.subPath to land in
-  # the right subdir (library/ or downloads/).
-  claimRef:
-    name: media-downloads
-    namespace: arr
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: media-downloads
-  namespace: arr
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-spec:
-  accessModes:
-    - ReadWriteMany
   storageClassName: ""
   resources:
     requests:
-      storage: {{ .Values.extras.arr.downloadsSize | default "200Gi" }}
-  volumeName: arr-media-downloads
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: arr-media-library
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-spec:
-  capacity:
-    storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  mountOptions:
-    - nfsvers=4.1
-    - hard
-    - timeo=600
-    - retrans=2
-  nfs:
-    server: 10.111.111.111
-    path: /
-  claimRef:
-    name: media-library
-    namespace: arr
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: media-library
-  namespace: arr
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: ""
-  resources:
-    requests:
-      storage: {{ .Values.extras.arr.librarySize | default "1500Gi" }}
-  volumeName: arr-media-library
+      storage: {{ $vol.size }}
+  volumeName: {{ $ns }}-{{ $vol.name }}
+{{- end }}
+{{- end }}
 # ──────────────────────────────────────────────────────────────────────────
 # Future NetworkPolicy stub (commented) — tighten arr ↔ qbittorrent traffic
 # to only what's needed. Today there's no NP enforcement so default-allow
