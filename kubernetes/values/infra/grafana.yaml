@@ -148,9 +148,17 @@ grafana.ini:
     client_id: $__file{/etc/secrets/oidc/client_id}
     client_secret: $__file{/etc/secrets/oidc/client_secret}
     scopes: openid profile email groups
+    # Browser-facing endpoint — public hostname.
     auth_url: https://auth.apps.home/authorize
-    token_url: https://auth.apps.home/api/oidc/token
-    api_url: https://auth.apps.home/api/oidc/userinfo
+    # Back-channel endpoints — in-cluster service URL bypasses the gateway,
+    # avoiding (a) external DNS for *.apps.home which the cluster only resolves
+    # via the CoreDNS hosts block, and (b) TLS verification against the
+    # internal home-ca which grafana's pod has no trust bundle for. The token
+    # `iss` claim still matches https://auth.apps.home so id_token validation
+    # passes. Pocket-id serves the same OIDC endpoints over plain HTTP on its
+    # ClusterIP service (same pattern the platform's oidc-bootstrap Job uses).
+    token_url: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/token
+    api_url: http://pocket-id.pocket-id.svc.cluster.local/api/oidc/userinfo
     # Only Administrators → GrafanaAdmin for now. Other groups fall through to
     # grafana's default "Viewer". Access restriction at the pocket-id side:
     # set the OIDC client's "allowed user groups" to Administrators in the
