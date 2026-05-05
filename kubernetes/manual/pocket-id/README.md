@@ -76,9 +76,28 @@ For each non-admin user (J, E):
 5. Generate a one-time enrollment link from the user's detail page → **send via secure channel** (Signal, in-person QR, Bitwarden Send, etc.). Link expires after first use or after a TTL.
 6. User clicks link, enrolls their passkey, account is live
 
-### 5. (when ready) Bootstrap pattern is wired
+### 5. Per-app: declare `oidc.enabled: true` in `apps.yaml`
 
-Once API token is in the cluster (step 2) AND the platform-chart OIDC pattern is built (separate task), every app deployed with `oidc.enabled: true` in `apps.yaml` auto-registers its OIDC client here. **No more manual UI clicks per app** beyond step 6 below.
+Once the API token from step 2 is populated, the platform chart's
+`oidc-bootstrap` Job (see `kubernetes/platform/templates/oidc-bootstrap.yaml`,
+docs in `kubernetes/platform/README.md`) auto-registers an OIDC client and
+writes `client_id` + `client_secret` into the app's namespace as a Secret.
+
+For each app you want to integrate:
+1. Add an `oidc:` block to its component entry in `apps.yaml`:
+   ```yaml
+   oidc:
+     enabled: true
+     callbackUrls:
+       - https://<app>.apps.home/<the chart's expected callback path>
+     # optional: scopes, secretName, public, logoutCallbackUrls
+   ```
+2. Reference the rendered Secret (default name `<app>-oidc-client`) from the
+   app's helm values — keys are `client_id`, `client_secret`, `issuer_url`.
+3. Commit + push. ArgoCD reconciles → bootstrap Job runs → Secret appears in
+   the app's ns → restart the app pod if it doesn't auto-reload.
+
+**No more manual UI clicks per app** beyond step 6 below.
 
 ### 6. Per-app: bind groups → roles (still manual)
 
