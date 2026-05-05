@@ -148,6 +148,11 @@ grafana.ini:
     client_id: $__file{/etc/secrets/oidc/client_id}
     client_secret: $__file{/etc/secrets/oidc/client_secret}
     scopes: openid profile email groups
+    # PKCE is required by the pocket-id client (pkceEnabled: true on the
+    # registered OIDC client). Without this grafana doesn't send a
+    # code_verifier on the token exchange and pocket-id rejects with
+    # "Invalid code verifier".
+    use_pkce: true
     # Browser-facing endpoint — public hostname.
     auth_url: https://auth.apps.home/authorize
     # Back-channel endpoints — in-cluster service URL bypasses the gateway,
