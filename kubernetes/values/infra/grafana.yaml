@@ -125,6 +125,15 @@ grafana.ini:
     mode: console
   auth.anonymous:
     enabled: false
+  # Disable username/password form + auto-redirect to OIDC. Local admin still
+  # accessible via ?disableAutoLogin query param + /login path:
+  #   https://grafana.infra.home/login?disableAutoLogin=true
+  # The form is hidden but the local admin user still exists — use that URL
+  # if pocket-id is down or SSO is mid-rotation. admin password retrieval:
+  #   kubectl -n monitoring get secret grafana -o jsonpath='{.data.admin-password}' | base64 -d
+  auth:
+    disable_login_form: true
+    oauth_auto_login: true
   # Pocket-ID OIDC. Endpoints come from
   # https://auth.apps.home/.well-known/openid-configuration — exact URLs, not
   # guessed. Client_id/secret file-mounted from grafana-oidc-client Secret
