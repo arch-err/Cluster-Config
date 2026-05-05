@@ -76,19 +76,23 @@ persistence:
       main:
         app:
           - path: /config
+  # Both NFS PVCs mount the same NFS pseudo-root; subPath selects the right
+  # bind-mount subdir on the server side. See platform extras for why.
   downloads:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: media-downloads     # shared RWX PVC, also mounted by qbit
+    existingClaim: media-downloads     # NFS-bridge from qbittorrent ns
     advancedMounts:
       main:
         app:
           - path: /downloads
+            subPath: downloads
   library:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: media-library       # cross-ns NFS to qbittorrent ns
+    existingClaim: media-library       # NFS-bridge from qbittorrent ns
     advancedMounts:
       main:
         app:
           - path: /library
+            subPath: library

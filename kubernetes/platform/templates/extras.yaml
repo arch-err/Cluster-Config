@@ -630,7 +630,10 @@ spec:
     - retrans=2
   nfs:
     server: 10.111.111.111
-    path: /downloads
+    path: /
+  # The NFS server exports only /exports root (pseudo-fs); both PVs mount the
+  # pseudo-root and the consumer pod uses volumeMounts.subPath to land in
+  # the right subdir (library/ or downloads/).
   claimRef:
     name: media-downloads
     namespace: arr
