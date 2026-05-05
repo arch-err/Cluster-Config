@@ -30,21 +30,32 @@ Used by the platform chart's OIDC bootstrap Jobs (auto-creates OIDC clients per 
 4. **Name:** `cluster-bootstrap`
 5. **Expiry:** none (long-lived) OR rotation period (1y is fine)
 6. Copy the token — it's shown ONCE
-7. Drop it into the SOPS secret:
+7. **Store it in your personal password manager** (Bitwarden, etc.) under `Cluster — pocket-id admin API token`. This is the *only* out-of-cluster copy. The token is **NOT** stored in git — too sensitive.
+8. Apply it to the cluster as a regular Secret. Use `read -rs` to keep the token off your shell history:
+   ```bash
+   read -rs POCKET_ID_API_TOKEN
+   # paste the token, hit enter — it won't echo
+   kubectl -n pocket-id create secret generic pocket-id-api-token \
+     --from-literal=POCKET_ID_API_TOKEN="$POCKET_ID_API_TOKEN" \
+     --dry-run=client -o yaml | kubectl apply -f -
+   unset POCKET_ID_API_TOKEN
    ```
-   cd ~/Git/arch-err/IaC/Cluster-Config/kubernetes
-   SOPS_AGE_KEY_FILE=~/.config/sops/age/cluster-config.txt \
-     sops secrets/apps/pocket-id-api-token.yaml
-   ```
-   Replace `REPLACE_ME` with the token, save, exit.
-8. Commit + push:
-   ```
-   git add secrets/apps/pocket-id-api-token.yaml
-   git commit -m "secrets(pocket-id): populate API token"
-   git push
-   ```
+   This is idempotent — safe to re-run for rotation. The Secret persists in cluster state, NOT in the GitOps repo.
 
-**Also store the token in your personal password manager** (e.g. Bitwarden) under "Cluster — pocket-id admin API token". This is the only out-of-cluster copy.
+### Token rotation
+
+When you rotate (annually, or after a suspected leak):
+1. Generate a new token in pocket-id UI, store in password manager
+2. Re-run the `kubectl apply` block above with the new token
+3. Trigger a re-sync of any apps using OIDC (so their bootstrap Jobs re-fetch with new token)
+4. Revoke the old token in pocket-id UI
+
+### Backup of token state
+
+The token Secret is **not** backed up by GitOps (intentional). Recovery path if the cluster's state is wiped:
+1. Issue a fresh token in pocket-id (after rebuilding pocket-id per steps 1–3)
+2. Re-apply via the `kubectl` block above
+3. The OIDC bootstrap Jobs auto-fire on next argocd sync, all per-app client secrets regenerate
 
 ### 3. Create groups
 
@@ -92,7 +103,3 @@ The pocket-id PVC is the entire state. Two options for protection:
 2. **Periodic restic snapshot** of the PVC — fine for daily backup.
 
 Set up via a separate task; not yet done.
-
-## Pivot history
-
-We previously ran **Authentik 2025.12.4** here. Multiple chart bugs (pg init bypass, KeyError migrations) made fresh installs unrecoverable. Switched to pocket-id 2026-05-05 (commits `5b56fcb`, `c4f5598`).
