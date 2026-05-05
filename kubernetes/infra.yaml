@@ -138,6 +138,12 @@ components:
         group: Observability
         icon: grafana.svg
         app: grafana
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://grafana.infra.home/login/generic_oauth
+      scopes: [openid, profile, email, groups]
+      # secretName defaults to "grafana-oidc-client"
 
   # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)

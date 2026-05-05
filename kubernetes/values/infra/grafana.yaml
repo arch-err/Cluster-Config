@@ -103,6 +103,17 @@ extraVolumeMounts:
     mountPath: /var/lib/grafana/dashboards/git
     subPath: current
 
+# OIDC client Secret (auto-created by platform chart's oidc-bootstrap Job in
+# the monitoring ns; keys: client_id, client_secret, issuer_url). File-mounted
+# so client_secret is never inlined in values.yaml; grafana.ini reads via
+# $__file{...} interpolation below.
+extraSecretMounts:
+  - name: grafana-oidc-client
+    secretName: grafana-oidc-client
+    defaultMode: 0440
+    mountPath: /etc/secrets/oidc
+    readOnly: true
+
 # Grafana config
 grafana.ini:
   server:
@@ -114,6 +125,29 @@ grafana.ini:
     mode: console
   auth.anonymous:
     enabled: false
+  # Pocket-ID OIDC. Endpoints come from
+  # https://auth.apps.home/.well-known/openid-configuration — exact URLs, not
+  # guessed. Client_id/secret file-mounted from grafana-oidc-client Secret
+  # (auto-rendered by platform chart's oidc-bootstrap Job, see infra.yaml
+  # grafana entry's oidc:* block).
+  auth.generic_oauth:
+    enabled: true
+    name: Pocket ID
+    icon: signin
+    allow_sign_up: true
+    auto_login: false
+    client_id: $__file{/etc/secrets/oidc/client_id}
+    client_secret: $__file{/etc/secrets/oidc/client_secret}
+    scopes: openid profile email groups
+    auth_url: https://auth.apps.home/authorize
+    token_url: https://auth.apps.home/api/oidc/token
+    api_url: https://auth.apps.home/api/oidc/userinfo
+    # Only Administrators → GrafanaAdmin for now. Other groups fall through to
+    # grafana's default "Viewer". Access restriction at the pocket-id side:
+    # set the OIDC client's "allowed user groups" to Administrators in the
+    # pocket-id UI (manual step, see kubernetes/manual/pocket-id/README.md).
+    role_attribute_path: contains(groups[*], 'Administrators') && 'GrafanaAdmin'
+    role_attribute_strict: false
 
 resources:
   requests:

@@ -97,7 +97,27 @@ For each app you want to integrate:
 3. Commit + push. ArgoCD reconciles → bootstrap Job runs → Secret appears in
    the app's ns → restart the app pod if it doesn't auto-reload.
 
-**No more manual UI clicks per app** beyond step 6 below.
+**No more manual UI clicks per app** beyond steps 6 and 7 below.
+
+### Allowed user groups (per OIDC client)
+
+After the bootstrap Job auto-registers an OIDC client, by default **any
+authenticated pocket-id user** can initiate an OAuth flow against that client
+(the downstream app then decides what role they get). To restrict who can even
+attempt login at the IDP, set the client's **allowed user groups** in the
+pocket-id UI:
+
+1. Pocket-id UI → **OIDC Clients** → `<app-name>` → toggle **"Restrict to
+   user groups"** on
+2. Add the groups that should be allowed to authenticate to this client
+3. Save
+
+**Per-app guidance for current apps:**
+
+- **grafana** — allowed groups: `Administrators` only (until the apps-users /
+  infra-users tier mapping is decided). Non-admin users won't see the login
+  dialog at all; admins map to `GrafanaAdmin` via the `role_attribute_path` in
+  `kubernetes/values/infra/grafana.yaml`.
 
 ### 6. Per-app: bind user groups → app roles (still manual)
 
