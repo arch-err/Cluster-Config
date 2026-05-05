@@ -129,24 +129,23 @@ components:
       port: 3000
       dashboard: false   # don't link to ourselves
 
-  - name: authentik
-    namespace: authentik
+  - name: pocket-id
+    namespace: pocket-id
     chart:
-      repo: https://charts.goauthentik.io
-      name: authentik
-      version: 2025.12.4
-    syncWave: "3"  # after extras (ns label) settle
+      repo: https://anza-labs.github.io/charts
+      name: pocket-id
+      version: 2.1.1
     route:
       hostname: auth.apps.home
       gateway: apps
-      service: authentik-server
+      service: pocket-id
       port: 80
       dashboard:
-        name: Authentik
+        name: Pocket ID
         group: Tools
-        icon: authentik.svg
-        description: SSO / Identity Provider
-        app: authentik-server  # workload name differs from route name
+        icon: pocket-id.png
+        description: Passkey-only OIDC provider
+        app: pocket-id
 
   - name: excalidash
     namespace: excalidash
@@ -330,11 +329,6 @@ extras:
   immich:
     librarySize: 1Ti
     postgresSize: 20Gi
-  # Authentik phase 1: namespace only (baseline PSS for postgres init).
-  # Blueprints (Home Assistant, ArgoCD SSO etc.) ship in phase 2 by setting
-  # `blueprints: true` here.
-  authentik:
-    blueprints: false
   # paperless-ngx pilot: namespace only (baseline PSS — paperless image's
   # supervisord runs as root then drops, and the bundled bitnami subcharts'
   # init paths don't all pass restricted PSS).

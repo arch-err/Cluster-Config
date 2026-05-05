@@ -1,0 +1,92 @@
+# pocket-id — chart: anza-labs/pocket-id v2.1.1, app v2.6.2
+# https://artifacthub.io/packages/helm/anza-labs/pocket-id
+#
+# Tiny passkey-only OIDC provider. Single Go binary + SQLite at /app/data.
+# Replaces the torn-down authentik install. Hostname auth.apps.home.
+#
+# Admin onboarding: on first start with an empty DB, visiting the UI exposes
+# a setup flow at /login/setup (passkey enrollment for the first admin).
+# No password — passkey-only.
+
+# ──────────────────────────────────────────────────────────────────────────
+# Core app config
+# ──────────────────────────────────────────────────────────────────────────
+host: "auth.apps.home"
+trustProxy: true                # behind cilium gateway
+
+# ENCRYPTION_KEY is provided via the SopsSecret below (secret.create=false).
+# Leave this blank — SopsSecret-rendered Secret carries it.
+
+# ──────────────────────────────────────────────────────────────────────────
+# Use the SopsSecret-rendered Secret instead of letting the chart generate
+# one. The chart's envFrom: secretRef points at this name.
+# ──────────────────────────────────────────────────────────────────────────
+secret:
+  create: false
+  name: pocket-id-secrets
+
+# Default: SQLite at /app/data/pocket-id.db (chart default — keep it).
+database:
+  connectionString: "file:data/pocket-id.db"
+
+# ──────────────────────────────────────────────────────────────────────────
+# Image — pin to chart's app version (avoid drift)
+# ──────────────────────────────────────────────────────────────────────────
+pocketID:
+  image:
+    repository: ghcr.io/pocket-id/pocket-id
+    tag: "v2.6.2"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+  # Run the binary as non-root uid 1000 (pocket-id image has no USER, so
+  # without this it would default to root and fail restricted PSS).
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false   # needs to write /app/data + tmp
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+
+# ──────────────────────────────────────────────────────────────────────────
+# Pod-level — fsGroup so the kadalu PVC mount is writable for uid 1000.
+# ──────────────────────────────────────────────────────────────────────────
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# ──────────────────────────────────────────────────────────────────────────
+# Persistence — small SQLite DB + uploads (logos, profile pics).
+# ──────────────────────────────────────────────────────────────────────────
+persistence:
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    # storageClass empty → cluster default (kadalu.replica2)
+
+# ──────────────────────────────────────────────────────────────────────────
+# Routing — disable the chart's built-in Ingress; platform chart owns the
+# HTTPRoute via the apps gateway.
+# ──────────────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+
+# ──────────────────────────────────────────────────────────────────────────
+# Service — chart default :80 → targetPort http (1411) is correct for the
+# platform chart's HTTPRoute (route.service: pocket-id, port: 80 in apps.yaml).
+# ──────────────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80

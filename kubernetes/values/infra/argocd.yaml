@@ -3,41 +3,20 @@ server:
   ingress:
     enabled: false  # Using Gateway API instead
 
-# Dex server configuration for Authentik SSO
-dex:
-  envFrom:
-    - secretRef:
-        name: argocd-dex-authentik
+# OIDC SSO not yet wired — authentik torn down, pocket-id pending admin enrollment.
+# Re-add a `dex.config:` connector under configs.cm + dex.envFrom secret here once
+# pocket-id has an OIDC client + group for ArgoCD configured via UI.
 
 configs:
   params:
     server.insecure: true  # TLS terminated at gateway
 
   cm:
-    # Authentik SSO URL (for UI login button)
     url: https://argocd.infra.home
 
     # Enable web terminal (exec into pods from UI)
     exec.enabled: "true"
     exec.shells: "bash,sh,zsh"
-
-    # Dex OIDC connector configuration for Authentik
-    dex.config: |
-      connectors:
-        - type: oidc
-          id: authentik
-          name: Authentik
-          config:
-            issuer: https://authentik.apps.home/application/o/argocd/
-            clientID: d40d62cdba8b176e6f07e5bbc1b4c2d82a6360ddd79a3acfc084679183ff2788
-            clientSecret: $client_secret
-            insecureEnableGroups: true
-            insecureSkipVerify: true
-            scopes:
-              - openid
-              - profile
-              - email
-              - groups
 
     # Enable helm-secrets plugin
     helm.valuesFileSchemes: >-
@@ -62,8 +41,8 @@ configs:
           - CiliumEndpoint
           - CiliumEndpointSlice
 
-  # RBAC configuration for Authentik groups
-  rbac:
-    policy.csv: |
-      # ArgoCD Admins group from Authentik gets admin role
-      g, ArgoCD Admins, role:admin
+  # RBAC — group→role mappings (re-add once an external IDP is wired and groups
+  # flow into ArgoCD via OIDC). For now ArgoCD uses local admin only.
+  # rbac:
+  #   policy.csv: |
+  #     g, ArgoCD Admins, role:admin
