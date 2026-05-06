@@ -47,6 +47,8 @@ config:
 extraArgs:
   - --provider=oidc
   - --provider-display-name=Pocket ID
+  # Skip oauth2-proxy's "Sign in with Pocket ID" page — auto-redirect to OIDC.
+  - --skip-provider-button=true
   # Discovery URL — chart-derived from $OAUTH2_PROXY_OIDC_ISSUER_URL via
   # extraEnv (issuer_url == https://auth.apps.home, set by bootstrap).
   - --skip-oidc-discovery=false
