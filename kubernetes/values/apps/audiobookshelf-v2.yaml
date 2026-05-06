@@ -1,0 +1,77 @@
+# audiobookshelf-v2 — chart: christianhuth/audiobookshelf v2.2.0
+# https://artifacthub.io/packages/helm/christianhuth/audiobookshelf
+#
+# Parallel green/blue install alongside the existing `audiobookshelf` release.
+# This release MOUNTS the shared kadalu media-library volume (the same one
+# qbittorrent / readarr write to) — so ABS sees what the arr stack downloads
+# without manual copy. Cross-ns sharing uses the twin-PV pattern from
+# extras.arr (a third static PV in audiobookshelf-v2 ns pointing at the same
+# kadalu subvol path `subvol/ar/lb/media-library`).
+#
+# OIDC bootstrap is FULLY DECLARATIVE here:
+#   1. Platform `oidc:` block registers the pocket-id client → emits
+#      `audiobookshelf-v2-oidc-client` Secret in this ns.
+#   2. The audiobookshelf-v2-oidc-seed Job (extras block) waits for ABS to be
+#      up, hits POST /api/init to create the admin user (creds from a
+#      SopsSecret), POSTs /login for a Bearer token, then PATCHes
+#      /api/auth-settings with the OIDC fields. Idempotent — /init returns
+#      500 if root user exists, in which case the Job just re-applies
+#      auth-settings.
+
+# Image: chart default is 2.34.0; pin for reproducibility
+image:
+  tag: "2.34.0"
+
+# Disable chart's built-in ingress + route — we use the platform chart's HTTPRoute
+ingress:
+  enabled: false
+route:
+  main:
+    enabled: false
+
+audiobookshelf:
+  config:
+    # NOTE: ABS stores its sqlite DB in /config. Cluster default SC is
+    # kadalu.replica2 (RWX-capable, replica2). Grafana hit a sqlite split-brain
+    # incident on replica2; mitigation there was the chart's Recreate strategy.
+    # This chart's deployment defaults to RollingUpdate — KEEP an eye on the
+    # config DB for similar drift; if it bites, switch to a single-replica SC
+    # (open thread #4 in state/last-session.md).
+    persistence:
+      enabled: true
+      resources:
+        requests:
+          storage: 1Gi
+  library:
+    # Mount the SHARED kadalu media-library volume here. The chart's
+    # `existingClaim` skips PVC creation and just mounts the named PVC at
+    # /library. The PVC `media-library` is provisioned by extras.audiobookshelf-v2
+    # as a static twin PV pointing at the same kadalu subvol the arr stack uses.
+    persistence:
+      enabled: true
+      existingClaim: media-library
+  metadata:
+    persistence:
+      enabled: true
+      resources:
+        requests:
+          storage: 5Gi
+  backup:
+    persistence:
+      enabled: true
+      resources:
+        requests:
+          storage: 5Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# Recreate strategy — sqlite in /config on kadalu.replica2 can't safely be
+# accessed by an old + new pod simultaneously during rollout. Mirrors the
+# grafana fix from the prior session.
+deploymentStrategy:
+  type: Recreate

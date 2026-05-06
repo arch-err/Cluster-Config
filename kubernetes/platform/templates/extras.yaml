@@ -489,6 +489,299 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* AUDIOBOOKSHELF-V2 (parallel green/blue release w/ media-library mount)     */}}
+{{/* Renders:                                                                    */}}
+{{/*   - audiobookshelf-v2 namespace (default restricted PSS, like the existing  */}}
+{{/*     audiobookshelf ns)                                                      */}}
+{{/*   - third twin-PV/PVC for `media-library` in audiobookshelf-v2 ns,          */}}
+{{/*     pointing at the SAME kadalu subvol path the arr stack uses              */}}
+{{/*     (subvol/ar/lb/media-library). RWX semantics + hardlinks intact.         */}}
+{{/*   - declarative OIDC seed Job: /init → /login → PATCH /api/auth-settings.   */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if index .Values.extras "audiobookshelf-v2" }}
+{{- $absV2 := index .Values.extras "audiobookshelf-v2" }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — third static kadalu PV/PVC pair pointing at the SAME subvol
+# path the arr stack's twin PVs use (extras.arr → subvol/ar/lb/media-library).
+# Cross-ns sharing via parallel kadalu PVs on one subvol; verified by extras.arr.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: audiobookshelf-v2-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ $absV2.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: audiobookshelf-v2-media-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: subvol/ar/lb/media-library
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: media-library
+    namespace: audiobookshelf-v2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ $absV2.librarySize | default "1500Gi" }}
+  volumeName: audiobookshelf-v2-media-library
+---
+# ─────────── OIDC seed Job — fully declarative ABS OIDC bootstrap ───────────
+# Audiobookshelf has no env/config-file path for OIDC, but exposes:
+#   POST /api/init             — create initial root user (only if none exists)
+#   POST /login                — username/password → Bearer accessToken
+#   PATCH /api/auth-settings   — admin-only, takes the authOpenID* fields
+# This Job runs all three idempotently. On re-runs (subsequent ArgoCD syncs):
+#   /init returns 500 → swallow it (root already exists, expected)
+#   /login + PATCH still run → OIDC settings reconciled to declared spec
+# Inputs:
+#   - audiobookshelf-v2-admin SopsSecret  (ABS_ADMIN_USERNAME / ABS_ADMIN_PASSWORD)
+#   - audiobookshelf-v2-oidc-client Secret (from oidc-bootstrap, has client_id/secret/issuer_url)
+# The Job lives in audiobookshelf-v2 ns so it can read both Secrets directly,
+# and it polls the in-cluster ABS service rather than going through the gateway.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: audiobookshelf-v2-oidc-seed
+  namespace: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audiobookshelf-v2-oidc-seed
+  namespace: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+data:
+  seed.sh: |
+    #!/usr/bin/env bash
+    # Audiobookshelf OIDC bootstrap — see header comments in extras.yaml.
+    set -euo pipefail
+
+    : "${ABS_BASE_URL:?required}"
+    : "${ABS_ADMIN_USERNAME:?required}"
+    : "${ABS_ADMIN_PASSWORD:?required}"
+    : "${OIDC_CLIENT_ID:?required}"
+    : "${OIDC_CLIENT_SECRET:?required}"
+    : "${OIDC_ISSUER_URL:?required}"
+
+    echo "[abs-oidc-seed] waiting for ABS to be ready at ${ABS_BASE_URL}"
+    for i in $(seq 1 60); do
+      if curl -fsS -m 5 "${ABS_BASE_URL}/status" >/dev/null 2>&1; then
+        echo "[abs-oidc-seed] ABS up"
+        break
+      fi
+      sleep 5
+      [ "$i" = "60" ] && { echo "[abs-oidc-seed] timeout waiting for ABS" >&2; exit 1; }
+    done
+
+    # 1. /init — idempotent. 200 on first run; 500 if root user already exists.
+    echo "[abs-oidc-seed] POST /init (idempotent — 500 if root already exists)"
+    init_body=$(jq -n \
+      --arg u "$ABS_ADMIN_USERNAME" \
+      --arg p "$ABS_ADMIN_PASSWORD" \
+      '{newRoot: {username: $u, password: $p}}')
+    init_code=$(curl -sS -o /tmp/init.out -w '%{http_code}' \
+      -X POST -H 'Content-Type: application/json' \
+      --data "$init_body" "${ABS_BASE_URL}/init" || true)
+    echo "[abs-oidc-seed] /init → ${init_code}"
+    if [ "$init_code" != "200" ] && [ "$init_code" != "500" ]; then
+      echo "[abs-oidc-seed] /init unexpected status ${init_code}:" >&2
+      cat /tmp/init.out >&2 || true
+      exit 1
+    fi
+
+    # 2. /login — get a Bearer token. x-return-tokens:true puts accessToken in body.
+    echo "[abs-oidc-seed] POST /login"
+    login_body=$(jq -n \
+      --arg u "$ABS_ADMIN_USERNAME" \
+      --arg p "$ABS_ADMIN_PASSWORD" \
+      '{username: $u, password: $p}')
+    login_code=$(curl -sS -o /tmp/login.json -w '%{http_code}' \
+      -X POST -H 'Content-Type: application/json' -H 'x-return-tokens: true' \
+      --data "$login_body" "${ABS_BASE_URL}/login")
+    if [ "$login_code" != "200" ]; then
+      echo "[abs-oidc-seed] /login failed (${login_code}):" >&2
+      cat /tmp/login.json >&2 || true
+      exit 1
+    fi
+    TOKEN=$(jq -r '.user.accessToken // .accessToken // empty' < /tmp/login.json)
+    if [ -z "$TOKEN" ]; then
+      echo "[abs-oidc-seed] no accessToken in login response" >&2
+      cat /tmp/login.json >&2 || true
+      exit 1
+    fi
+
+    # 3. PATCH /api/auth-settings — push the OIDC config.
+    # SPLIT-URL pattern (canonical workaround for the home-ca trust gap, same
+    # as grafana per state/last-session.md):
+    #   - authOpenIDIssuerURL = public issuer (must match `iss` claim in tokens)
+    #   - authOpenIDAuthorizationURL = public (browser-facing redirect)
+    #   - authOpenIDTokenURL / UserInfoURL / JwksURL = in-cluster pocket-id svc
+    #     (server-to-server back-channel — bypasses TLS-to-auth.apps.home)
+    # The chart has no extraVolumes hook so we can't inject the home-ca-bundle
+    # CM as NODE_EXTRA_CA_CERTS; back-channel-via-svc is the gap-bridge until
+    # the chart grows extraVolumes (or we switch ABS to a chart that supports
+    # it). Tracked as open thread #5 in state/last-session.md.
+    PUBLIC_ISS="$OIDC_ISSUER_URL"
+    INTERNAL_BASE="http://pocket-id.pocket-id.svc.cluster.local"
+    echo "[abs-oidc-seed] PATCH /api/auth-settings (split-URL: public issuer + internal back-channel)"
+    auth_body=$(jq -n \
+      --arg iss "$PUBLIC_ISS" \
+      --arg int "$INTERNAL_BASE" \
+      --arg cid "$OIDC_CLIENT_ID" \
+      --arg cse "$OIDC_CLIENT_SECRET" \
+      '{
+        authActiveAuthMethods: ["local","openid"],
+        authOpenIDIssuerURL: $iss,
+        authOpenIDAuthorizationURL: ($iss + "/authorize"),
+        authOpenIDTokenURL: ($int + "/api/oidc/token"),
+        authOpenIDUserInfoURL: ($int + "/api/oidc/userinfo"),
+        authOpenIDJwksURL: ($int + "/.well-known/jwks.json"),
+        authOpenIDLogoutURL: "",
+        authOpenIDClientID: $cid,
+        authOpenIDClientSecret: $cse,
+        authOpenIDTokenSigningAlgorithm: "RS256",
+        authOpenIDButtonText: "Login with pocket-id",
+        authOpenIDAutoLaunch: false,
+        authOpenIDAutoRegister: true,
+        authOpenIDMatchExistingBy: "email",
+        authOpenIDMobileRedirectURIs: ["audiobookshelf://oauth"]
+      }')
+    patch_code=$(curl -sS -o /tmp/auth.out -w '%{http_code}' \
+      -X PATCH -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer ${TOKEN}" \
+      --data "$auth_body" "${ABS_BASE_URL}/api/auth-settings")
+    if [ "$patch_code" != "200" ]; then
+      echo "[abs-oidc-seed] PATCH /api/auth-settings failed (${patch_code}):" >&2
+      cat /tmp/auth.out >&2 || true
+      exit 1
+    fi
+    echo "[abs-oidc-seed] done — ABS OIDC configured against ${OIDC_ISSUER_URL}"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Static name — Job is idempotent on re-runs. ArgoCD's Replace=true on
+  # spec drift will recreate. ttlSecondsAfterFinished cleans up after success.
+  name: audiobookshelf-v2-oidc-seed
+  namespace: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"  # after oidc-bootstrap (wave 11) settles
+    argocd.argoproj.io/sync-options: Replace=true,SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 10  # ABS pod may take a while to come up on first sync
+  template:
+    spec:
+      serviceAccountName: audiobookshelf-v2-oidc-seed
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seed
+          image: docker.io/alpine/k8s:1.32.0@sha256:4c28b0f0c6accfa07fa449493ea936291e4ff1270500571d73f75bb406676c3b
+          command: ["/bin/bash", "/scripts/seed.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: ABS_BASE_URL
+              # In-cluster service DNS — chart names svc after release name.
+              value: "http://audiobookshelf-v2.audiobookshelf-v2.svc.cluster.local:8080"
+            - name: ABS_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-v2-admin
+                  key: ABS_ADMIN_USERNAME
+            - name: ABS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-v2-admin
+                  key: ABS_ADMIN_PASSWORD
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-v2-oidc-client
+                  key: client_id
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-v2-oidc-client
+                  key: client_secret
+            - name: OIDC_ISSUER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-v2-oidc-client
+                  key: issuer_url
+            - name: HOME
+              value: /home/nonroot
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/nonroot
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: script
+          configMap:
+            name: audiobookshelf-v2-oidc-seed
+            defaultMode: 0755
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: home
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}

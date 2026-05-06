@@ -73,6 +73,36 @@ components:
         - https://audiobookshelf.apps.home/auth/openid/mobile-redirect
       scopes: [openid, profile, email, groups]
 
+  # audiobookshelf-v2 — parallel green/blue alongside the existing
+  # `audiobookshelf` release. Mounts the shared kadalu media-library volume
+  # (so ABS sees the arr stack's downloads). OIDC bootstrap is fully
+  # declarative via the `audiobookshelf-v2-oidc-seed` Job (extras block):
+  # /init → /login → PATCH /api/auth-settings.
+  - name: audiobookshelf-v2
+    namespace: audiobookshelf-v2
+    chart:
+      repo: https://charts.christianhuth.de
+      name: audiobookshelf
+      version: 2.2.0
+    syncWave: "3"  # after extras (ns + media-library twin PV) settle
+    route:
+      hostname: audiobookshelf-v2.apps.home
+      gateway: apps
+      service: audiobookshelf-v2
+      port: 8080
+      timeout: 30m  # large audiobook uploads via API
+      dashboard:
+        name: AudiobookShelf v2
+        group: Media
+        icon: audiobookshelf.svg
+        description: Audiobooks + podcasts (parallel install w/ media-library mount)
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://audiobookshelf-v2.apps.home/auth/openid/callback
+        - https://audiobookshelf-v2.apps.home/auth/openid/mobile-redirect
+      scopes: [openid, profile, email, groups]
+
   - name: agent-vault
     namespace: agent-vault
     chart:
@@ -371,3 +401,13 @@ extras:
   arr:
     downloadsSize: 200Gi
     librarySize: 1500Gi
+  # audiobookshelf-v2 — green/blue parallel install. Renders:
+  #   - audiobookshelf-v2 namespace (default restricted PSS, like the existing
+  #     audiobookshelf ns)
+  #   - third twin-PV/PVC for `media-library` in audiobookshelf-v2 ns,
+  #     pointing at the SAME kadalu subvol path the arr stack uses
+  #     (subvol/ar/lb/media-library). RWX semantics + hardlinks intact.
+  #   - declarative OIDC seed Job: hits /init → /login → PATCH /api/auth-settings
+  audiobookshelf-v2:
+    enabled: true
+    librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
