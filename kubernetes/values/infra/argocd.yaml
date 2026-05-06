@@ -3,9 +3,22 @@ server:
   ingress:
     enabled: false  # Using Gateway API instead
 
-# OIDC SSO not yet wired — authentik torn down, pocket-id pending admin enrollment.
-# Re-add a `dex.config:` connector under configs.cm + dex.envFrom secret here once
-# pocket-id has an OIDC client + group for ArgoCD configured via UI.
+  # Mount trust-manager's home-ca-bundle ConfigMap into argocd-server's TLS
+  # trust pool so the back-channel call to https://auth.apps.home (token /
+  # userinfo / jwks) verifies. trust-manager broadcasts `home-ca-bundle` into
+  # every namespace including argocd (see kubernetes/platform/templates/extras.yaml
+  # → trustManagerBundle). The ConfigMap key is `ca.crt`; we projection-mount
+  # it as `/etc/ssl/certs/ca-certificates.crt` (Debian default; Go's TLS
+  # bundle search path picks it up first).
+  volumeMounts:
+    - name: home-ca-bundle
+      mountPath: /etc/ssl/certs/ca-certificates.crt
+      subPath: ca.crt
+      readOnly: true
+  volumes:
+    - name: home-ca-bundle
+      configMap:
+        name: home-ca-bundle
 
 configs:
   params:
@@ -24,6 +37,35 @@ configs:
       secrets, secrets+literal,
       https
 
+    # ─────────── OIDC (pocket-id) ───────────
+    # Client_id / client_secret / issuer_url come from the `argocd-oidc-client`
+    # Secret in this ns (auto-rendered by the platform's oidc-bootstrap Job —
+    # see infra.yaml's argocd entry's oidc:* block). The `$<secret>:<key>`
+    # syntax tells argocd to pull from any Secret in the argocd ns labeled
+    # `app.kubernetes.io/part-of: argocd`. The platform Job doesn't set that
+    # label by default; the labeler Job in extraObjects below patches it in
+    # post-sync so argocd-server can read it.
+    #
+    # Local-admin escape hatch (CRITICAL): we deliberately do NOT set
+    # `admin.enabled: false`, do NOT toggle anything that disables the
+    # username/password form, and do NOT add an auto-redirect. Result: argocd
+    # login page shows BOTH "Log in via Pocket ID" AND the admin form. If
+    # SSO breaks, fall back to:
+    #   PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+    #     -o jsonpath='{.data.password}' | base64 -d)
+    #   argocd login argocd.infra.home --username admin --password "$PASS"
+    # (Or paste $PASS into the local form on /login.)
+    oidc.config: |
+      name: Pocket ID
+      issuer: https://auth.apps.home
+      clientID: $argocd-oidc-client:client_id
+      clientSecret: $argocd-oidc-client:client_secret
+      requestedScopes: [openid, profile, email, groups]
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+      enablePKCEAuthentication: true
+
     # Override resource exclusions - allow EndpointSlice (we manage external services)
     resource.exclusions: |
       - apiGroups:
@@ -41,8 +83,123 @@ configs:
           - CiliumEndpoint
           - CiliumEndpointSlice
 
-  # RBAC — group→role mappings (re-add once an external IDP is wired and groups
-  # flow into ArgoCD via OIDC). For now ArgoCD uses local admin only.
-  # rbac:
-  #   policy.csv: |
-  #     g, ArgoCD Admins, role:admin
+  # RBAC — pocket-id `Administrators` group → argocd built-in `admin` role.
+  # apps-users / infra-users mappings deferred (out of scope this round).
+  rbac:
+    policy.default: ""
+    policy.csv: |
+      g, Administrators, role:admin
+    scopes: "[groups]"
+
+# ──────────────────────────────────────────────────────────────────────────
+# extraObjects — labeler Job that patches `argocd-oidc-client` so argocd-
+# server can read it via the $argocd-oidc-client:<key> syntax. argocd reads
+# only Secrets in argocd ns labeled `app.kubernetes.io/part-of: argocd`; the
+# platform's oidc-bootstrap Job writes its own labels but not that one. This
+# adds it post-creation. Idempotent — `kubectl label --overwrite` is a no-op
+# once applied.
+# ──────────────────────────────────────────────────────────────────────────
+extraObjects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: argocd-oidc-secret-labeler
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "12"
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: argocd-oidc-secret-labeler
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "12"
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        resourceNames: ["argocd-oidc-client"]
+        verbs: ["get", "patch"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: argocd-oidc-secret-labeler
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "12"
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: argocd-oidc-secret-labeler
+    subjects:
+      - kind: ServiceAccount
+        name: argocd-oidc-secret-labeler
+        namespace: argocd
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      # Static name — Job is idempotent. ArgoCD's BeforeHookCreation policy
+      # deletes-and-recreates on each sync if hook annotation is set.
+      name: argocd-oidc-secret-labeler
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "13"   # after platform oidc-bootstrap (wave 11)
+        argocd.argoproj.io/hook: PostSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    spec:
+      ttlSecondsAfterFinished: 600
+      backoffLimit: 10  # oidc-bootstrap Job may not have finished yet on first sync
+      template:
+        spec:
+          serviceAccountName: argocd-oidc-secret-labeler
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: labeler
+              image: docker.io/alpine/k8s:1.32.0@sha256:4c28b0f0c6accfa07fa449493ea936291e4ff1270500571d73f75bb406676c3b
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  # Wait up to ~5 min for the oidc-bootstrap Job to mint the secret.
+                  for i in $(seq 1 60); do
+                    if kubectl -n argocd get secret argocd-oidc-client >/dev/null 2>&1; then
+                      break
+                    fi
+                    echo "[labeler] argocd-oidc-client not yet present, sleeping 5s ($i/60)"
+                    sleep 5
+                  done
+                  kubectl -n argocd label secret argocd-oidc-client \
+                    app.kubernetes.io/part-of=argocd --overwrite
+                  echo "[labeler] done"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: HOME
+                  value: /home/nonroot
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: home
+                  mountPath: /home/nonroot
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 16Mi
+            - name: home
+              emptyDir:
+                sizeLimit: 16Mi

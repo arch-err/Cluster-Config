@@ -64,6 +64,17 @@ components:
         enabled: true
         group: GitOps
         icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/argo-cd.png
+    oidc:
+      enabled: true
+      callbackUrls:
+        # Web UI redirect.
+        - https://argocd.infra.home/auth/callback
+        # CLI PKCE redirect — argocd-cli uses /pkce/verify.
+        - https://argocd.infra.home/pkce/verify
+      scopes: [openid, profile, email, groups]
+      # secretName defaults to "argocd-oidc-client" — see values/infra/argocd.yaml
+      # for the labeler Job (extraObjects) that adds app.kubernetes.io/part-of=argocd
+      # so argocd-server reads it via $argocd-oidc-client:client_id syntax.
 
   - name: sops-secrets-operator
     namespace: sops-secrets-operator
