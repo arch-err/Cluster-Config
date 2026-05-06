@@ -155,6 +155,9 @@ podDisruptionBudget:
 #   it runs after the bootstrap Job (wave 11). Static name + Replace=true
 #   so spec drift recreates; ttlSecondsAfterFinished cleans completed.
 extraManifests:
+  # All translator resources are PreSync hooks at wave -2, so they exist
+  # BEFORE the wave -1 PreSync Job that consumes them. hook-delete-policy
+  # BeforeHookCreation lets ArgoCD clean+recreate them on each sync.
   # ─── Translator Job's ServiceAccount ─────────────────────────────────────
   - |
     apiVersion: v1
@@ -163,7 +166,9 @@ extraManifests:
       name: headlamp-oidc-translate
       namespace: headlamp
       annotations:
-        argocd.argoproj.io/sync-wave: "11"
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+        argocd.argoproj.io/sync-wave: "-2"
   # ─── Role: read source Secret + create/update target Secret ──────────────
   - |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -172,7 +177,9 @@ extraManifests:
       name: headlamp-oidc-translate
       namespace: headlamp
       annotations:
-        argocd.argoproj.io/sync-wave: "11"
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+        argocd.argoproj.io/sync-wave: "-2"
     rules:
       - apiGroups: [""]
         resources: ["secrets"]
@@ -190,7 +197,9 @@ extraManifests:
       name: headlamp-oidc-translate
       namespace: headlamp
       annotations:
-        argocd.argoproj.io/sync-wave: "11"
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+        argocd.argoproj.io/sync-wave: "-2"
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
@@ -207,7 +216,9 @@ extraManifests:
       name: headlamp-oidc-translate
       namespace: headlamp
       annotations:
-        argocd.argoproj.io/sync-wave: "11"
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+        argocd.argoproj.io/sync-wave: "-2"
     data:
       translate.sh: |
         #!/usr/bin/env bash
@@ -260,9 +271,17 @@ extraManifests:
       name: headlamp-oidc-translate
       namespace: headlamp
       annotations:
-        argocd.argoproj.io/sync-wave: "12"
+        # PreSync hook: must run BEFORE the headlamp Deployment, because the
+        # Deployment refers to `headlamp-oidc-env` via envFrom and won't
+        # start without it. The translator script polls up to 150s for the
+        # `headlamp-oidc-client` Secret (emitted by the platform's
+        # oidc-bootstrap Job in pocket-id ns); since both apps reconcile in
+        # parallel and that Secret is typically materialized within seconds
+        # of the headlamp Application being created, the wait is usually
+        # near-zero.
+        argocd.argoproj.io/sync-wave: "-1"
         argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-        argocd.argoproj.io/hook: PostSync
+        argocd.argoproj.io/hook: PreSync
         # BeforeHookCreation deletes any existing Job (with its server-set
         # spec.selector) before creating a new one, sidestepping the
         # "Replace=true on completed Jobs is immutable" bug noted in
