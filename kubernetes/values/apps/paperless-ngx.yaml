@@ -116,7 +116,8 @@ configMaps:
                 "secret": "${OIDC_CLIENT_SECRET}",
                 "settings": {
                   "server_url": "${OIDC_ISSUER_URL}",
-                  "token_auth_method": "client_secret_post"
+                  "token_auth_method": "client_secret_post",
+                  "oauth_pkce_enabled": true
                 }
               }
             ],
