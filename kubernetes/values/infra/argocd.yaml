@@ -101,6 +101,46 @@ configs:
 # once applied.
 # ──────────────────────────────────────────────────────────────────────────
 extraObjects:
+  # ─────────── Supplemental HTTPRoute: /login → /auth/login (302) ───────────
+  # Auto-redirect users hitting the login chooser straight into the pocket-id
+  # SSO flow. Gateway API's RequestRedirect filter returns a 302 server-side;
+  # the browser follows it and the URL bar updates to /auth/login. Local-admin
+  # escape hatch is preserved via direct GET /auth/login... wait, that IS the
+  # SSO init path. Local-admin form lives at /login (which is what we just
+  # rewrote). Escape hatch: hit /login?return_url=... bypassing this rewrite
+  # is hard — but the CLI fallback (`argocd login --username admin`) still
+  # works. If SSO is broken, port-forward argocd-server pod and hit /login
+  # directly: `kubectl -n argocd port-forward svc/argocd-server 8080:80` then
+  # visit http://localhost:8080/login.
+  #
+  # Precedence: this route matches Exact /login; the platform-managed route
+  # matches PathPrefix /. Gateway API gives Exact > PathPrefix, so this wins
+  # for /login and the platform route handles everything else.
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: argocd-login-redirect
+      namespace: argocd
+      annotations:
+        argocd.argoproj.io/sync-wave: "11"
+    spec:
+      parentRefs:
+        - name: infra
+          namespace: gateway-system
+      hostnames:
+        - argocd.infra.home
+      rules:
+        - matches:
+            - path:
+                type: Exact
+                value: /login
+          filters:
+            - type: RequestRedirect
+              requestRedirect:
+                path:
+                  type: ReplaceFullPath
+                  replaceFullPath: /auth/login
+                statusCode: 302
   - apiVersion: v1
     kind: ServiceAccount
     metadata:
