@@ -239,6 +239,11 @@ components:
         group: Documents
         icon: paperless-ngx.png
         description: Document mgmt + OCR
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://paperless.apps.home/accounts/oidc/pocket-id/login/callback/
+      scopes: [openid, profile, email, groups]
 
   # ──────────────────────────────────────────────────────────────────────────
   # ARR STACK — 3 apps in one shared `arr` ns (extras.arr provides ns + PVCs).
