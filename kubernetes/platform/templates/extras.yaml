@@ -233,6 +233,42 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* TRUST-MANAGER BUNDLE (broadcast home-ca to all namespaces)                  */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/*
+  Sources the home-ca root CA (managed by cert-manager via the home-ca
+  ClusterIssuer's CA secret `home-root-ca` in cert-manager ns) and renders
+  it into a ConfigMap named `home-ca-bundle` (key: `ca.crt`) in every
+  namespace. Apps mount this CM to trust home-ca-signed certificates for
+  in-cluster HTTPS to *.apps.home / *.infra.home.
+
+  Source uses key `tls.crt` from the cert-manager-managed Secret — that's
+  the root CA cert that signs the wildcard gateway certs. The trust-manager
+  upstream warning about tls.crt-vs-ca.crt only applies if the secret
+  contains an issued leaf cert; here the Secret IS the root CA (selfSigned
+  → CA, then wraps as ClusterIssuer.ca.secretName).
+*/}}
+{{- if .Values.extras.trustManagerBundle }}
+---
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: home-ca-bundle
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  sources:
+    - secret:
+        name: home-root-ca
+        key: tls.crt
+  target:
+    configMap:
+      key: ca.crt
+    namespaceSelector: {}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* EXTERNAL SERVICES (TLS Passthrough to Docker host)                         */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.externalServices }}

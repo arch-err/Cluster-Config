@@ -1,0 +1,20 @@
+# trust-manager — chart: jetstack/trust-manager
+# https://cert-manager.io/docs/trust/trust-manager/
+#
+# Distributes the home-ca root CA into a ConfigMap (`home-ca-bundle`, key
+# `ca.crt`) in every namespace via the Bundle CR rendered by the platform
+# chart's extras (extras.trustManagerBundle in kubernetes/infra.yaml).
+#
+# Apps mount that ConfigMap + set their language-specific trust-bundle env
+# (REQUESTS_CA_BUNDLE for python, NODE_EXTRA_CA_CERTS for node, etc.) so they
+# can validate home-ca-signed certs (e.g. https://auth.apps.home for OIDC
+# back-channel calls).
+#
+# Defaults are fine; trust-manager runs minimal in cert-manager ns.
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

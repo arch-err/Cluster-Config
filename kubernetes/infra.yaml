@@ -38,6 +38,17 @@ components:
     extraArgs:
       - installCRDs=true
 
+  # trust-manager — broadcasts the home-ca CA cert into a ConfigMap in every
+  # namespace via the home-ca-bundle Bundle CR (see extras.trustManagerBundle).
+  # Lives in cert-manager ns alongside cert-manager itself per upstream guidance.
+  - name: trust-manager
+    namespace: cert-manager
+    chart:
+      repo: https://charts.jetstack.io
+      name: trust-manager
+      version: v0.22.x
+    syncWave: "1"  # after cert-manager (default wave 0) is up
+
   - name: argocd
     namespace: argocd
     chart:
@@ -186,6 +197,7 @@ extras:
   sopsSecretsOperator: true
   gateways: true
   certIssuers: true
+  trustManagerBundle: true   # broadcasts home-ca to all ns as ConfigMap home-ca-bundle
   externalServices: true
   kadalu: true
   monitoring: true
