@@ -1158,4 +1158,88 @@ spec:
             sizeLimit: 256Mi
 {{- end }}
 
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* COREDNS — *.apps.home / *.infra.home in-cluster resolution                  */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/*                                                                             */}}
+{{/* Talos lays the coredns ConfigMap down at bootstrap and never re-reconciles  */}}
+{{/* (the live cm carries no app.kubernetes.io/managed-by label). We take        */}}
+{{/* ownership here so the *.apps.home / *.infra.home resolution survives Talos  */}}
+{{/* rebuilds and stops drifting via kubectl edit.                               */}}
+{{/*                                                                             */}}
+{{/* Pattern: CoreDNS `template` plugin matches any <svc>.apps.home / .infra.home*/}}
+{{/* and synthesizes an A record pointing at the matching gateway IP. Future     */}}
+{{/* hostnames work automatically — no per-app cm edit. The legacy `hosts {}`    */}}
+{{/* block is kept as belt-and-suspenders during transition; remove it once the  */}}
+{{/* template plugin is verified. See manual/coredns/README.md.                  */}}
+{{/*                                                                             */}}
+{{/* Gated on `.Values.gateway.infra` so this only renders in the infra-side     */}}
+{{/* render of the platform chart (apps.yaml has no gateway.infra).              */}}
+{{- if .Values.gateway.infra }}
+---
+# CoreDNS Corefile — owned by GitOps, not Talos.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+    # CoreDNS hot-reloads on cm change (the `reload` plugin); no pod restart needed.
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        log . {
+            class error
+        }
+        prometheus :9153
+
+        # Synthesize A records for any *.apps.home host → apps gateway.
+        # `fallthrough` lets non-matching queries (AAAA, NS, etc.) continue
+        # down the plugin chain so unrelated lookups aren't broken.
+        template ANY A apps.home {
+            match ^[^.]+\.apps\.home\.$
+            answer "{{ "{{ .Name }}" }} 60 IN A {{ .Values.gateway.apps.ip }}"
+            fallthrough
+        }
+
+        # Same for *.infra.home → infra gateway.
+        template ANY A infra.home {
+            match ^[^.]+\.infra\.home\.$
+            answer "{{ "{{ .Name }}" }} 60 IN A {{ .Values.gateway.infra.ip }}"
+            fallthrough
+        }
+
+        # Belt-and-suspenders during transition. Kept identical to the live
+        # kubectl-edit drift so cutover is a no-op. Remove post-merge once
+        # the template plugins are verified — see manual/coredns/README.md.
+        hosts {
+            {{ .Values.gateway.apps.ip }} authentik.apps.home homeassistant.apps.home auth.apps.home
+            {{ .Values.gateway.infra.ip }} argocd.infra.home hubble.infra.home grafana.infra.home
+            fallthrough
+        }
+
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        }
+        forward . 1.1.1.1 8.8.8.8 {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }
+{{- end }}
+
 {{- end }}
