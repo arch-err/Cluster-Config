@@ -60,7 +60,7 @@ immich:
     # oidc-config-render initContainer (see server.* below).
     oauth:
       enabled: true
-      autoLaunch: false
+      autoLaunch: true
       autoRegister: true
       buttonText: Login with Pocket ID
       issuerUrl: https://auth.apps.home
