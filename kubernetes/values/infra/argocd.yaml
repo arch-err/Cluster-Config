@@ -83,12 +83,13 @@ configs:
           - CiliumEndpoint
           - CiliumEndpointSlice
 
-  # RBAC — pocket-id `Administrators` group → argocd built-in `admin` role.
-  # apps-users / infra-users mappings deferred (out of scope this round).
+  # RBAC — pocket-id groups `administrators` + `infra_users` → argocd `admin`.
+  # `apps_users` deliberately not mapped — apps-users get nothing on argocd.
   rbac:
     policy.default: ""
     policy.csv: |
-      g, Administrators, role:admin
+      g, administrators, role:admin
+      g, infra_users, role:admin
     scopes: "[groups]"
 
 # ──────────────────────────────────────────────────────────────────────────
