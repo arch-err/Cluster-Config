@@ -98,6 +98,13 @@ components:
         group: Media
         description: Photos + memories
         app: immich-server  # workload name differs from route name
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://immich.apps.home/auth/login
+        - https://immich.apps.home/user-settings
+        - app.immich:///oauth-callback
+      scopes: [openid, profile, email, groups]
 
   - name: ntfy
     namespace: ntfy

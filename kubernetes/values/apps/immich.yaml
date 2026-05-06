@@ -4,6 +4,20 @@
 # Postgres + library PVC + namespace are created via the platform chart's
 # `extras.immich` block (see kubernetes/apps.yaml + platform/templates/extras.yaml).
 # Postgres password lives in SopsSecret `immich-db` (kubernetes/secrets/apps/immich-db.yaml).
+#
+# OIDC: pocket-id via immich's built-in OAuth (admin-UI-equivalent settings,
+# but baked into the immich config file). The bootstrap Secret
+# `immich-oidc-client` (auto-rendered by platform's oidc-bootstrap Job — see
+# oidc:* block in apps.yaml) supplies clientId, clientSecret, issuerUrl.
+# Immich has no env-var override for OAuth fields and the config file is
+# parsed at startup with literal values. We solve this with an initContainer
+# that reads the chart-rendered config Secret, substitutes a placeholder
+# `__OIDC_CLIENT_SECRET__` with the runtime secret value, and writes the
+# patched file to a shared emptyDir which is mounted at the chart's expected
+# /config path — fully transparent to immich-server. The home-ca trust
+# bundle is mounted from the cluster-wide `home-ca-bundle` ConfigMap
+# (broadcast by trust-manager) and pointed at via NODE_EXTRA_CA_CERTS so
+# Node.js trusts auth.apps.home for OIDC discovery + token + userinfo.
 
 # Pin image tag for reproducibility (chart default tracks 2.6.3 at chart 0.11.1)
 image:
@@ -39,6 +53,29 @@ immich:
     trash:
       enabled: true
       days: 30
+    # OAuth — issuerUrl/clientId from bootstrap Secret are still referenced
+    # via env+envFrom on the server pod, but immich's config schema requires
+    # them to be in the JSON/YAML config file. We bake them in here. The
+    # clientSecret is a placeholder substituted at pod start by the
+    # oidc-config-render initContainer (see server.* below).
+    oauth:
+      enabled: true
+      autoLaunch: false
+      autoRegister: true
+      buttonText: Login with Pocket ID
+      issuerUrl: https://auth.apps.home
+      clientId: immich
+      # __OIDC_CLIENT_SECRET__ is replaced at start by the initContainer
+      # using the value from immich-oidc-client Secret. Treat as opaque.
+      clientSecret: __OIDC_CLIENT_SECRET__
+      scope: "openid profile email groups"
+      signingAlgorithm: RS256
+      mobileOverrideEnabled: false
+      mobileRedirectUri: ""
+  # Render config as a Secret (instead of ConfigMap) so the placeholder
+  # client_secret value never lands in a ConfigMap (cosmetic — the real
+  # rendered file lives in an emptyDir post-substitution).
+  configurationKind: Secret
 
 # Bundled valkey (redis-compatible) — keep ON.
 valkey:
@@ -50,12 +87,117 @@ valkey:
       type: persistentVolumeClaim
       accessMode: ReadWriteOnce
 
-# Disable chart's built-in ingress — platform chart's HTTPRoute handles routing.
+# ──────────────────────────────────────────────────────────────────────────
+# server-only overrides — adds:
+#  - OIDC env vars from bootstrap Secret (NODE_EXTRA_CA_CERTS for trust)
+#  - initContainer that substitutes __OIDC_CLIENT_SECRET__ in the rendered
+#    config file and writes it to /config (emptyDir)
+#  - extra persistence: home-ca trust bundle (CM) + emptyDir to hold the
+#    rendered config; chart-rendered config Secret is remounted at
+#    /config-template via advancedMounts so the init container can read it
+# ──────────────────────────────────────────────────────────────────────────
 server:
   enabled: true
   ingress:
     main:
       enabled: false
+
+  controllers:
+    main:
+      containers:
+        main:
+          env:
+            # Node.js honors NODE_EXTRA_CA_CERTS — appends the file contents
+            # to the default trust store. Covers all of immich-server's
+            # outbound HTTPS (OIDC discovery / token / userinfo).
+            NODE_EXTRA_CA_CERTS: /etc/ssl/home-ca/ca.crt
+            # Bootstrap-rendered OIDC client. Only client_secret is consumed
+            # by the initContainer placeholder substitution; client_id +
+            # issuer_url are baked into the config file from helm values
+            # (must match the bootstrap registration — values above use
+            # `immich` as the client id, which is the deterministic id the
+            # platform oidc-bootstrap Job uses == component name).
+            OIDC_CLIENT_SECRET:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-oidc-client
+                  key: client_secret
+      initContainers:
+        # busybox ships sed; image is tiny + auditable. Reads the chart-
+        # rendered config from /config-template (mounted from the
+        # immich-immich-config Secret), substitutes the placeholder, writes
+        # to /config (emptyDir shared with the main container).
+        oidc-config-render:
+          image:
+            repository: docker.io/library/busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              src=/config-template/immich-config.yaml
+              dst=/config/immich-config.yaml
+              if [ ! -f "$src" ]; then
+                echo "[oidc-config-render] missing $src" >&2; exit 1
+              fi
+              # sed -i won't work on the read-only configmap mount; write
+              # the substituted file to the writable emptyDir at /config.
+              sed "s|__OIDC_CLIENT_SECRET__|${OIDC_CLIENT_SECRET}|g" "$src" > "$dst"
+              echo "[oidc-config-render] wrote $dst"
+          env:
+            OIDC_CLIENT_SECRET:
+              valueFrom:
+                secretKeyRef:
+                  name: immich-oidc-client
+                  key: client_secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+  persistence:
+    # Override the chart-default `config` persistence (which mounts the
+    # chart-rendered Secret at /config) — re-route it to /config-template
+    # so the initContainer can read the placeholder-bearing file. The main
+    # container's /config is the emptyDir below.
+    config:
+      enabled: true
+      type: secret
+      name: immich-immich-config
+      advancedMounts:
+        main:
+          # init container reads from /config-template
+          oidc-config-render:
+            - path: /config-template
+              readOnly: true
+          # main container does NOT see this volume (only the rendered one)
+    # Writable emptyDir holding the post-substitution config; mounted at
+    # /config in the main container, so chart's IMMICH_CONFIG_FILE
+    # (=/config/immich-config.yaml) Just Works.
+    config-rendered:
+      enabled: true
+      type: emptyDir
+      sizeLimit: 1Mi
+      # Mounted at /config in every container of the server controller —
+      # init container WRITES the substituted file, main container READS
+      # it. Chart's auto-set IMMICH_CONFIG_FILE=/config/immich-config.yaml
+      # then Just Works. machine-learning is a separate sub-chart key
+      # (top-level `machine-learning:`) so this persistence entry doesn't
+      # leak into ML pods.
+      globalMounts:
+        - path: /config
+    # home-ca trust bundle (broadcast by trust-manager into every ns).
+    home-ca:
+      enabled: true
+      type: configMap
+      name: home-ca-bundle
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/ssl/home-ca
+              readOnly: true
 
 # Machine learning component — required for face/object/CLIP search.
 machine-learning:
@@ -65,4 +207,4 @@ machine-learning:
       enabled: true
       size: 10Gi
       type: persistentVolumeClaim
-      accessMode: ReadWriteOnce
+      accessMode: ReadWriteMany
