@@ -15,6 +15,16 @@ env:
   - name: HOMEPAGE_ALLOWED_HOSTS
     value: "admin.infra.home"
 
+# Pull HOMEPAGE_VAR_GRAFANA_USERNAME / HOMEPAGE_VAR_GRAFANA_PASSWORD /
+# HOMEPAGE_VAR_ARGOCD_TOKEN from the SopsSecret `homepage-admin-credentials`
+# (kubernetes/secrets/infra/homepage-admin-credentials.yaml). gethomepage
+# substitutes ONLY env vars whose name starts with HOMEPAGE_VAR_ or
+# HOMEPAGE_FILE_, so the keys in that Secret are pre-prefixed.
+# https://gethomepage.dev/installation/docker/#using-environment-secrets
+envFrom:
+  - secretRef:
+      name: homepage-admin-credentials
+
 ingress:
   main:
     enabled: false
@@ -40,17 +50,38 @@ config:
   # of which gateway they live on (apps + infra both visible).
   # NOTE: in homepage v1.12.3 the `instance` filter is broken upstream anyway
   # (silently drops annotated routes). See homepage-infra.yaml comment block.
-  services: []
-
-  bookmarks:
-    - GitOps:
-        - ArgoCD:
-            - abbr: AC
-              href: https://argocd.infra.home/auth/login
+  #
+  # Live service-card widgets for Grafana + ArgoCD. Credentials come from
+  # the homepage-admin-credentials SopsSecret via envFrom (above).
+  #   - Grafana basic-auth still works on /api/* even with disable_login_form:true.
+  #   - ArgoCD widget uses the apiKey-only `homepage-widget` local account
+  #     (defined in kubernetes/values/infra/argocd.yaml). Token gen is
+  #     manual one-time — see that file's comment block. Until the user
+  #     runs that command + edits the Secret, the ArgoCD card will show
+  #     "auth failed".
+  services:
     - Observability:
         - Grafana:
-            - abbr: GF
-              href: https://grafana.infra.home
+            href: https://grafana.infra.home
+            description: Dashboards, logs, metrics
+            icon: grafana.png
+            widget:
+              type: grafana
+              url: https://grafana.infra.home
+              username: "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}"
+              password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+    - GitOps:
+        - ArgoCD:
+            href: https://argocd.infra.home/auth/login
+            description: Cluster GitOps controller
+            icon: argocd.png
+            widget:
+              type: argocd
+              url: https://argocd.infra.home
+              key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+
+  bookmarks:
+    - Observability:
         - Prometheus:
             - abbr: PR
               href: https://prometheus.infra.home
@@ -64,17 +95,6 @@ config:
 
   # Top-of-page info widgets. Order matters — rendered left-to-right.
   # See https://gethomepage.dev/widgets/info/ for the catalogue.
-  #
-  # FOLLOW-UP: grafana + argocd *service* widgets (the kind that live on a
-  # service card and show alert/app counts) require credentials neither app
-  # currently provisions:
-  #   - grafana widget needs username/password; our grafana has
-  #     `disable_login_form = true` (OIDC-only), so basic auth is impossible
-  #     until we provision a service-account token.
-  #   - argocd widget needs an apiKey-capable local account; none exists
-  #     (argocd is OIDC-only since the recent SSO wiring).
-  # Both are reachable as bookmarks above — surface them as live widgets
-  # in a follow-up once we wire credential provisioning declaratively.
   widgets:
     # Cluster-wide CPU / mem rollup — lifted straight from the kubernetes-widget
     # response (which the kubernetes info widget below also drives). No on-host
