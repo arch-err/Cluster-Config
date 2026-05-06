@@ -19,6 +19,15 @@ controllers:
           PUID: "1000"
           PGID: "1000"
           TZ: "Europe/Amsterdam"
+          # Override config.xml's ApiKey (.NET IOptions binding picks up
+          # PROWLARR__AUTH__APIKEY → config.Auth.ApiKey). Lets us declare the
+          # API key via SopsSecret so configarr / prowlarr-bootstrap CronJobs
+          # know it without scraping the live config.xml.
+          PROWLARR__AUTH__APIKEY:
+            valueFrom:
+              secretKeyRef:
+                name: arr-api-keys
+                key: prowlarr_apikey
         probes:
           liveness:
             enabled: true
