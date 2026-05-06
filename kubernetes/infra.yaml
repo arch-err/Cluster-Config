@@ -64,6 +64,11 @@ components:
         enabled: true
         group: GitOps
         icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/argo-cd.png
+      # Override the homepage link target so clicking argocd from the dashboard
+      # initiates SSO directly. /auth/login auto-redirects to pocket-id when
+      # called with no query string. Avoids the chooser-screen click.
+      annotations:
+        gethomepage.dev/href: https://argocd.infra.home/auth/login
     oidc:
       enabled: true
       callbackUrls:
