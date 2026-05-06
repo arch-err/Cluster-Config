@@ -1215,15 +1215,6 @@ data:
             fallthrough
         }
 
-        # Belt-and-suspenders during transition. Kept identical to the live
-        # kubectl-edit drift so cutover is a no-op. Remove post-merge once
-        # the template plugins are verified — see manual/coredns/README.md.
-        hosts {
-            {{ .Values.gateway.apps.ip }} authentik.apps.home homeassistant.apps.home auth.apps.home
-            {{ .Values.gateway.infra.ip }} argocd.infra.home hubble.infra.home grafana.infra.home
-            fallthrough
-        }
-
         kubernetes cluster.local in-addr.arpa ip6.arpa {
             pods insecure
             fallthrough in-addr.arpa ip6.arpa
