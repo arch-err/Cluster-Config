@@ -49,6 +49,9 @@ extraArgs:
   - --provider-display-name=Pocket ID
   # Skip oauth2-proxy's "Sign in with Pocket ID" page — auto-redirect to OIDC.
   - --skip-provider-button=true
+  # Pocket-id has pkceEnabled=true on the registered client; oauth2-proxy
+  # must send a code_verifier or token exchange returns "Invalid code verifier".
+  - --code-challenge-method=S256
   # Discovery URL — chart-derived from $OAUTH2_PROXY_OIDC_ISSUER_URL via
   # extraEnv (issuer_url == https://auth.apps.home, set by bootstrap).
   - --skip-oidc-discovery=false
