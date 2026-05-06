@@ -306,11 +306,18 @@ components:
       name: app-template
       version: 4.6.2
     syncWave: "3"  # after extras (ns + shared PVCs) settle
+    # HTTPRoute points at the oauth2-prowlarr service (same `arr` ns), NOT
+    # directly at the prowlarr workload. The oauth2-proxy sidecar release
+    # (`arr-oauth2-prowlarr` component) gates this route with pocket-id OIDC
+    # then forwards to prowlarr:9696 internally. /api/* is bypass-routed in
+    # the oauth2-proxy config so X-Api-Key flows (mobile, cross-arr) keep
+    # working. Prowlarr itself must be set to AuthenticationMethod=External
+    # via UI (Settings → General → Authentication) — manual one-time step.
     route:
       hostname: prowlarr.apps.home
       gateway: apps
-      service: prowlarr
-      port: 9696
+      service: oauth2-prowlarr
+      port: 80
       dashboard:
         group: Media
         icon: prowlarr.svg
@@ -324,16 +331,59 @@ components:
       name: app-template
       version: 4.6.2
     syncWave: "3"
+    # See prowlarr above — same pattern. Auth-gated via oauth2-readarr in
+    # the same ns; AuthenticationMethod=External manual UI step required.
     route:
       hostname: readarr.apps.home
       gateway: apps
-      service: readarr
-      port: 8787
+      service: oauth2-readarr
+      port: 80
       dashboard:
         group: Media
         icon: readarr.svg
         description: Audiobook manager (Sonarr-for-books)
         app: readarr
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # ARR OAUTH2-PROXY pair — pocket-id OIDC forward-auth gateway in front of
+  # the *arr stack. Two releases (one per *arr) sharing a single OIDC client
+  # registered by the prowlarr sibling; cookie domain `.apps.home` + matching
+  # cookie-secret + matching cookie-name → one login covers both subdomains.
+  # /api/* is skip-auth-route'd so X-Api-Key flows (LunaSea, cross-arr sync)
+  # bypass OIDC and hit *arr's own API-key check directly. See values files
+  # for full rationale; the prowlarr sibling owns the oidc:* block (its
+  # callbackUrls list covers BOTH subdomains, so the readarr sibling reuses
+  # the same `arr-oauth2-prowlarr-oidc-client` Secret). No HTTPRoute on
+  # either release — they're internal services consumed by the *arr routes
+  # via `route.service` indirection (prowlarr→oauth2-prowlarr, etc.).
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: arr-oauth2-prowlarr
+    namespace: arr
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    oidc:
+      enabled: true
+      # callbackUrls cover BOTH *arr subdomains so the sibling release
+      # (arr-oauth2-readarr) can reuse this same OIDC client without needing
+      # its own oidc:* block. Cookie + client + cookie-secret all match
+      # across the two releases → one login = SSO across both.
+      callbackUrls:
+        - https://prowlarr.apps.home/oauth2/callback
+        - https://readarr.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+
+  - name: arr-oauth2-readarr
+    namespace: arr
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # No oidc:* block — reuses the `arr-oauth2-prowlarr-oidc-client` Secret
+    # from the sibling release (same ns). See arr-oauth2-readarr.yaml.
 
   # qbittorrent lives in its OWN namespace (privileged PSS — gluetun NET_ADMIN)
   # and is exposed only via the INFRA gateway (not apps), so the WebUI is
