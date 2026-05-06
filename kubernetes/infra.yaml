@@ -189,6 +189,22 @@ components:
       port: 3000
       dashboard: false   # don't link to ourselves
 
+  # Third homepage release — admin panel at admin.infra.home with
+  # kubernetes/resources/prometheus widgets + admin-tooling bookmarks.
+  # Shows all services across both gateways. LAN-gated v1; OIDC follow-up.
+  - name: homepage-admin
+    namespace: homepage-admin
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: admin.infra.home
+      gateway: infra
+      service: homepage-admin
+      port: 3000
+      dashboard: false   # don't link to ourselves
+
   # Catch-all backend for *.infra.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing infra is unaffected.

@@ -1,0 +1,144 @@
+# homepage-admin — chart: jameswynn/homepage v2.1.0 (gethomepage)
+# https://artifacthub.io/packages/helm/jameswynn/homepage
+#
+# Third homepage instance, dedicated to admin/observability use.
+# Differentiators vs. homepage / homepage-infra:
+#   - widgets: kubernetes cluster overview, resources, prometheus targets
+#   - bookmarks: deep links into argocd / grafana / prometheus / loki UIs
+#   - shows ALL services across both gateways (no instanceName filter)
+# Lives at admin.infra.home; LAN-gated only (no OIDC v1 — follow-up).
+
+image:
+  tag: v1.12.3
+
+env:
+  - name: HOMEPAGE_ALLOWED_HOSTS
+    value: "admin.infra.home"
+
+ingress:
+  main:
+    enabled: false
+
+# Distinct SA name to avoid RBAC collision with homepage / homepage-infra.
+# Chart's enableRbac:true ships a ClusterRole granting read on namespaces,
+# pods, nodes, ingresses, gateways, httproutes, metrics.k8s.io, CRDs — all
+# the kubernetes/resources widgets need. Verified against existing
+# homepage-infra ClusterRole.
+serviceAccount:
+  create: true
+  name: homepage-admin
+enableRbac: true
+
+config:
+  kubernetes:
+    mode: cluster
+    ingress: false
+    gateway: true
+    services: true
+
+  # No instance filter — admin homepage shows ALL annotated routes regardless
+  # of which gateway they live on (apps + infra both visible).
+  # NOTE: in homepage v1.12.3 the `instance` filter is broken upstream anyway
+  # (silently drops annotated routes). See homepage-infra.yaml comment block.
+  services: []
+
+  bookmarks:
+    - GitOps:
+        - ArgoCD:
+            - abbr: AC
+              href: https://argocd.infra.home/auth/login
+    - Observability:
+        - Grafana:
+            - abbr: GF
+              href: https://grafana.infra.home
+        - Prometheus:
+            - abbr: PR
+              href: https://prometheus.infra.home
+    - Other dashboards:
+        - Apps Homepage:
+            - abbr: AH
+              href: https://homepage.apps.home
+        - Infra Homepage:
+            - abbr: IH
+              href: https://homepage.infra.home
+
+  # Top-of-page info widgets. Order matters — rendered left-to-right.
+  # See https://gethomepage.dev/widgets/info/ for the catalogue.
+  #
+  # FOLLOW-UP: grafana + argocd *service* widgets (the kind that live on a
+  # service card and show alert/app counts) require credentials neither app
+  # currently provisions:
+  #   - grafana widget needs username/password; our grafana has
+  #     `disable_login_form = true` (OIDC-only), so basic auth is impossible
+  #     until we provision a service-account token.
+  #   - argocd widget needs an apiKey-capable local account; none exists
+  #     (argocd is OIDC-only since the recent SSO wiring).
+  # Both are reachable as bookmarks above — surface them as live widgets
+  # in a follow-up once we wire credential provisioning declaratively.
+  widgets:
+    # Cluster-wide CPU / mem rollup — lifted straight from the kubernetes-widget
+    # response (which the kubernetes info widget below also drives). No on-host
+    # disk path because pods can't see node disks without privileged mounts.
+    - resources:
+        label: Cluster
+        cpu: true
+        memory: true
+        expanded: true
+
+    # Cluster + per-node CPU/mem from metrics.k8s.io.
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: cluster
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+
+    # Prometheus targets up/down/total. URL is in-cluster — no auth required
+    # since we don't expose prometheus-server ClusterIP externally.
+    # Service name from `kubectl -n monitoring get svc | grep prometheus-server`.
+    - prometheus:
+        url: http://prometheus-server.monitoring.svc.cluster.local
+
+  settings:
+    title: Admin
+    # No instanceName key — show everything across both gateways.
+    theme: dark
+    color: zinc
+    headerStyle: clean
+    hideVersion: true
+    statusStyle: dot
+    cardBlur: sm
+    background:
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/mono_dark_distortion_1.jpg
+      blur: sm
+      opacity: 80
+      brightness: 60
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# Restricted PSS compliance (homepage-admin ns inherits the cluster's
+# restricted default; same as homepage / homepage-infra).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
