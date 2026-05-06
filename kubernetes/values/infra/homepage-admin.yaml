@@ -115,7 +115,7 @@ config:
     statusStyle: dot
     cardBlur: sm
     background:
-      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/mono_dark_distortion_1.jpg
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/red_distortion_3.jpg
       blur: sm
       opacity: 80
       brightness: 60
