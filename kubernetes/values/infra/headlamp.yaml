@@ -105,10 +105,38 @@ volumes:
       items:
         - key: ca.crt
           path: ca-certificates.crt
+  # Writable scratch dir — required because we set readOnlyRootFilesystem.
+  # Chart auto-adds this when neither user volumes nor user volumeMounts are
+  # set; once we provide our own list, the auto-mount is suppressed and we
+  # must add it explicitly.
+  - name: headlamp-tmp
+    emptyDir:
+      sizeLimit: 64Mi
 volumeMounts:
   - name: home-ca
     mountPath: /etc/ssl/certs
     readOnly: true
+  - name: headlamp-tmp
+    mountPath: /tmp
+
+# securityContext: pinned to restricted-PSS-compliant. The chart's defaults
+# (runAsNonRoot, runAsUser=100, runAsGroup=101) are good but it leaves
+# allowPrivilegeEscalation, capabilities.drop, and seccompProfile unset —
+# restricted PSS rejects on all three. We don't baseline-label the ns
+# because Headlamp doesn't actually need anything beyond restricted.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  # Chart's deployment template auto-mounts an emptyDir at /tmp when this
+  # is true, so the binary still has a scratch dir.
+  readOnlyRootFilesystem: true
 
 resources:
   requests:
