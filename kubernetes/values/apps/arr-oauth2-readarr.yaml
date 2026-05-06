@@ -27,6 +27,7 @@ extraArgs:
   - --provider-display-name=Pocket ID
   - --skip-provider-button=true
   - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
   - --skip-oidc-discovery=false
   - --http-address=0.0.0.0:4180
   - --reverse-proxy=true

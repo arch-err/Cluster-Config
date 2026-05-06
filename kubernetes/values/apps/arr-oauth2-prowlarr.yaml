@@ -52,6 +52,10 @@ extraArgs:
   # Pocket-id has pkceEnabled=true on the registered client; oauth2-proxy
   # must send a code_verifier or token exchange returns "Invalid code verifier".
   - --code-challenge-method=S256
+  # Pocket-id doesn't set `email_verified: true` in id_tokens; oauth2-proxy
+  # rejects unverified emails by default. Safe to skip — passkey auth at
+  # pocket-id is itself the verification gate.
+  - --insecure-oidc-allow-unverified-email=true
   # Discovery URL — chart-derived from $OAUTH2_PROXY_OIDC_ISSUER_URL via
   # extraEnv (issuer_url == https://auth.apps.home, set by bootstrap).
   - --skip-oidc-discovery=false
