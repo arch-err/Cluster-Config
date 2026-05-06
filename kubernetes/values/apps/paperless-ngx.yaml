@@ -41,15 +41,16 @@ ingress:
   main:
     enabled: false
 
-# Wrap the s6-overlay entrypoint (`/init`, the upstream image's CMD) so we
-# can render the OIDC providers JSON from the mounted template at container
-# start. envsubst ships in the paperless image (gettext apt pkg).
+# Wrap the upstream entrypoint (/sbin/docker-entrypoint.sh, CMD
+# /usr/local/bin/paperless_cmd.sh) so we can render the OIDC providers JSON
+# from the mounted template at container start. envsubst ships in the
+# paperless image (gettext apt pkg).
 command: ["/bin/sh", "-c"]
 args:
   - |
     set -eu
     export PAPERLESS_SOCIALACCOUNT_PROVIDERS=$(envsubst < /etc/oidc-config/providers.json)
-    exec /init
+    exec /sbin/docker-entrypoint.sh /usr/local/bin/paperless_cmd.sh
 
 # Paperless env. Bootstrap admin + secret key wired via envFrom from sops secret.
 env:
