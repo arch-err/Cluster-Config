@@ -61,6 +61,17 @@ components:
       dashboard:
         group: Media
         description: Audiobooks + podcasts
+    # OIDC: audiobookshelf has no env / config-file hooks for OIDC — it must
+    # be configured via the admin UI. We bootstrap the pocket-id client here
+    # so the client_id/secret/issuer are ready in the
+    # `audiobookshelf-oidc-client` Secret; user pastes them into the UI
+    # (Settings -> Authentication -> OpenID Connect Authentication).
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://audiobookshelf.apps.home/auth/openid/callback
+        - https://audiobookshelf.apps.home/auth/openid/mobile-redirect
+      scopes: [openid, profile, email, groups]
 
   - name: agent-vault
     namespace: agent-vault
