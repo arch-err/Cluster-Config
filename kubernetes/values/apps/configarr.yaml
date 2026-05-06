@@ -98,6 +98,16 @@ persistence:
       main:
         app:
           - path: /app/cache
+  # configarr clones recyclarr-config + TRaSH-Guides under /app/repos at
+  # boot. With the configarr image's user (uid 1000) and our restrictive
+  # securityContext, /app is read-only at the image layer for that uid.
+  # An emptyDir overlay at /app/repos lets the clone succeed.
+  repos:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /app/repos
   tmp:
     type: emptyDir
     advancedMounts:

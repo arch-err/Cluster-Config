@@ -358,6 +358,19 @@ components:
       version: 4.6.2
     syncWave: "4"  # after extras (ns) + arr-api-keys SopsSecret + readarr
 
+  # prowlarr-bootstrap — declarative indexer + downstream-app (Readarr) sync.
+  # CronJob (every 30m) reading /scripts/bootstrap.sh; idempotent upserts via
+  # the Prowlarr API. Configarr can't manage Prowlarr's own indexers/apps;
+  # this fills that gap. No HTTPRoute (CronJob; no UI). Add Sonarr/Radarr
+  # entries to the script once those *arrs ship.
+  - name: prowlarr-bootstrap
+    namespace: arr
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after prowlarr (Prowlarr API must be reachable)
+
   # ──────────────────────────────────────────────────────────────────────────
   # ARR OAUTH2-PROXY pair — pocket-id OIDC forward-auth gateway in front of
   # the *arr stack. Two releases (one per *arr) sharing a single OIDC client
