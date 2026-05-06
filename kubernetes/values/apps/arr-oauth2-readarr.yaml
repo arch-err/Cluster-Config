@@ -39,8 +39,8 @@ extraArgs:
   - --cookie-samesite=lax
   # MUST match sibling for SSO across .apps.home subdomains.
   - --cookie-name=_arr_oauth2_proxy
-  - --allowed-group=apps-users
-  - --allowed-group=Administrators
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
   - --skip-auth-route=^/api/
   - --pass-user-headers=true
   - --set-xauthrequest=true

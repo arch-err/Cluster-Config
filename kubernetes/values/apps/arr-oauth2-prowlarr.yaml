@@ -77,8 +77,8 @@ extraArgs:
   - --cookie-name=_arr_oauth2_proxy
   # Allow any pocket-id user with one of these groups. Aligns with the
   # apps-users / Administrators tier from grafana/immich precedent.
-  - --allowed-group=apps-users
-  - --allowed-group=Administrators
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
   # Bypass auth on *arr API paths (mobile apps, cross-arr API). *arr enforces
   # X-Api-Key on these paths itself.
   - --skip-auth-route=^/api/
