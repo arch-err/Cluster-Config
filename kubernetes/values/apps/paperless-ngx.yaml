@@ -63,6 +63,10 @@ env:
   PAPERLESS_ALLOWED_HOSTS: "*"
   # Register django-allauth's OIDC provider as an installed django app.
   PAPERLESS_APPS: "allauth.socialaccount.providers.openid_connect"
+  # Force OIDC: hide the local login form and redirect /accounts/login/ to the
+  # pocket-id flow. Local superuser login still works via /admin/.
+  PAPERLESS_DISABLE_REGULAR_LOGIN: "true"
+  PAPERLESS_REDIRECT_LOGIN_TO_SSO: "true"
   # Trust home-ca for OIDC HTTPS calls (auth.apps.home). Python requests +
   # urllib3 honor REQUESTS_CA_BUNDLE; that covers all of paperless's outbound
   # OIDC traffic.
