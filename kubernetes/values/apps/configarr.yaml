@@ -120,7 +120,7 @@ persistence:
   # this values file; the chart renders the ConfigMap inline.
   config:
     type: configMap
-    name: configarr-config
+    identifier: config       # cross-ref to configMaps.config below
     advancedMounts:
       main:
         app:
