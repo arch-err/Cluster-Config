@@ -157,6 +157,34 @@ components:
       # secretName defaults to "grafana-oidc-client"
 
   # ════════════════════════════════════════════════════════════════════════════
+  # CLUSTER GUI
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: headlamp
+    namespace: headlamp
+    chart:
+      repo: https://kubernetes-sigs.github.io/headlamp/
+      name: headlamp
+      version: 0.41.x
+    route:
+      hostname: headlamp.infra.home
+      gateway: infra
+      service: headlamp
+      port: 80
+      dashboard:
+        enabled: true
+        name: Headlamp
+        group: GitOps
+        icon: kubernetes.svg
+        description: k8s GUI
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://headlamp.infra.home/oidc-callback
+      scopes: [openid, profile, email, groups]
+      # secretName defaults to "headlamp-oidc-client"
+
+  # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
   # ════════════════════════════════════════════════════════════════════════════
 
