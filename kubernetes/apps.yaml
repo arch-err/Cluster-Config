@@ -344,6 +344,20 @@ components:
         description: Audiobook manager (Sonarr-for-books)
         app: readarr
 
+  # configarr — declarative profile / custom-format / download-client manager.
+  # CronJob (every 30m) reading /app/config/config.yml + secrets.yml.
+  # Scope this round: readarr only (audiobook quality profile + qBit download
+  # client). Prowlarr is NOT a configarr-managed app type — see
+  # prowlarr-bootstrap below for its declarative shape. No HTTPRoute (CronJob;
+  # no UI).
+  - name: configarr
+    namespace: arr
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after extras (ns) + arr-api-keys SopsSecret + readarr
+
   # ──────────────────────────────────────────────────────────────────────────
   # ARR OAUTH2-PROXY pair — pocket-id OIDC forward-auth gateway in front of
   # the *arr stack. Two releases (one per *arr) sharing a single OIDC client

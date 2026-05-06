@@ -1,0 +1,201 @@
+# configarr — chart: bjw-s/app-template v4.6.2 (cronjob mode)
+# Declarative profile / custom-format / download-client manager for the *arr
+# stack. Upstream: https://configarr.raydak.de/  Source: raydak-labs/configarr.
+# One-shot CMD pattern; fits a CronJob.
+#
+# SCOPE this round: readarr only. apps.yaml has prowlarr+readarr+qbittorrent;
+# configarr has NO prowlarr block — Prowlarr indexer/app config is owned by
+# the prowlarr-bootstrap CronJob (separate release). Sonarr/Radarr/Lidarr
+# can be added by appending blocks to the configarr-config ConfigMap below
+# once those *arrs land.
+#
+# Mounts:
+#   /app/config/config.yml   — declared state (ConfigMap configarr-config)
+#   /app/config/secrets.yml  — !secret keys (rendered at runtime by an init
+#                              container from the arr-api-keys Secret env)
+#
+# Auth: configarr only talks to in-cluster *arr APIs over HTTP. No cluster
+# RBAC needed; default ServiceAccount is fine.
+
+controllers:
+  main:
+    type: cronjob
+    cronjob:
+      schedule: "*/30 * * * *"
+      concurrencyPolicy: Forbid
+      successfulJobsHistory: 1
+      failedJobsHistory: 3
+      backoffLimit: 1
+    initContainers:
+      # Render secrets.yml from env-mounted arr-api-keys at runtime. Avoids
+      # writing decrypted API keys into a ConfigMap and keeps secrets.yml
+      # ephemeral (lives only in the pod's emptyDir).
+      render-secrets:
+        image:
+          repository: busybox
+          tag: "1.37"
+        command:
+          - sh
+          - -c
+          - |
+            set -eu
+            cat > /shared/secrets.yml <<EOF
+            READARR_APIKEY: ${READARR_APIKEY}
+            QBIT_PASSWORD: ${QBIT_PASSWORD}
+            EOF
+            chmod 0400 /shared/secrets.yml
+        env:
+          READARR_APIKEY:
+            valueFrom:
+              secretKeyRef:
+                name: arr-api-keys
+                key: readarr_apikey
+          QBIT_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: arr-api-keys
+                key: qbit_password
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+    containers:
+      app:
+        image:
+          repository: ghcr.io/raydak-labs/configarr
+          tag: "1.28.0"
+        # configarr image's entrypoint is the binary; no args needed.
+        # It reads /app/config/config.yml + /app/config/secrets.yml at boot.
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        # Restricted PSS compliant. configarr image runs as a non-root user
+        # by default; we lock it down explicitly here.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # configarr writes cache + tmp
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+persistence:
+  cache:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /app/cache
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
+  # secrets.yml lives in a shared emptyDir written by the init container.
+  # Mounted into the app container at /app/config/secrets.yml via subPath.
+  shared:
+    type: emptyDir
+    advancedMounts:
+      main:
+        render-secrets:
+          - path: /shared
+        app:
+          - path: /app/config/secrets.yml
+            subPath: secrets.yml
+            readOnly: true
+  # Declared config — config.yml mounted at /app/config/config.yml. Owned by
+  # this values file; the chart renders the ConfigMap inline.
+  config:
+    type: configMap
+    name: configarr-config
+    advancedMounts:
+      main:
+        app:
+          - path: /app/config/config.yml
+            subPath: config.yml
+            readOnly: true
+
+# ConfigMap holding the declarative state. Kept here (not a separate file) so
+# the values file is the single source of truth for what configarr enforces.
+configMaps:
+  config:
+    enabled: true
+    data:
+      config.yml: |
+        # TRaSH-Guides clone source. Configarr clones this on every run; cache
+        # lives in /app/cache (emptyDir — re-cloned on pod restart, fine for
+        # a 30-min CronJob).
+        trashGuideUrl: https://github.com/TRaSH-Guides/Guides
+        recyclarrConfigUrl: https://github.com/recyclarr/config-templates
+
+        # Disable instances we don't manage this round. Prowlarr is not a
+        # configarr-managed app type at all (no prowlarr block in upstream
+        # schema) — it's handled by prowlarr-bootstrap.
+        sonarrEnabled: false
+        radarrEnabled: false
+        whisparrEnabled: false
+        lidarrEnabled: false
+        readarrEnabled: true
+
+        readarr:
+          books:
+            base_url: http://readarr.arr.svc.cluster.local:8787
+            api_key: !secret READARR_APIKEY
+
+            # Audiobook-friendly default profile. Readarr 'quality' values
+            # reference codec/format pseudo-qualities. Audiobook-relevant
+            # ones are MP3-320, FLAC, M4B; we let any match and prefer
+            # FLAC > M4B > MP3. Users who want strict audiobooks-only can
+            # clone + narrow this.
+            quality_profiles:
+              - name: AudiobookDefault
+                reset_unmatched_scores:
+                  enabled: true
+                upgrade:
+                  allowed: true
+                  until_quality: FLAC
+                  until_score: 1000
+                min_format_score: 0
+                quality_sort: top
+                qualities:
+                  - name: FLAC
+                  - name: M4B
+                  - name: MP3-320
+
+            # qBittorrent download client. qBit lives in the `qbittorrent` ns,
+            # resolved via FQDN. Username `admin` = qBit default; password
+            # is !secret QBIT_PASSWORD (placeholder REPLACE_ME in arr-api-keys
+            # today — user must rotate manually). Until set, configarr will
+            # fail to register qBit (auth error in logs) — expected.
+            download_clients:
+              data:
+                - name: "qBittorrent"
+                  type: qbittorrent
+                  enable: true
+                  priority: 1
+                  remove_completed_downloads: true
+                  remove_failed_downloads: true
+                  fields:
+                    host: qbittorrent.qbittorrent.svc.cluster.local
+                    port: 8080
+                    use_ssl: false
+                    url_base: /
+                    username: admin
+                    password: !secret QBIT_PASSWORD
+                    book_category: readarr
+              update_password: true
+              delete_unmanaged:
+                enabled: false
