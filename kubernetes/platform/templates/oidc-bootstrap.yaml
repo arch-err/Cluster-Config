@@ -263,7 +263,11 @@ metadata:
   namespace: pocket-id
   annotations:
     argocd.argoproj.io/sync-wave: "11"
-    argocd.argoproj.io/sync-options: Replace=true,SkipDryRunOnMissingResource=true
+    # Replace=true was here historically but caused argocd re-syncs to faceplant on
+    # completed Jobs (spec.selector is server-set + immutable post-create). Job names
+    # already include $specHash so any spec change produces a NEW Job — replacement
+    # is unnecessary. Bare apply behavior is correct.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
