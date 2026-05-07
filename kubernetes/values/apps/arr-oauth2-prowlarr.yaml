@@ -1,11 +1,12 @@
 # arr-oauth2-prowlarr — chart: oauth2-proxy/oauth2-proxy v10.4.3
 # OAuth2 forward-auth proxy fronting prowlarr (arr ns). One of two sibling
-# oauth2-proxy releases (the other fronts readarr); both share a single
-# pocket-id OIDC client `arr-oauth2-prowlarr` (registered via the platform
-# oidc-bootstrap Job — see oidc:* block in apps.yaml). The shared cookie
-# domain `.apps.home` + matching cookie-secret + matching client_id makes
-# the session usable across all *.apps.home arr subdomains (one login →
-# SSO across prowlarr/readarr).
+# oauth2-proxy releases (the other fronts readarr); each has its OWN
+# dedicated pocket-id OIDC client. This release consumes `prowlarr-oidc-client`
+# (rendered by the prowlarr Application's oidc:* block in apps.yaml). The
+# split lets pocket-id show single-purpose entries in the user app launcher
+# AND enforce group-restriction at the IDP level (this client is locked to
+# administrators only) on top of oauth2-proxy's own --allowed-group flag.
+# No more cross-app SSO — admins log into prowlarr separately from readarr.
 #
 # AUTH BYPASS for /api/* — *arr APIs (used by mobile apps like LunaSea and
 # cross-arr sync between prowlarr↔readarr) authenticate via X-Api-Key
@@ -67,13 +68,12 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — prowlarr in-cluster service.
   - --upstream=http://prowlarr.arr.svc.cluster.local:9696
-  # Cookie scoped to .infra.home now that prowlarr's route moved to the
-  # infra gateway. Cross-gateway SSO with readarr is intentionally gone —
-  # admins log into prowlarr separately (it's admin-only anyway).
+  # Cookie scoped to .infra.home (route lives on the infra gateway). No
+  # cross-app SSO — readarr lives on .apps.home with its own OIDC client.
   - --cookie-domain=.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
-  - --cookie-name=_arr_oauth2_proxy
+  - --cookie-name=_prowlarr_oauth2_proxy
   # Prowlarr is infra-tier — *arr apps consume its API, humans don't browse
   # the UI day-to-day. Lock to administrators only; apps_users get 403 even
   # though they share the OIDC client with readarr. Defense-in-depth pairs
@@ -93,24 +93,24 @@ extraArgs:
   - --provider-ca-file=/etc/ssl/home-ca/ca.crt
 
 # Inject OIDC creds + cookie secret. CLIENT_ID/SECRET come from the
-# platform-bootstrap Secret `arr-oauth2-prowlarr-oidc-client`. ISSUER_URL is
-# also in that Secret. cookie secret is a literal here (DRIFT — should be
-# SOPS'd; see file header).
+# platform-bootstrap Secret `prowlarr-oidc-client` (rendered by the prowlarr
+# Application's oidc:* block in apps.yaml). cookie secret is a literal here
+# (DRIFT — should be SOPS'd; flagged for migration).
 extraEnv:
   - name: OAUTH2_PROXY_CLIENT_ID
     valueFrom:
       secretKeyRef:
-        name: arr-oauth2-prowlarr-oidc-client
+        name: prowlarr-oidc-client
         key: client_id
   - name: OAUTH2_PROXY_CLIENT_SECRET
     valueFrom:
       secretKeyRef:
-        name: arr-oauth2-prowlarr-oidc-client
+        name: prowlarr-oidc-client
         key: client_secret
   - name: OAUTH2_PROXY_OIDC_ISSUER_URL
     valueFrom:
       secretKeyRef:
-        name: arr-oauth2-prowlarr-oidc-client
+        name: prowlarr-oidc-client
         key: issuer_url
   # COOKIE SECRET LITERAL — see file header DRIFT note. 32-char raw string.
   - name: OAUTH2_PROXY_COOKIE_SECRET

@@ -328,6 +328,19 @@ components:
         icon: prowlarr.svg
         description: Indexer manager / proxy (admin)
         app: prowlarr
+    # Per-app OIDC client (pocket-id id=`prowlarr`). Secret rendered into the
+    # `arr` ns as `prowlarr-oidc-client`; consumed by the arr-oauth2-prowlarr
+    # release (see values/apps/arr-oauth2-prowlarr.yaml). Single-purpose →
+    # clean entry in pocket-id's user app launcher + p-id-level group gate
+    # (administrators-only) layered on top of oauth2-proxy's --allowed-group
+    # for defense in depth. launchURL + display-name + logo + group restrict
+    # are post-bootstrap manual steps via the API (the bootstrap Job only
+    # owns name/callbacks/pkce; everything else is set in pocket-id directly).
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://prowlarr.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
 
   - name: readarr
     namespace: arr
@@ -348,6 +361,15 @@ components:
         icon: readarr.svg
         description: Audiobook manager (Sonarr-for-books)
         app: readarr
+    # Per-app OIDC client (pocket-id id=`readarr`). Secret rendered into the
+    # `arr` ns as `readarr-oidc-client`; consumed by the arr-oauth2-readarr
+    # release. Group restriction (apps_users + administrators) + launchURL +
+    # display-name + logo are post-bootstrap API steps.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://readarr.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
 
   # Declarative *arr config split across two tools (different surface areas):
   #   - configarr → Readarr quality profiles + qBit download client (CronJob)
@@ -379,16 +401,16 @@ components:
 
   # ──────────────────────────────────────────────────────────────────────────
   # ARR OAUTH2-PROXY pair — pocket-id OIDC forward-auth gateway in front of
-  # the *arr stack. Two releases (one per *arr) sharing a single OIDC client
-  # registered by the prowlarr sibling; cookie domain `.apps.home` + matching
-  # cookie-secret + matching cookie-name → one login covers both subdomains.
-  # /api/* is skip-auth-route'd so X-Api-Key flows (LunaSea, cross-arr sync)
-  # bypass OIDC and hit *arr's own API-key check directly. See values files
-  # for full rationale; the prowlarr sibling owns the oidc:* block (its
-  # callbackUrls list covers BOTH subdomains, so the readarr sibling reuses
-  # the same `arr-oauth2-prowlarr-oidc-client` Secret). No HTTPRoute on
-  # either release — they're internal services consumed by the *arr routes
-  # via `route.service` indirection (prowlarr→oauth2-prowlarr, etc.).
+  # the *arr stack. Two releases (one per *arr), each with its OWN dedicated
+  # pocket-id OIDC client. Client registration lives on the *arr Application
+  # components themselves (prowlarr, readarr above) — that gives the clients
+  # clean ids (`prowlarr`, `readarr`) in pocket-id, single-purpose launcher
+  # entries, and per-client group restriction (defense in depth, paired with
+  # oauth2-proxy's --allowed-group flag).
+  # /api/* is skip-auth-route'd in oauth2-proxy so X-Api-Key flows (LunaSea,
+  # cross-arr sync) bypass OIDC and hit *arr's own API-key check directly.
+  # No HTTPRoute on either release — internal services consumed by the *arr
+  # routes via `route.service` indirection (prowlarr→oauth2-prowlarr, etc.).
   # ──────────────────────────────────────────────────────────────────────────
   - name: arr-oauth2-prowlarr
     namespace: arr
@@ -397,19 +419,9 @@ components:
       name: oauth2-proxy
       version: 10.4.3
     syncWave: "3"
-    oidc:
-      enabled: true
-      # callbackUrls cover BOTH *arr subdomains so the sibling release
-      # (arr-oauth2-readarr) can reuse this same OIDC client without needing
-      # its own oidc:* block. Cookie + client + cookie-secret all match
-      # across the two releases → one login = SSO across both.
-      callbackUrls:
-        # prowlarr now lives on the infra gateway (admin-only); readarr
-        # stays on apps.home for apps_users. Shared OIDC client still
-        # works — pocket-id allows multiple callback URLs on one client.
-        - https://prowlarr.infra.home/oauth2/callback
-        - https://readarr.apps.home/oauth2/callback
-      scopes: [openid, profile, email, groups]
+    # Consumes the `prowlarr-oidc-client` Secret rendered by the prowlarr
+    # Application's oidc:* block. No oidc:* block here — this is the proxy,
+    # not the protected app.
 
   - name: arr-oauth2-readarr
     namespace: arr
@@ -418,8 +430,8 @@ components:
       name: oauth2-proxy
       version: 10.4.3
     syncWave: "3"
-    # No oidc:* block — reuses the `arr-oauth2-prowlarr-oidc-client` Secret
-    # from the sibling release (same ns). See arr-oauth2-readarr.yaml.
+    # Consumes the `readarr-oidc-client` Secret rendered by the readarr
+    # Application's oidc:* block.
 
   # qbittorrent lives in its OWN namespace (privileged PSS — gluetun NET_ADMIN)
   # and is exposed only via the INFRA gateway (not apps), so the WebUI is
