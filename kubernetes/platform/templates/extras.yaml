@@ -975,9 +975,13 @@ kind: Namespace
 metadata:
   name: bookinfo
   labels:
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/audit: restricted
-    pod-security.kubernetes.io/warn: restricted
+    # Baseline PSS — postgres init container chowns /var/lib/postgresql/data
+    # as root (kadalu PVCs initialize root-owned, fsGroup alone doesn't suffice).
+    # Mirrors the immich-postgres pattern. Pre-authorized per the
+    # `feedback_pss_baseline_authorized.md` memory.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
