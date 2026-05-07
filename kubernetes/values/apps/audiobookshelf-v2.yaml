@@ -95,6 +95,13 @@ controllers:
           NODE_EXTRA_CA_CERTS: /etc/ssl/home-ca/ca.crt
           # ABS listens on :8080.
           PORT: "8080"
+          # advplyr/audiobookshelf:2.34.0 image bakes ROUTER_BASE_PATH=
+          # /audiobookshelf into its Dockerfile (designed for sub-path
+          # reverse-proxy deployments). Our HTTPRoute serves at root of
+          # audiobookshelf-v2.apps.home — override to empty so ABS lives at
+          # `/`. Otherwise OIDC callback becomes /audiobookshelf/auth/openid/
+          # callback which doesn't match the registered redirect_uri.
+          ROUTER_BASE_PATH: ""
         probes:
           liveness:
             enabled: true
