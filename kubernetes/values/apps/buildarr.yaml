@@ -186,32 +186,21 @@ configMaps:
           protocol: http
           # api_key supplied by buildarr-secrets.yml (above).
           settings:
-            indexers:
-              indexers:
-                # Don't blow away anything we haven't declared. Manual UI-added
-                # indexers (private trackers etc.) survive runs.
-                delete_unmanaged: false
-                definitions:
-                  # Buildarr indexer `type:` maps to Prowlarr's Cardigann
-                  # definitionName. Names match the existing prowlarr-bootstrap
-                  # CronJob's declarations 1:1 so the upsert is a no-op on
-                  # already-created indexers.
-                  # 1337x + eBookBay are CloudFlare/cert-blocked from the
-                  # cluster's egress (verified: 1337x returns CF challenge,
-                  # ebb.la returns curl exit-60 cert error). Prowlarr's
-                  # create_indexer always runs a connection test; buildarr's
-                  # bundled prowlarr API client doesn't pass `forceSave=true`,
-                  # so creating these declaratively fails 400 here even though
-                  # they'd work after manual UI add (Prowlarr persists+disables).
-                  # Until cluster gets a FlareSolverr indexer-proxy or buildarr
-                  # gains forceSave support, leave these to the UI. Tracking
-                  # comment kept here for the next agent.
-                  TorrentGalaxy:
-                    type: torrentgalaxyclone
-                    enable: true
-                    sync_profile: Standard
-                    fields:
-                      baseUrl: https://torrentgalaxy.one/
+            # No indexers block declared. Verified (2026-05-07): all three
+            # public indexers from the original prowlarr-bootstrap script
+            # (1337x, torrentgalaxyclone, ebookbay) fail Prowlarr's mandatory
+            # connection test on create from inside this cluster's egress:
+            #   - 1337x.to → CloudFlare challenge (HTML JS check)
+            #   - ebb.la   → curl exit-60 (cert/host issue)
+            #   - torrentgalaxy.one → redirects to torrentgalaxy.info/get-posts/
+            #     (Prowlarr rejects redirect on create)
+            # Prowlarr enforces the connection test server-side; buildarr's
+            # bundled prowlarr API client (0.5.3) does NOT pass `forceSave=true`,
+            # so `buildarr daemon` cannot create these declaratively.
+            # FUTURE FIX: deploy a FlareSolverr indexer-proxy in the arr ns and
+            # configure Prowlarr to route challenged indexers through it (a
+            # `proxies:` block here once configured). Or upstream a forceSave
+            # option to buildarr-prowlarr. Until then: indexers are UI-managed.
             apps:
               applications:
                 # Same caution: don't delete unmanaged apps. Sonarr/Radarr/Lidarr
