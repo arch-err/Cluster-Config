@@ -183,7 +183,7 @@ configMaps:
                 qualities:
                   - name: FLAC
                   - name: M4B
-                  - name: MP3-320
+                  - name: MP3
 
             # qBittorrent download client. qBit lives in the `qbittorrent` ns,
             # resolved via FQDN. Username `admin` = qBit default; password
