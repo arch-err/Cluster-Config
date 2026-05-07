@@ -75,9 +75,10 @@ extraArgs:
   # both. Without this, each release defaults to its own release-name cookie
   # and SSO fails.
   - --cookie-name=_arr_oauth2_proxy
-  # Allow any pocket-id user with one of these groups. Aligns with the
-  # apps-users / Administrators tier from grafana/immich precedent.
-  - --allowed-group=apps_users
+  # Prowlarr is infra-tier — *arr apps consume its API, humans don't browse
+  # the UI day-to-day. Lock to administrators only; apps_users get 403 even
+  # though they share the OIDC client with readarr. Defense-in-depth pairs
+  # with the homepage card being admin-only-rendered.
   - --allowed-group=administrators
   # Bypass auth on *arr API paths (mobile apps, cross-arr API). *arr enforces
   # X-Api-Key on these paths itself.

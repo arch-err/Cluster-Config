@@ -318,11 +318,11 @@ components:
       gateway: apps
       service: oauth2-prowlarr
       port: 80
-      dashboard:
-        group: Media
-        icon: prowlarr.svg
-        description: Indexer manager / proxy
-        app: prowlarr
+      # No dashboard entry — Prowlarr is infra-tier (consumed by readarr/
+      # sonarr/radarr APIs, not by humans). Hidden from apps homepage so
+      # apps_users never see it. Pairs with arr-oauth2-prowlarr's
+      # --allowed-group=administrators (apps_users get 403 even if they
+      # type the URL). Admins bookmark https://prowlarr.apps.home/.
 
   - name: readarr
     namespace: arr
