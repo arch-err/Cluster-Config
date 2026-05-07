@@ -199,16 +199,19 @@ configMaps:
                   1337x:
                     type: 1337x
                     enable: true
+                    sync_profile: Standard
                     fields:
                       baseUrl: https://1337x.to/
                   TorrentGalaxy:
                     type: torrentgalaxyclone
                     enable: true
+                    sync_profile: Standard
                     fields:
                       baseUrl: https://torrentgalaxy.one/
                   eBookBay:
                     type: ebookbay
                     enable: true
+                    sync_profile: Standard
                     fields:
                       baseUrl: https://ebb.la/
             apps:
