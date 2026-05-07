@@ -37,6 +37,14 @@ server:
 configs:
   params:
     server.insecure: true  # TLS terminated at gateway
+    # Enable server-side diff so the application-controller uses an SSA
+    # dry-run to compute drift instead of structural comparison. Required
+    # for the `managedFieldsManagers` ignoreDifferences entry in
+    # kubernetes/platform/templates/applications.yaml — without this flag,
+    # `managedFieldsManagers` is silently ignored and helm-rendered
+    # nullable fields (e.g. pocket-id sts `volumes: null`) cause perma-
+    # OutOfSync against apiserver-defaulted output. Verified 2026-05-07.
+    controller.diff.server.side: "true"
 
   cm:
     url: https://argocd.infra.home
