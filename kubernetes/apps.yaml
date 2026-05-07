@@ -105,7 +105,14 @@ components:
         description: Audiobooks + podcasts (parallel install w/ media-library mount)
     oidc:
       enabled: true
+      # advplyr/audiobookshelf image bakes ROUTER_BASE_PATH=/audiobookshelf
+      # into its Dockerfile, which prefixes ABS's callback path. Empty-string
+      # env override is silently ignored (Node || falls through). Easier to
+      # accept the prefix and register both forms — root form kept in case
+      # the image ever drops the bake-in.
       callbackUrls:
+        - https://audiobookshelf-v2.apps.home/audiobookshelf/auth/openid/callback
+        - https://audiobookshelf-v2.apps.home/audiobookshelf/auth/openid/mobile-redirect
         - https://audiobookshelf-v2.apps.home/auth/openid/callback
         - https://audiobookshelf-v2.apps.home/auth/openid/mobile-redirect
       scopes: [openid, profile, email, groups]
