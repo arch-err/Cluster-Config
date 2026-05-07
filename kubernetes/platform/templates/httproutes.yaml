@@ -73,6 +73,41 @@ spec:
   hostnames:
     - {{ .route.hostname | quote }}
   rules:
+{{- /* grpc: optional opt-in. When `route.grpc: true` is set, prepend rules that
+       match gRPC-web content-types and route them to a separate (h2c-tagged) port.
+       MUST come before the catch-all because Cilium's envoy translator preserves
+       rule order and uses first-match — a sibling GRPCRoute with `prefix: /` loses
+       to an HTTPRoute with `prefix: /` listed first. The grpcPort backend should
+       be a Service port whose `appProtocol: kubernetes.io/h2c` (requires
+       `enableAppProtocol: true` in cilium values), so envoy speaks HTTP/2 cleartext
+       upstream. Without h2c, argocd-server's HTTP mux (not gRPC mux) handles
+       the request and 404s with `grpc-message: 404 page not found`.
+       Three rules cover the canonical grpc-web content-types in use today. */ -}}
+{{- if .route.grpc }}
+{{- $grpcSvc := .route.service | default .name }}
+{{- $grpcPort := .route.grpcPort | default .route.port | default 80 }}
+    - matches:
+        - headers:
+            - name: content-type
+              value: application/grpc-web+proto
+      backendRefs:
+        - name: {{ $grpcSvc }}
+          port: {{ $grpcPort }}
+    - matches:
+        - headers:
+            - name: content-type
+              value: application/grpc-web
+      backendRefs:
+        - name: {{ $grpcSvc }}
+          port: {{ $grpcPort }}
+    - matches:
+        - headers:
+            - name: content-type
+              value: application/grpc-web-text
+      backendRefs:
+        - name: {{ $grpcSvc }}
+          port: {{ $grpcPort }}
+{{- end }}
 {{- /* timeout: optional opt-in. Sets spec.rules[].timeouts.request to override
        the gateway's default request timeout (Cilium/Envoy default is too short
        for large uploads). Only `request` is supported here — not `backendRequest`. */ -}}
@@ -99,35 +134,6 @@ spec:
       backendRefs:
         - name: {{ .route.service | default .name }}
           port: {{ .route.port | default 80 }}
-{{- end }}
-{{- /* grpc: optional opt-in. When `route.grpc: true` is set, also emit a sibling
-       GRPCRoute attached to the same gateway+hostname pointing at the same backend.
-       Cilium's HTTPRoute does not match gRPC POSTs cleanly (returns 404 on
-       /<svc>.<Service>/<Method> paths), so apps whose CLI/clients speak gRPC-web
-       (argocd CLI is the canonical case) need a GRPCRoute alongside. The catch-all
-       (no method match) routes every gRPC request through, while the HTTPRoute
-       continues to serve REST + the web UI. NOTE: GRPCRoute is intentionally NOT
-       in the platform's ignoreDifferences list — its spec changes propagate. */ -}}
-{{- if .route.grpc }}
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: GRPCRoute
-metadata:
-  name: {{ .name }}-grpc
-  namespace: {{ .namespace | default .name }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "10"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  parentRefs:
-    - name: {{ .route.gateway | default "internal" }}
-      namespace: gateway-system
-  hostnames:
-    - {{ .route.hostname | quote }}
-  rules:
-    - backendRefs:
-        - name: {{ .route.service | default .name }}
-          port: {{ .route.grpcPort | default .route.port | default 80 }}
 {{- end }}
 {{- end }}
 {{- end }}
