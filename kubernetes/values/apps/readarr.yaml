@@ -66,19 +66,6 @@ controllers:
         securityContext:
           allowPrivilegeEscalation: false
 
-# BookInfo mirror — readarr hardcodes api.bookinfo.club, which has been
-# NXDOMAIN since the original maintainer took it down ~2024. Community runs
-# an unofficial mirror at api.bookinfo.pro (cloudflare-fronted). Pinning
-# to CF anycast IPs in /etc/hosts via hostAliases — not pretty but durable
-# enough (CF rotates rarely; if book lookups break, refresh with `dig +short
-# A api.bookinfo.pro` and update both IPs here).
-defaultPodOptions:
-  hostAliases:
-    - ip: 104.21.30.30
-      hostnames: [api.bookinfo.club]
-    - ip: 172.67.150.115
-      hostnames: [api.bookinfo.club]
-
 service:
   main:
     controller: main
