@@ -1211,6 +1211,19 @@ data:
         }
         prometheus :9153
 
+        # api.bookinfo.club is hardcoded in readarr's binary. The upstream
+        # has been dead since ~2024; we self-host blampe/rreading-glasses in
+        # the `bookinfo` ns and rewrite the hostname to its in-cluster
+        # ClusterIP service. The nginx-tls sidecar there serves a home-ca-
+        # issued cert with SAN=api.bookinfo.club, and readarr trusts home-ca
+        # via the mounted home-ca-bundle ConfigMap (see values/apps/readarr.yaml).
+        #
+        # `rewrite name exact` rewrites the question, kubernetes plugin
+        # answers it from in-cluster DNS, then by default rewrites the
+        # response question back to api.bookinfo.club so the client sees
+        # what it asked for.
+        rewrite name exact api.bookinfo.club bookinfo-tls.bookinfo.svc.cluster.local
+
         # Synthesize A records for any *.apps.home host → apps gateway.
         # `fallthrough` lets non-matching queries (AAAA, NS, etc.) continue
         # down the plugin chain so unrelated lookups aren't broken.
