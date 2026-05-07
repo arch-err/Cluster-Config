@@ -181,7 +181,7 @@ configMaps:
             - "03:00"
 
         prowlarr:
-          hostname: prowlarr.arr.svc.cluster.local
+          hostname: prowlarr.prowlarr.svc.cluster.local
           port: 9696
           protocol: http
           # api_key supplied by buildarr-secrets.yml (above).
@@ -209,7 +209,7 @@ configMaps:
                 definitions:
                   Readarr:
                     type: readarr
-                    prowlarr_url: http://prowlarr.arr.svc.cluster.local:9696
+                    prowlarr_url: http://prowlarr.prowlarr.svc.cluster.local:9696
                     base_url: http://readarr.arr.svc.cluster.local:8787
                     sync_level: full-sync
                     # api_key supplied by buildarr-secrets.yml.

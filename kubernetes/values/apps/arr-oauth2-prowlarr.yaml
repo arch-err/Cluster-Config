@@ -67,7 +67,7 @@ extraArgs:
   # Trust X-Forwarded-* from cilium gateway (which is the only ingress).
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — prowlarr in-cluster service.
-  - --upstream=http://prowlarr.arr.svc.cluster.local:9696
+  - --upstream=http://prowlarr.prowlarr.svc.cluster.local:9696
   # Cookie scoped to .infra.home (route lives on the infra gateway). No
   # cross-app SSO — readarr lives on .apps.home with its own OIDC client.
   - --cookie-domain=.infra.home

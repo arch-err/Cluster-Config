@@ -412,6 +412,25 @@ metadata:
     pod-security.kubernetes.io/warn: privileged
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+---
+# prowlarr namespace — privileged PSS. Same rationale as qbittorrent: gluetun
+# sidecar holds NET_ADMIN to manage the wg interface, which baseline rejects.
+# Prowlarr's outbound indexer scrapes leak the user's home IP otherwise (verified
+# 85.24.223.140 / Bahnhof SE pre-fix). VPN'd egress + FIREWALL=on killswitch
+# means a tunnel failure fails closed (no leak). arr-oauth2-prowlarr lives in
+# this ns too so the OIDC-client Secret rendered by the platform chart's
+# oidc-bootstrap is reachable in-namespace (and HTTPRoute backendRef stays
+# same-ns, no ReferenceGrant needed).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prowlarr
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 {{- $kadaluCommon := dict "fstype" "xfs" "hostvol" "replica2" "pvtype" "subvol" "single_pv_per_pool" "False" "type" "Replica2" -}}
 {{- range $vol := list (dict "name" "media-downloads" "size" (.Values.extras.arr.downloadsSize | default "200Gi") "subvol" "subvol/ar/dl/media-downloads") (dict "name" "media-library" "size" (.Values.extras.arr.librarySize | default "1500Gi") "subvol" "subvol/ar/lb/media-library") }}
 {{- range $ns := list "qbittorrent" "arr" }}

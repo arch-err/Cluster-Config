@@ -307,7 +307,12 @@ components:
   # placeholders — gluetun crashloops dormant until user populates it.
   # ──────────────────────────────────────────────────────────────────────────
   - name: prowlarr
-    namespace: arr
+    # prowlarr lives in its OWN privileged ns (extras renders it). Same pattern
+    # as qbittorrent: gluetun sidecar (Mullvad WireGuard) owns the netns and
+    # adds NET_ADMIN, which baseline rejects. Pre-fix prowlarr leaked the home
+    # IP (Bahnhof/SE) to indexer sites. arr-oauth2-prowlarr moves with it so
+    # the OIDC-client Secret + HTTPRoute backendRef stay same-ns.
+    namespace: prowlarr
     chart:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
@@ -428,7 +433,10 @@ components:
   # routes via `route.service` indirection (prowlarr→oauth2-prowlarr, etc.).
   # ──────────────────────────────────────────────────────────────────────────
   - name: arr-oauth2-prowlarr
-    namespace: arr
+    # Lives alongside prowlarr in the privileged `prowlarr` ns so the
+    # `prowlarr-oidc-client` Secret rendered by the oidc-bootstrap is
+    # reachable + the HTTPRoute backendRef points at the in-ns Service.
+    namespace: prowlarr
     chart:
       repo: https://oauth2-proxy.github.io/manifests
       name: oauth2-proxy
