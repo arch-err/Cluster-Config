@@ -52,6 +52,14 @@ controllers:
           # Mirror qbittorrent's tolerance — health check pings public IP via
           # tunnel; 30s initial gives wg handshake room.
           HEALTH_VPN_DURATION_INITIAL: "30s"
+          # KEEP the pod's CoreDNS resolver (10.96.0.10) alongside gluetun's
+          # built-in DoT resolver. Without this gluetun overwrites resolv.conf
+          # with 127.0.0.1 only — fine for qbit (no cluster DNS needed), but
+          # prowlarr must resolve readarr.arr.svc.cluster.local for the
+          # downstream-app link via buildarr. With keep, both 127.0.0.1
+          # (gluetun → public DoT, used for indexer hostnames) AND the pod's
+          # cluster DNS are listed; resolver tries in order.
+          DNS_KEEP_NAMESERVER: "on"
         envFrom:
           - secretRef:
               name: mullvad-wireguard
