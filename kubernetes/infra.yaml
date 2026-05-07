@@ -60,6 +60,12 @@ components:
       service: argocd-server
       port: 80
       gateway: infra
+      # argocd CLI uses gRPC-web (POST /<svc>.<Service>/<Method>); Cilium's
+      # HTTPRoute returns 404 on those paths even though the web UI's REST
+      # /api/* works. A sibling GRPCRoute (emitted by the platform template
+      # when `grpc: true`) catches all gRPC traffic and routes it to the same
+      # argocd-server backend, unblocking `argocd login --sso --grpc-web`.
+      grpc: true
       dashboard:
         enabled: true
         group: GitOps
