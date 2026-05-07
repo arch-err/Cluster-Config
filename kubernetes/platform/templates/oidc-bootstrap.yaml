@@ -293,7 +293,10 @@ data:
     #    a client unrestricted, leave `groupRestriction.allowedGroups` empty
     #    in the chart values — that's the single source of truth.
     echo "[oidc-bootstrap] reconciling allowed-user-groups → ${ALLOWED_GROUPS}"
-    grp_code=$(api GET "/api/user-groups?pagination[limit]=200")
+    # NB: curl chokes on bare `[` in the URL (range syntax). Skip pagination
+    # params — pocket-id's default page size is plenty for our handful of
+    # groups, and we resolve names locally with jq.
+    grp_code=$(api GET "/api/user-groups")
     if [ "$grp_code" != "200" ]; then
       echo "[oidc-bootstrap] GET /api/user-groups failed (${grp_code}):" >&2
       cat /tmp/resp.json >&2 || true
