@@ -167,7 +167,7 @@ configMaps:
 
             # Audiobook-friendly default profile. Readarr 'quality' values
             # reference codec/format pseudo-qualities. Audiobook-relevant
-            # ones are MP3-320, FLAC, M4B; we let any match and prefer
+            # ones are MP3, FLAC, M4B; we let any match and prefer
             # FLAC > M4B > MP3. Users who want strict audiobooks-only can
             # clone + narrow this.
             quality_profiles:
@@ -214,6 +214,16 @@ configMaps:
             # PVC-backed kadalu subvol shared with audiobookshelf-v2 (same
             # gluster path subvol/ar/lb/media-library, mounted RWX). Books
             # imported here appear automatically in ABS-v2 once it scans.
-            root_folders:
-              - name: Library
-                path: /library
+            #
+            # Readarr requires defaultQualityProfileId + defaultMetadataProfileId
+            # >0 on every root folder. Configarr's `root_folders` schema for
+            # readarr currently doesn't expose those (validated 2026-05-07: errors
+            # "Default Metadata Profile Id must be greater than 0"). The folder
+            # was bootstrapped via direct readarr API on 2026-05-07. Block kept
+            # below as documentation; remove or extend if configarr ships
+            # readarr-aware root-folder support upstream.
+            # root_folders:
+            #   - name: Library
+            #     path: /library
+            #     default_quality_profile: AudiobookDefault
+            #     default_metadata_profile: Standard
