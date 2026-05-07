@@ -59,6 +59,23 @@ spec:
       kind: StatefulSet
       jsonPointers:
         - /spec/updateStrategy/rollingUpdate/maxUnavailable
+    # Ignore fields owned by k8s server defaulters (kube-controller-manager,
+    # kubelet, cilium-operator-generic, etc.) — argocd otherwise flags them
+    # as OutOfSync because helm-rendered manifests don't include defaults
+    # the apiserver fills in (e.g. StatefulSet volumes:null vs server-set
+    # default empty array). Restricts argocd's diff to fields argocd itself
+    # owns. Verified 2026-05-07 against pocket-id sts, paperless-ngx-postgresql,
+    # immich-server: managers in play are kube-controller-manager,
+    # kubelet (pods), cilium-operator-generic (HTTPRoute), kubectl-rollout
+    # (post-helm-values restart pattern). Fixes pocket-id phantom OutOfSync
+    # after the maxUnavailable fix wasn't enough.
+    - group: "*"
+      kind: "*"
+      managedFieldsManagers:
+        - kube-controller-manager
+        - kubelet
+        - cilium-operator-generic
+        - kubectl-rollout
 
   syncPolicy:
     automated:
