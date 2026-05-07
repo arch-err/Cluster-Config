@@ -8,6 +8,52 @@
 # extras.arr (a third static PV in audiobookshelf-v2 ns pointing at the same
 # kadalu subvol path `subvol/ar/lb/media-library`).
 #
+# ─────────────────────────────────────────────────────────────────────────────
+# PODCASTS LIBRARY — manual UI setup (source-of-truth doc for re-creation)
+# ─────────────────────────────────────────────────────────────────────────────
+# Podcasts live at `/library/_podcasts/` — a SUBDIR of the same shared
+# media-library kadalu volume mounted at /library (see media-library mount
+# above). Leading underscore makes it sort to the top in the UI and makes
+# readarr ignore it (readarr scans for book-shaped folders only).
+#
+# WHY a subdir, not a separate PVC / mount:
+#   - The chart `christianhuth/audiobookshelf` v2.2.0 has no `extraVolumes`
+#     hook, so a second mount would require migrating to bjw-s app-template
+#     (out of scope, separate sweep).
+#   - Storage isolation between books and podcasts is theoretical when the
+#     backing PV is 1500Gi shared replica2 — both read/write the same volume
+#     either way. A subdir is the pragmatic equivalent.
+#   - Pre-created in-pod with: mkdir -p /library/_podcasts &&
+#     chown -R 1000:1000 /library/_podcasts (ABS runs as uid 1000 = node).
+#
+# MANUAL UI CHECKLIST (do once, after this commit lands; re-do if rebuilt):
+#   1. Settings → Libraries → New
+#        Name: `Podcasts`
+#        Media type: `Podcasts`
+#        Folder path: `/library/_podcasts`
+#   2. Open the new lib's settings → set
+#        `Max Episodes To Keep` = `15`
+#        (caps disk; oldest episodes auto-pruned past this).
+#   3. Settings → Schedules
+#        `Check for new podcast episodes every` = `6h` (cron `0 */6 * * *`).
+#   4. Settings → Notifications → New webhook
+#        URL: `https://ntfy.apps.home/podcasts`
+#        Method: POST
+#        Content-Type: `text/plain`
+#        Trigger event: `onPodcastEpisodeDownloaded`
+#        Body template (per ABS notifier syntax — episodeDownload.* fields):
+#          `New episode: {{episodeDownload.episodeDisplayTitle}} — {{episodeDownload.podcastTitle}}`
+#        (If template variables render as literals, swap to the names ABS
+#        shows in the "Available Variables" sidebar of the notifier dialog.)
+#   5. Settings → Item Metadata
+#        Search source: leave default `iTunes`. Flip to `Podcast Index` if
+#        niche shows aren't found.
+#
+# Notifier topic `podcasts` on the in-cluster ntfy is auth-free POST per
+# `kubernetes/values/apps/ntfy.yaml` (default read-write topic). Smoke-tested
+# 200 OK on the commit that introduced this block.
+# ─────────────────────────────────────────────────────────────────────────────
+#
 # OIDC bootstrap is FULLY DECLARATIVE here:
 #   1. Platform `oidc:` block registers the pocket-id client → emits
 #      `audiobookshelf-v2-oidc-client` Secret in this ns.
