@@ -952,6 +952,225 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* BOOKINFO — namespace + postgres + nginx-tls cert + nginx config             */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/*                                                                             */}}
+{{/* Self-hosted readarr metadata mirror (blampe/rreading-glasses).              */}}
+{{/* See kubernetes/values/infra/bookinfo.yaml for the full architecture writeup. */}}
+{{/*                                                                             */}}
+{{/* Renders, in this ns:                                                        */}}
+{{/*   - Namespace `bookinfo` (default restricted PSS — image is non-root-clean) */}}
+{{/*   - Postgres PVC + Service + Deployment (rreading-glasses cache backend)    */}}
+{{/*   - cert-manager Certificate `bookinfo-api-tls` with CN/SAN api.bookinfo.club*/}}
+{{/*     issued by ClusterIssuer `home-ca` — rendered into Secret of same name   */}}
+{{/*   - ConfigMap `bookinfo-nginx` with the nginx server block that terminates  */}}
+{{/*     TLS for api.bookinfo.club and proxies to localhost:8788                 */}}
+{{/*                                                                             */}}
+{{/* Gated on `.Values.extras.bookinfo` and `.Values.gateway.infra` (only render */}}
+{{/* in the infra-side platform render — bookinfo lives on infra.yaml).          */}}
+{{- if and .Values.extras.bookinfo .Values.gateway.infra }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bookinfo
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Postgres data PVC — rreading-glasses cache; small (~few GB max).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bookinfo-postgres
+  namespace: bookinfo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.extras.bookinfo.postgresSize | default "5Gi" }}
+---
+# Postgres Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookinfo-postgres
+  namespace: bookinfo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    app: bookinfo-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+# Postgres Deployment — bog-standard official postgres:17 (matches upstream
+# rreading-glasses compose file).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookinfo-postgres
+  namespace: bookinfo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bookinfo-postgres
+  template:
+    metadata:
+      labels:
+        app: bookinfo-postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+      initContainers:
+        # kadalu PVCs initialize as root-owned. Postgres needs uid 999 to own
+        # the data dir + dir mode 0700. fsGroup alone isn't sufficient on
+        # kadalu volumes (mirrors the immich-postgres pattern).
+        - name: chown-pgdata
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /var/lib/postgresql/data/pgdata
+              chown -R 999:999 /var/lib/postgresql/data
+              chmod 700 /var/lib/postgresql/data/pgdata
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:17
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: bookinfo
+            - name: POSTGRES_DB
+              value: bookinfo
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bookinfo-db
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "bookinfo", "-d", "bookinfo"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "bookinfo", "-d", "bookinfo"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: bookinfo-postgres
+---
+# cert-manager Certificate — issued by home-ca ClusterIssuer with SAN
+# `api.bookinfo.club` so the nginx-tls sidecar in the bookinfo pod can
+# present a valid cert to readarr's hardcoded outbound `https://api.bookinfo.club/`.
+# CoreDNS rewrites that hostname to bookinfo-tls.bookinfo.svc.cluster.local
+# (see Corefile below). Readarr trusts home-ca via mounted home-ca-bundle.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bookinfo-api-tls
+  namespace: bookinfo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  secretName: bookinfo-api-tls
+  duration: 8760h
+  renewBefore: 720h
+  commonName: api.bookinfo.club
+  dnsNames:
+    - api.bookinfo.club
+    # Belt-and-suspenders: also valid for the in-cluster service FQDN, in
+    # case some future caller uses the canonical svc DNS name directly.
+    - bookinfo-tls.bookinfo.svc.cluster.local
+    - bookinfo-tls.bookinfo.svc
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer
+---
+# nginx config for the bookinfo-tls sidecar. Listens on :8443 with the
+# home-ca-issued cert and proxies to localhost:8788 (rreading-glasses).
+# readOnlyRootFilesystem on the sidecar requires emptyDirs at /var/cache/nginx
+# and /var/run (provided by the values file's persistence: blocks).
+#
+# `proxy_set_header Host api.bookinfo.club` overrides the chart-default Host
+# header so rreading-glasses (which inspects the inbound Host on some routes)
+# sees what readarr would have sent natively.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bookinfo-nginx
+  namespace: bookinfo
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+data:
+  default.conf: |
+    server {
+        listen 8443 ssl;
+        server_name api.bookinfo.club;
+
+        ssl_certificate     /etc/nginx/tls/tls.crt;
+        ssl_certificate_key /etc/nginx/tls/tls.key;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+
+        # Long timeouts — readarr sometimes does deep author lookups.
+        proxy_connect_timeout 30s;
+        proxy_send_timeout    120s;
+        proxy_read_timeout    120s;
+
+        # Default body size cap (1m) is too small for some scraped responses.
+        client_max_body_size 16m;
+
+        location / {
+            proxy_pass http://127.0.0.1:8788;
+            proxy_set_header Host              api.bookinfo.club;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* COREDNS — *.apps.home / *.infra.home in-cluster resolution                  */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/*                                                                             */}}

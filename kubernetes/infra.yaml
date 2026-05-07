@@ -184,6 +184,38 @@ components:
       # secretName defaults to "grafana-oidc-client"
 
   # ════════════════════════════════════════════════════════════════════════════
+  # BOOKINFO — self-hosted readarr metadata mirror (replaces dead api.bookinfo.club)
+  # ════════════════════════════════════════════════════════════════════════════
+  # Image: docker.io/blampe/rreading-glasses (Goodreads variant). Two services
+  # in one pod: rreading-glasses on :8788 (HTTP) + nginx-tls sidecar on :8443
+  # presenting a home-ca-issued cert with SAN=api.bookinfo.club. CoreDNS
+  # rewrites that hostname to the in-cluster ClusterIP svc so readarr's
+  # hardcoded outbound URL Just Works without any UI configuration. The
+  # bookinfo.infra.home route below is for human use (homepage card + API
+  # debug); readarr's path is via the rewrite + home-ca trust, NOT this route.
+  - name: bookinfo
+    namespace: bookinfo
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + postgres + cert + nginx cm) settle
+    route:
+      hostname: bookinfo.infra.home
+      gateway: infra
+      # bjw-s/app-template suffixes service names when multiple service blocks
+      # exist (`bookinfo-main` for HTTP, `bookinfo-tls` for the api.bookinfo.club
+      # HTTPS ingress consumed via CoreDNS rewrite). HTTPRoute hits the HTTP one.
+      service: bookinfo-main
+      port: 80
+      dashboard:
+        name: BookInfo
+        group: Tools
+        icon: readarr.svg
+        description: readarr metadata mirror (rreading-glasses)
+        app: bookinfo
+
+  # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -245,6 +277,11 @@ extras:
   kadalu: true
   monitoring: true
   hubbleAuth: true
+  # bookinfo — ns + postgres + cert-manager Certificate (SAN=api.bookinfo.club,
+  # ClusterIssuer=home-ca) + nginx-tls ConfigMap. See platform/templates/extras.yaml
+  # `BOOKINFO` block + values/infra/bookinfo.yaml for the architecture writeup.
+  bookinfo:
+    postgresSize: 5Gi
 
 # Gateway configuration
 gateway:
