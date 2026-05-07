@@ -196,24 +196,22 @@ configMaps:
                   # definitionName. Names match the existing prowlarr-bootstrap
                   # CronJob's declarations 1:1 so the upsert is a no-op on
                   # already-created indexers.
-                  1337x:
-                    type: 1337x
-                    enable: true
-                    sync_profile: Standard
-                    fields:
-                      baseUrl: https://1337x.to/
+                  # 1337x + eBookBay are CloudFlare/cert-blocked from the
+                  # cluster's egress (verified: 1337x returns CF challenge,
+                  # ebb.la returns curl exit-60 cert error). Prowlarr's
+                  # create_indexer always runs a connection test; buildarr's
+                  # bundled prowlarr API client doesn't pass `forceSave=true`,
+                  # so creating these declaratively fails 400 here even though
+                  # they'd work after manual UI add (Prowlarr persists+disables).
+                  # Until cluster gets a FlareSolverr indexer-proxy or buildarr
+                  # gains forceSave support, leave these to the UI. Tracking
+                  # comment kept here for the next agent.
                   TorrentGalaxy:
                     type: torrentgalaxyclone
                     enable: true
                     sync_profile: Standard
                     fields:
                       baseUrl: https://torrentgalaxy.one/
-                  eBookBay:
-                    type: ebookbay
-                    enable: true
-                    sync_profile: Standard
-                    fields:
-                      baseUrl: https://ebb.la/
             apps:
               applications:
                 # Same caution: don't delete unmanaged apps. Sonarr/Radarr/Lidarr
