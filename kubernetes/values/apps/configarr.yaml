@@ -209,3 +209,11 @@ configMaps:
               update_password: true
               delete_unmanaged:
                 enabled: false
+
+            # Root folder = where Readarr lands imports. /library is the
+            # PVC-backed kadalu subvol shared with audiobookshelf-v2 (same
+            # gluster path subvol/ar/lb/media-library, mounted RWX). Books
+            # imported here appear automatically in ABS-v2 once it scans.
+            root_folders:
+              - name: Library
+                path: /library
