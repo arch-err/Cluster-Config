@@ -139,7 +139,22 @@ controllers:
 # fsGroup for the chart-managed PVCs so uid 1000 can write into them on
 # first create. media-library is a static PV (RWX); its mount-time perms
 # are governed by the kadalu CSI subvol bits, already 0777 (verified live).
+#
+# hostAliases — workaround for Alpine/musl getaddrinfo + CoreDNS quirk:
+# CoreDNS's `template ANY A apps.home` synthesizes auth.apps.home →
+# 10.10.10.200 but `fallthrough` lets the `kubernetes` plugin emit a
+# trailing NXDOMAIN; musl's getaddrinfo (which Node 20 uses for both
+# `dns.lookup` and `undici` fetch) sees the NXDOMAIN and ignores the
+# answer. Result: ABS's Node `fetch()` calls to https://auth.apps.home
+# fail ENOTFOUND despite glibc-based apps (paperless/python) succeeding.
+# Hardcoding /etc/hosts via hostAliases sidesteps the resolver entirely.
+# 10.10.10.200 = apps gateway VIP, what the CoreDNS template would have
+# returned anyway.
 defaultPodOptions:
+  hostAliases:
+    - ip: 10.10.10.200
+      hostnames:
+        - auth.apps.home
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
