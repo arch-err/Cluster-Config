@@ -1,39 +1,65 @@
-# audiobookshelf-v2 — chart: christianhuth/audiobookshelf v2.2.0
-# https://artifacthub.io/packages/helm/christianhuth/audiobookshelf
-#
-# Parallel green/blue install alongside the existing `audiobookshelf` release.
-# This release MOUNTS the shared kadalu media-library volume (the same one
-# qbittorrent / readarr write to) — so ABS sees what the arr stack downloads
-# without manual copy. Cross-ns sharing uses the twin-PV pattern from
-# extras.arr (a third static PV in audiobookshelf-v2 ns pointing at the same
-# kadalu subvol path `subvol/ar/lb/media-library`).
+# audiobookshelf-v2 — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Audiobooks + podcasts. Self-hosted. Upstream: https://www.audiobookshelf.org/
+# Image: docker.io/advplyr/audiobookshelf — runs as uid 1000 (`node`),
+# restricted-PSS clean (verified live: runAsNonRoot, drop ALL caps, RuntimeDefault).
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# PODCASTS LIBRARY — manual UI setup (source-of-truth doc for re-creation)
+# CHART MIGRATION (2026-05-07): christianhuth/audiobookshelf v2.2.0 → bjw-s
+# /app-template v4.6.2.
+#
+# WHY: christianhuth's chart silently ignores `extraEnv` / `extraVolumes` —
+# zero references in templates despite advertising the keys in values.yaml.
+# That blocked mounting `home-ca-bundle` (so OIDC discovery against
+# https://auth.apps.home failed cert verification) AND broke even the
+# fallback `NODE_TLS_REJECT_UNAUTHORIZED=0` hack. bjw-s/app-template's
+# generic wrapper exposes everything we need (env, persistence types, raw
+# container securityContext) without chart middleware.
+#
+# CONFIG/METADATA/BACKUP PVCS WIPED on migration (user-authorized). The
+# previous chart's PVCs (`audiobookshelf-v2-config`, `-metadata`, `-backup`)
+# were deleted as part of the cutover; this chart provisions fresh ones via
+# the standard persistence: blocks below. The shared `media-library` PVC
+# (RWX kadalu, bound to static PV `audiobookshelf-v2-media-library` — same
+# subvol as readarr/qbittorrent) is REUSED via existingClaim — books +
+# podcasts data survive intact.
+#
+# WHAT THE USER LOSES + MUST RE-DO IN UI AFTER THIS LANDS:
+#   - Admin user (gone with /config sqlite). Open the UI → create root user.
+#   - OIDC settings — paste from `audiobookshelf-v2-oidc-client` Secret in
+#     this ns:
+#       Issuer URL  = stringData/issuer_url   (https://auth.apps.home/.well-known/openid-configuration)
+#       Client ID   = stringData/client_id    (audiobookshelf-v2)
+#       Client Sec. = stringData/client_secret
+#     Auto-discovery NOW WORKS (NODE_EXTRA_CA_CERTS resolves the home-ca
+#     chain). Toggle "Match existing users by email", scopes
+#     `openid profile email groups`.
+#   - Libraries:
+#       Books     → /library/library
+#       Podcasts  → /library/_podcasts (see PODCASTS section below)
+#   - ntfy webhook for podcast episodes (see step 4 of PODCASTS checklist).
+#
+# Once the user has done the above, none of the prior automated OIDC seed
+# Job behaviour is needed — the seed Job lives in extras and is parked /
+# disabled separately (out of scope for this migration).
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# PODCASTS LIBRARY — manual UI setup (re-doc after migration)
 # ─────────────────────────────────────────────────────────────────────────────
 # Podcasts live at `/library/_podcasts/` — a SUBDIR of the same shared
-# media-library kadalu volume mounted at /library (see media-library mount
-# above). Leading underscore makes it sort to the top in the UI and makes
-# readarr ignore it (readarr scans for book-shaped folders only).
+# media-library kadalu volume mounted at /library. Leading underscore makes
+# it sort to the top in the UI and makes readarr ignore it. **No separate
+# `/podcasts` mount** — by design, single shared 1500Gi kadalu subvol w/
+# subdir convention; storage isolation between books and podcasts is
+# theoretical when both are on the same backing PV.
 #
-# WHY a subdir, not a separate PVC / mount:
-#   - The chart `christianhuth/audiobookshelf` v2.2.0 has no `extraVolumes`
-#     hook, so a second mount would require migrating to bjw-s app-template
-#     (out of scope, separate sweep).
-#   - Storage isolation between books and podcasts is theoretical when the
-#     backing PV is 1500Gi shared replica2 — both read/write the same volume
-#     either way. A subdir is the pragmatic equivalent.
-#   - Pre-created in-pod with: mkdir -p /library/_podcasts &&
-#     chown -R 1000:1000 /library/_podcasts (ABS runs as uid 1000 = node).
-#
-# MANUAL UI CHECKLIST (do once, after this commit lands; re-do if rebuilt):
+# UI CHECKLIST (do once after this commit lands; re-do if rebuilt):
 #   1. Settings → Libraries → New
 #        Name: `Podcasts`
 #        Media type: `Podcasts`
 #        Folder path: `/library/_podcasts`
 #   2. Open the new lib's settings → set
 #        `Max Episodes To Keep` = `15`
-#        (caps disk; oldest episodes auto-pruned past this).
 #   3. Settings → Schedules
 #        `Check for new podcast episodes every` = `6h` (cron `0 */6 * * *`).
 #   4. Settings → Notifications → New webhook
@@ -41,96 +67,154 @@
 #        Method: POST
 #        Content-Type: `text/plain`
 #        Trigger event: `onPodcastEpisodeDownloaded`
-#        Body template (per ABS notifier syntax — episodeDownload.* fields):
+#        Body template:
 #          `New episode: {{episodeDownload.episodeDisplayTitle}} — {{episodeDownload.podcastTitle}}`
-#        (If template variables render as literals, swap to the names ABS
-#        shows in the "Available Variables" sidebar of the notifier dialog.)
 #   5. Settings → Item Metadata
 #        Search source: leave default `iTunes`. Flip to `Podcast Index` if
 #        niche shows aren't found.
-#
-# Notifier topic `podcasts` on the in-cluster ntfy is auth-free POST per
-# `kubernetes/values/apps/ntfy.yaml` (default read-write topic). Smoke-tested
-# 200 OK on the commit that introduced this block.
 # ─────────────────────────────────────────────────────────────────────────────
-#
-# OIDC bootstrap is FULLY DECLARATIVE here:
-#   1. Platform `oidc:` block registers the pocket-id client → emits
-#      `audiobookshelf-v2-oidc-client` Secret in this ns.
-#   2. The audiobookshelf-v2-oidc-seed Job (extras block) waits for ABS to be
-#      up, hits POST /api/init to create the admin user (creds from a
-#      SopsSecret), POSTs /login for a Bearer token, then PATCHes
-#      /api/auth-settings with the OIDC fields. Idempotent — /init returns
-#      500 if root user exists, in which case the Job just re-applies
-#      auth-settings.
 
-# Image: chart default is 2.34.0; pin for reproducibility
-image:
-  tag: "2.34.0"
-
-# OIDC TLS workaround — pocket-id at https://auth.apps.home presents a cert
-# signed by home-ca, which trust-manager broadcasts to every ns as the
-# `home-ca-bundle` ConfigMap. Normally apps mount that CM + set NODE_EXTRA_
-# CA_CERTS to the file path. The christianhuth/audiobookshelf chart hard-
-# codes its volumeMounts (no extraVolumes hook), so we can't mount the CM.
-# Falling back to disabling TLS verification globally for ABS — accepts ANY
-# cert from ANY upstream (incl. external podcast RSS feeds). Acceptable in
-# this homelab (single-user, internal-only). PROPER fix = migrate ABS-v2 to
-# bjw-s/app-template chart so we can mount home-ca-bundle properly.
-extraEnv:
-  - name: NODE_TLS_REJECT_UNAUTHORIZED
-    value: "0"
-
-# Disable chart's built-in ingress + route — we use the platform chart's HTTPRoute
-ingress:
-  enabled: false
-route:
+controllers:
   main:
-    enabled: false
+    # sqlite in /config on kadalu.replica2 — Recreate avoids old/new pod
+    # racing on the same db file during rollout (mirrors grafana fix).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/advplyr/audiobookshelf
+          tag: "2.34.0"
+        env:
+          # ABS / Node native CA injection. With trust-manager broadcasting
+          # `home-ca-bundle` into every ns and the configMap mounted at
+          # /etc/ssl/home-ca below, Node's TLS stack reads ca.crt at startup
+          # and trusts pocket-id at https://auth.apps.home for OIDC
+          # discovery + token + userinfo. Replaces the old
+          # NODE_TLS_REJECT_UNAUTHORIZED=0 hack (which the previous chart
+          # silently dropped anyway).
+          NODE_EXTRA_CA_CERTS: /etc/ssl/home-ca/ca.crt
+          # ABS listens on :8080.
+          PORT: "8080"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted-PSS clean. The advplyr/audiobookshelf:2.34.0 image runs
+        # as uid 1000 (`node`) by default. Lock down explicitly.
+        # readOnlyRootFilesystem=true matches the previous chart's posture
+        # (verified live); ABS only writes to /config /metadata /backups
+        # /library /tmp — all explicit volumes below.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
 
-audiobookshelf:
+# fsGroup for the chart-managed PVCs so uid 1000 can write into them on
+# first create. media-library is a static PV (RWX); its mount-time perms
+# are governed by the kadalu CSI subvol bits, already 0777 (verified live).
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        targetPort: 8080
+
+persistence:
+  # ABS sqlite + ffmpeg/ffprobe binaries live here. Small.
   config:
-    # NOTE: ABS stores its sqlite DB in /config. Cluster default SC is
-    # kadalu.replica2 (RWX-capable, replica2). Grafana hit a sqlite split-brain
-    # incident on replica2; mitigation there was the chart's Recreate strategy.
-    # This chart's deployment defaults to RollingUpdate — KEEP an eye on the
-    # config DB for similar drift; if it bites, switch to a single-replica SC
-    # (open thread #4 in state/last-session.md).
-    persistence:
-      enabled: true
-      resources:
-        requests:
-          storage: 1Gi
-  library:
-    # Mount the SHARED kadalu media-library volume here. The chart's
-    # `existingClaim` skips PVC creation and just mounts the named PVC at
-    # /library. The PVC `media-library` is provisioned by extras.audiobookshelf-v2
-    # as a static twin PV pointing at the same kadalu subvol the arr stack uses.
-    persistence:
-      enabled: true
-      existingClaim: media-library
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+  # Cover art, RSS caches, log files, transcoder streams. Grew slowly on
+  # the previous install — 5Gi is comfortable.
   metadata:
-    persistence:
-      enabled: true
-      resources:
-        requests:
-          storage: 5Gi
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /metadata
+  # ABS in-app DB backups (separate from k8s-level backups, which are not a
+  # thing yet for this cluster). 5Gi keeps ~weeks of zipped sqlite dumps.
   backup:
-    persistence:
-      enabled: true
-      resources:
-        requests:
-          storage: 5Gi
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    memory: 1Gi
-
-# Recreate strategy — sqlite in /config on kadalu.replica2 can't safely be
-# accessed by an old + new pod simultaneously during rollout. Mirrors the
-# grafana fix from the prior session.
-deploymentStrategy:
-  type: Recreate
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /backups
+  # Shared kadalu media-library — static RWX PV bound to the existing
+  # `media-library` PVC in this ns (provisioned by extras.audiobookshelf-v2
+  # block; subvol/ar/lb/media-library on hostvol replica2 — SAME backing
+  # data as readarr/qbittorrent in arr ns). DO NOT touch this PVC during
+  # chart migration; existingClaim re-uses it as-is.
+  library:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-library
+    advancedMounts:
+      main:
+        app:
+          - path: /library
+  # readOnlyRootFilesystem=true → ABS needs a writable /tmp for transcoder
+  # work files + scratch.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
+  # home-ca trust bundle, broadcast by trust-manager into every ns as the
+  # `home-ca-bundle` ConfigMap (key: ca.crt — verified live). Read-only
+  # mount at /etc/ssl/home-ca; NODE_EXTRA_CA_CERTS env above points at the
+  # ca.crt file so Node's TLS stack picks it up at startup. This is what
+  # makes OIDC discovery against https://auth.apps.home succeed without
+  # disabling cert verification.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true

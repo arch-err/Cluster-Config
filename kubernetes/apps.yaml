@@ -81,9 +81,16 @@ components:
   - name: audiobookshelf-v2
     namespace: audiobookshelf-v2
     chart:
-      repo: https://charts.christianhuth.de
-      name: audiobookshelf
-      version: 2.2.0
+      # Migrated 2026-05-07 from christianhuth/audiobookshelf v2.2.0 →
+      # bjw-s/app-template v4.6.2. christianhuth's chart silently ignored
+      # extraEnv/extraVolumes — couldn't mount home-ca-bundle for OIDC
+      # discovery, even the NODE_TLS_REJECT_UNAUTHORIZED hack didn't apply.
+      # app-template exposes env + persistence + container securityContext
+      # directly. config/metadata/backup PVCs were wiped on cutover (user
+      # authorized); media-library RWX PVC retained via existingClaim.
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
     syncWave: "3"  # after extras (ns + media-library twin PV) settle
     route:
       hostname: audiobookshelf-v2.apps.home
