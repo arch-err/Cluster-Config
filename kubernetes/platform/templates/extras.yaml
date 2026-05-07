@@ -1057,6 +1057,32 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+        # POSTGRES_HOST_AUTH_METHOD only takes effect on initdb. If the PVC
+        # already has a pgdata that was init'd without it (older snapshot of
+        # this manifest), pg_hba.conf has only the localhost rules and
+        # rejects connections from rreading-glasses with SQLSTATE 28000.
+        # Idempotently ensure the universal host rule is present on every
+        # pod start — runs after chown so the file exists/is writable.
+        - name: ensure-pg-hba
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              hba=/var/lib/postgresql/data/pgdata/pg_hba.conf
+              [ -f "$hba" ] || { echo "pg_hba.conf not yet — fresh init, postgres will create it"; exit 0; }
+              if grep -q "^host all all all scram-sha-256" "$hba"; then
+                echo "host rule already present"
+              else
+                echo "host all all all scram-sha-256" >> "$hba"
+                echo "host rule appended"
+              fi
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
       containers:
         - name: postgres
           image: postgres:17
@@ -1075,6 +1101,14 @@ spec:
               value: bookinfo
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+            # Default postgres image's pg_hba.conf only allows localhost
+            # connections + unix sockets. Without this env, the initial
+            # config has no `host all all all <method>` line and pgx from
+            # the rreading-glasses pod hits "no pg_hba.conf entry for host"
+            # SQLSTATE 28000 errors. scram-sha-256 is the postgres-17
+            # default password method (same posture as immich-postgres).
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: scram-sha-256
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
