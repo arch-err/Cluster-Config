@@ -344,12 +344,13 @@ components:
         description: Audiobook manager (Sonarr-for-books)
         app: readarr
 
-  # configarr — declarative profile / custom-format / download-client manager.
-  # CronJob (every 30m) reading /app/config/config.yml + secrets.yml.
-  # Scope this round: readarr only (audiobook quality profile + qBit download
-  # client). Prowlarr is NOT a configarr-managed app type — see
-  # prowlarr-bootstrap below for its declarative shape. No HTTPRoute (CronJob;
-  # no UI).
+  # Declarative *arr config split across two tools (different surface areas):
+  #   - configarr → Readarr quality profiles + qBit download client (CronJob)
+  #   - buildarr  → Prowlarr indexers + downstream-app (Readarr) link (daemon)
+  # No bash-cronjob anymore — the curl+jq+apk-add prowlarr-bootstrap CronJob
+  # was replaced by buildarr (apk-add-as-non-root broke under restricted PSS).
+  # Configarr has no prowlarr block; buildarr has no readarr plugin — they're
+  # complementary, not redundant.
   - name: configarr
     namespace: arr
     chart:
@@ -358,12 +359,12 @@ components:
       version: 4.6.2
     syncWave: "4"  # after extras (ns) + arr-api-keys SopsSecret + readarr
 
-  # prowlarr-bootstrap — declarative indexer + downstream-app (Readarr) sync.
-  # CronJob (every 30m) reading /scripts/bootstrap.sh; idempotent upserts via
-  # the Prowlarr API. Configarr can't manage Prowlarr's own indexers/apps;
-  # this fills that gap. No HTTPRoute (CronJob; no UI). Add Sonarr/Radarr
-  # entries to the script once those *arrs ship.
-  - name: prowlarr-bootstrap
+  # buildarr — declarative Prowlarr indexer + downstream-app (Readarr) sync.
+  # Daemon mode (single Deployment): apply on startup + daily at 03:00. Force
+  # re-sync via `kubectl rollout restart deploy/buildarr` (or SIGHUP). No
+  # HTTPRoute (no UI). Add Sonarr/Radarr/Lidarr to the applications block
+  # in buildarr.yaml when those *arrs ship — buildarr has plugins for all three.
+  - name: buildarr
     namespace: arr
     chart:
       repo: https://bjw-s-labs.github.io/helm-charts
