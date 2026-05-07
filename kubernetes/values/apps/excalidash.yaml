@@ -95,12 +95,12 @@ controllers:
             drop:
               - ALL
 
+    # Pod runs as image-default (root) — both excalidash images expect root
+    # for entrypoint setup (chown /app/uploads, write /etc/nginx/nginx.conf).
+    # ns is baseline-labeled to allow this. Per-container drop-ALL caps +
+    # allowPrivilegeEscalation=false above keep the blast radius bounded.
     pod:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
 
