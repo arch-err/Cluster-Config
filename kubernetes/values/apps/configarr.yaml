@@ -16,6 +16,25 @@
 #
 # Auth: configarr only talks to in-cluster *arr APIs over HTTP. No cluster
 # RBAC needed; default ServiceAccount is fine.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# DISK POLICY (cluster-wide media volume `/library` = shared kadalu subvol,
+#              currently 1500Gi, expandable). Single shared PV, app-level
+#              quotas via host_config.media_management.minimum_free_space.
+#
+#   small media (no quota — files are MB-sized, retention handled elsewhere)
+#     - readarr (audiobooks + ebooks)
+#     - audiobookshelf podcasts (max-episodes-to-keep at lib level)
+#     - lidarr (music) — when it lands
+#
+#   large media (10Gi minimum-free-space — refuses imports below threshold)
+#     - sonarr (TV)   — when it lands
+#     - radarr (movies) — when it lands
+#
+# When sonarr/radarr land: flip their *Enabled toggles below, uncomment the
+# media_management block in each, and configarr enforces. Threshold is per
+# root folder; same /library means same quota effectively guards everything.
+# ─────────────────────────────────────────────────────────────────────────
 
 controllers:
   main:
@@ -227,3 +246,26 @@ configMaps:
             #     path: /library
             #     default_quality_profile: AudiobookDefault
             #     default_metadata_profile: Standard
+
+        # ─────────────────────────────────────────────────────────────────
+        # Sonarr/Radarr stubs — uncomment when those *arrs land in apps.yaml
+        # and flip the *Enabled toggle above. Both pin a 10Gi minimum-free-
+        # space rule on /library to protect smaller media (books, podcasts,
+        # music) from being crowded out by oversized rips. See DISK POLICY
+        # comment at top of file.
+        # ─────────────────────────────────────────────────────────────────
+        # sonarr:
+        #   shows:
+        #     base_url: http://sonarr.arr.svc.cluster.local:8989
+        #     api_key: !secret SONARR_APIKEY
+        #     host_config:
+        #       media_management:
+        #         minimum_free_space: 10240   # MiB → 10Gi
+        #
+        # radarr:
+        #   movies:
+        #     base_url: http://radarr.arr.svc.cluster.local:7878
+        #     api_key: !secret RADARR_APIKEY
+        #     host_config:
+        #       media_management:
+        #         minimum_free_space: 10240   # MiB → 10Gi
