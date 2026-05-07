@@ -3,10 +3,13 @@
 {{- $name := .name }}
 {{- $isApps := eq (.route.gateway | default "internal") "apps" }}
 {{- /* Compute whether this route should appear on the gethomepage dashboard.
-       - dashboard omitted (nil)  → default-show on apps gateway, default-hide on infra
+       - dashboard omitted (nil)  → default-SHOW on every gateway (apps + infra)
        - dashboard: false         → always hide
        - dashboard: true          → always show with auto-derived name/icon
-       - dashboard: { ... }       → show unless `enabled: false`; map fields override defaults */ -}}
+       - dashboard: { ... }       → show unless `enabled: false`; map fields override defaults
+       Each gateway's homepage filters via `gethomepage.dev/instance` so apps
+       homepage shows apps-gateway routes, infra homepage shows infra-gateway
+       routes — auto-discovery, no per-app opt-in. */ -}}
 {{- $dash := .route.dashboard }}
 {{- $dashKind := kindOf $dash }}
 {{- $show := false }}
@@ -18,7 +21,7 @@
   {{- if hasKey $dash "enabled" }}
     {{- $show = (index $dash "enabled") }}
   {{- else }}
-    {{- $show = $isApps }}
+    {{- $show = true }}
   {{- end }}
 {{- end }}
 {{- $dashName := "" }}

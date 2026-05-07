@@ -324,8 +324,6 @@ components:
       service: oauth2-prowlarr
       port: 80
       dashboard:
-        # Platform default-hides on infra gateway; opt in explicitly.
-        enabled: true
         group: Media
         icon: prowlarr.svg
         description: Indexer manager / proxy (admin)
