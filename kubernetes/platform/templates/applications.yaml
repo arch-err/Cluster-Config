@@ -51,6 +51,14 @@ spec:
       kind: ReferenceGrant
       jsonPointers:
         - /spec
+    # MaxUnavailableStatefulSet is alpha + disabled in talos default feature
+    # gates → apiserver silently drops the field, charts that set it (e.g.
+    # anza-labs/pocket-id) are perma-OutOfSync. Ignore until the gate goes
+    # beta/GA upstream.
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/updateStrategy/rollingUpdate/maxUnavailable
 
   syncPolicy:
     automated:
