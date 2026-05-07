@@ -47,8 +47,26 @@ Pocket-id authenticates that token via the `X-API-Key` request header.
 {{- $isPublic := $component.oidc.public | default false }}
 {{- $pkceEnabled := $component.oidc.pkceEnabled | default true }}
 {{- $logoutCallbackUrls := $component.oidc.logoutCallbackUrls | default (list) }}
+{{- /*
+  Group-restriction (optional). Two shapes accepted:
+    oidc.groupRestriction.allowedGroups: [administrators, apps_users]
+  …declares the allowlist by group `name` (NOT friendlyName, NOT UUID — the
+  bootstrap resolves names→UUIDs at apply time via GET /api/user-groups so
+  the repo stays UUID-free and survives pocket-id rebuilds).
+
+  Empty/omitted list ⇒ unrestricted (isGroupRestricted=false, allow-list cleared).
+  Non-empty list      ⇒ isGroupRestricted=true + PUT /allowed-user-groups.
+
+  This is the single source of truth: any out-of-band UI/API edits to a
+  client's group restriction will be reconciled away on the next Job run.
+  That's the point — declare here, don't pet by hand.
+*/}}
+{{- $allowedGroups := list }}
+{{- if and $component.oidc.groupRestriction $component.oidc.groupRestriction.allowedGroups }}
+{{- $allowedGroups = $component.oidc.groupRestriction.allowedGroups }}
+{{- end }}
 {{- /* hash inputs so the Job is recreated when the spec changes */}}
-{{- $specBlob := printf "%s|%s|%s|%v|%v|%s|%s" $app $appNs (join "," $callbackUrls) $isPublic $pkceEnabled (join "," $scopes) (join "," $logoutCallbackUrls) }}
+{{- $specBlob := printf "%s|%s|%s|%v|%v|%s|%s|%s" $app $appNs (join "," $callbackUrls) $isPublic $pkceEnabled (join "," $scopes) (join "," $logoutCallbackUrls) (join "," $allowedGroups) }}
 {{- $specHash := $specBlob | sha256sum | trunc 10 }}
 ---
 # ─────────── ServiceAccount (lives in pocket-id ns) ───────────
@@ -136,6 +154,18 @@ data:
     : "${LOGOUT_CALLBACK_URLS:=[]}"
     : "${IS_PUBLIC:=false}"
     : "${PKCE_ENABLED:=true}"
+    # JSON array of group *names* (NOT UUIDs). Empty array ⇒ unrestricted.
+    # We resolve names→UUIDs against /api/user-groups at apply time.
+    : "${ALLOWED_GROUPS:=[]}"
+
+    # isGroupRestricted derives from the allowlist: non-empty ⇒ restricted.
+    # The repo never carries a separate enable flag — list IS the toggle.
+    if [ "$(jq 'length' <<<"$ALLOWED_GROUPS")" -gt 0 ]; then
+      IS_GROUP_RESTRICTED=true
+    else
+      IS_GROUP_RESTRICTED=false
+    fi
+    echo "[oidc-bootstrap] isGroupRestricted=${IS_GROUP_RESTRICTED} allowedGroups=${ALLOWED_GROUPS}"
 
     echo "[oidc-bootstrap] app=${APP_NAME} ns=${APP_NS} secret=${SECRET_NAME}"
 
@@ -161,6 +191,7 @@ data:
       --argjson logouts "$LOGOUT_CALLBACK_URLS" \
       --argjson isPublic "$IS_PUBLIC" \
       --argjson pkce "$PKCE_ENABLED" \
+      --argjson groupRestricted "$IS_GROUP_RESTRICTED" \
       '{
         name: $name,
         callbackURLs: $callbacks,
@@ -169,7 +200,7 @@ data:
         pkceEnabled: $pkce,
         requiresReauthentication: false,
         credentials: { federatedIdentities: [] },
-        isGroupRestricted: false
+        isGroupRestricted: $groupRestricted
       }' > /tmp/desired.json
 
     if [ "$code" = "200" ]; then
@@ -250,6 +281,43 @@ data:
     } > /tmp/secret.yaml
     kubectl apply -f /tmp/secret.yaml
 
+    # 4. Reconcile the allow-list of user groups.
+    #
+    #    pocket-id splits this off from the main client doc: PUT /clients/<id>
+    #    accepts isGroupRestricted (the toggle) but NOT the group list. The
+    #    list lives at PUT /clients/<id>/allowed-user-groups with body
+    #    {"userGroupIds": ["<uuid>", ...]}.
+    #
+    #    We always issue this PUT (even with empty list) so manual UI edits
+    #    that drift from the declared spec get reconciled away. If you want
+    #    a client unrestricted, leave `groupRestriction.allowedGroups` empty
+    #    in the chart values — that's the single source of truth.
+    echo "[oidc-bootstrap] reconciling allowed-user-groups → ${ALLOWED_GROUPS}"
+    grp_code=$(api GET "/api/user-groups?pagination[limit]=200")
+    if [ "$grp_code" != "200" ]; then
+      echo "[oidc-bootstrap] GET /api/user-groups failed (${grp_code}):" >&2
+      cat /tmp/resp.json >&2 || true
+      exit 1
+    fi
+    # Build name→id map, then map ALLOWED_GROUPS through it. Unknown names
+    # abort the Job (typo-safe — better than silently allowing nobody).
+    jq --argjson wanted "$ALLOWED_GROUPS" '
+      (.data // .) as $all
+      | ($all | map({key: .name, value: .id}) | from_entries) as $byName
+      | $wanted | map(
+          . as $n
+          | $byName[$n] // (error("unknown user-group name: \($n)"))
+        )
+    ' < /tmp/resp.json > /tmp/group-ids.json
+    jq -n --argjson ids "$(cat /tmp/group-ids.json)" '{userGroupIds: $ids}' \
+      > /tmp/allowed-groups.json
+    aug_code=$(api PUT "/api/oidc/clients/${APP_NAME}/allowed-user-groups" /tmp/allowed-groups.json)
+    if [ "$aug_code" != "200" ]; then
+      echo "[oidc-bootstrap] PUT allowed-user-groups failed (${aug_code}):" >&2
+      cat /tmp/resp.json >&2 || true
+      exit 1
+    fi
+
     echo "[oidc-bootstrap] done — ${APP_NS}/${SECRET_NAME} populated"
 ---
 # ─────────── Job (in pocket-id ns) ───────────
@@ -325,6 +393,8 @@ spec:
               value: {{ $isPublic | quote }}
             - name: PKCE_ENABLED
               value: {{ $pkceEnabled | quote }}
+            - name: ALLOWED_GROUPS
+              value: {{ toJson $allowedGroups | quote }}
             - name: POCKET_ID_API_TOKEN
               valueFrom:
                 secretKeyRef:

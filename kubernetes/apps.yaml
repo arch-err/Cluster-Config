@@ -333,14 +333,18 @@ components:
     # release (see values/apps/arr-oauth2-prowlarr.yaml). Single-purpose →
     # clean entry in pocket-id's user app launcher + p-id-level group gate
     # (administrators-only) layered on top of oauth2-proxy's --allowed-group
-    # for defense in depth. launchURL + display-name + logo + group restrict
-    # are post-bootstrap manual steps via the API (the bootstrap Job only
-    # owns name/callbacks/pkce; everything else is set in pocket-id directly).
+    # for defense in depth. launchURL + display-name + logo are still post-
+    # bootstrap manual API steps (the chart owns name/callbacks/pkce/groups).
     oidc:
       enabled: true
       callbackUrls:
         - https://prowlarr.infra.home/oauth2/callback
       scopes: [openid, profile, email, groups]
+      # Admin-only — prowlarr is *arr-stack plumbing; end users don't touch it.
+      # Group `name` here matches pocket-id's `name` field (NOT friendlyName);
+      # bootstrap resolves names→UUIDs at apply time.
+      groupRestriction:
+        allowedGroups: [administrators]
 
   - name: readarr
     namespace: arr
@@ -363,13 +367,17 @@ components:
         app: readarr
     # Per-app OIDC client (pocket-id id=`readarr`). Secret rendered into the
     # `arr` ns as `readarr-oidc-client`; consumed by the arr-oauth2-readarr
-    # release. Group restriction (apps_users + administrators) + launchURL +
-    # display-name + logo are post-bootstrap API steps.
+    # release. launchURL + display-name + logo are still post-bootstrap API
+    # steps; group restriction is now declarative (see below).
     oidc:
       enabled: true
       callbackUrls:
         - https://readarr.apps.home/oauth2/callback
       scopes: [openid, profile, email, groups]
+      # End-user-facing — apps_users + admins. See prowlarr above for the
+      # name-vs-uuid contract.
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
 
   # Declarative *arr config split across two tools (different surface areas):
   #   - configarr → Readarr quality profiles + qBit download client (CronJob)
