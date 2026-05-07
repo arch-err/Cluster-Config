@@ -68,6 +68,19 @@
 image:
   tag: "2.34.0"
 
+# OIDC TLS workaround — pocket-id at https://auth.apps.home presents a cert
+# signed by home-ca, which trust-manager broadcasts to every ns as the
+# `home-ca-bundle` ConfigMap. Normally apps mount that CM + set NODE_EXTRA_
+# CA_CERTS to the file path. The christianhuth/audiobookshelf chart hard-
+# codes its volumeMounts (no extraVolumes hook), so we can't mount the CM.
+# Falling back to disabling TLS verification globally for ABS — accepts ANY
+# cert from ANY upstream (incl. external podcast RSS feeds). Acceptable in
+# this homelab (single-user, internal-only). PROPER fix = migrate ABS-v2 to
+# bjw-s/app-template chart so we can mount home-ca-bundle properly.
+extraEnv:
+  - name: NODE_TLS_REJECT_UNAUTHORIZED
+    value: "0"
+
 # Disable chart's built-in ingress + route — we use the platform chart's HTTPRoute
 ingress:
   enabled: false
