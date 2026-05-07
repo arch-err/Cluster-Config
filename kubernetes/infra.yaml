@@ -65,7 +65,12 @@ components:
       # /api/* works. A sibling GRPCRoute (emitted by the platform template
       # when `grpc: true`) catches all gRPC traffic and routes it to the same
       # argocd-server backend, unblocking `argocd login --sso --grpc-web`.
+      # grpcPort: 443 targets the service port whose appProtocol is set to
+      # `kubernetes.io/h2c` in values/infra/argocd.yaml — required so envoy
+      # speaks HTTP/2 cleartext upstream, otherwise argocd-server's HTTP mux
+      # (not gRPC mux) handles the request and 404s.
       grpc: true
+      grpcPort: 443
       dashboard:
         enabled: true
         group: GitOps

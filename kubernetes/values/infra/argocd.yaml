@@ -20,6 +20,20 @@ server:
       configMap:
         name: home-ca-bundle
 
+  service:
+    # Tell Cilium gateway to speak h2c (HTTP/2 cleartext) upstream on this
+    # port. Cilium reads the Service port's appProtocol; with `kubernetes.io/h2c`
+    # envoy negotiates HTTP/2 prior-knowledge to argocd-server's port 8080,
+    # which (in --insecure mode) cmux-routes HTTP/2 traffic to the gRPC handler.
+    # Required to make the GRPCRoute (kubernetes/platform/templates/httproutes.yaml,
+    # opt-in via `route.grpc: true` in infra.yaml) actually deliver gRPC requests
+    # — without h2c, envoy's grpc_web filter translates the request to
+    # application/grpc but sends it over HTTP/1.1, which argocd-server's HTTP
+    # mux (not gRPC mux) handles and 404s with `grpc-message: 404 page not found`.
+    # The HTTPRoute keeps using port 80 (HTTP/1.1) for the REST/UI path; the
+    # GRPCRoute targets port 443 (now h2c-tagged) for gRPC traffic.
+    servicePortHttpsAppProtocol: "kubernetes.io/h2c"
+
 configs:
   params:
     server.insecure: true  # TLS terminated at gateway

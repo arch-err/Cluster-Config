@@ -127,7 +127,7 @@ spec:
   rules:
     - backendRefs:
         - name: {{ .route.service | default .name }}
-          port: {{ .route.port | default 80 }}
+          port: {{ .route.grpcPort | default .route.port | default 80 }}
 {{- end }}
 {{- end }}
 {{- end }}
