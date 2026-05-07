@@ -40,6 +40,14 @@ securityContext:
 # Gateway API support
 gatewayAPI:
   enabled: true
+  # Honor `appProtocol` on Service ports (e.g. `kubernetes.io/h2c`,
+  # `kubernetes.io/ws`). Required for GRPCRoute → h2c upstream so envoy
+  # forces HTTP/2 cleartext to the backend instead of mirroring the
+  # downstream protocol. Without this flag, GRPCRoute backends served by
+  # apps that cmux/mux on a single port (argocd-server in `--insecure`
+  # mode is the canonical case) get HTTP/1.1 traffic and 404 with
+  # `grpc-message: 404 page not found` even though routing succeeded.
+  enableAppProtocol: true
 
 # L2 announcements for LoadBalancer services
 l2announcements:
