@@ -67,13 +67,12 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — prowlarr in-cluster service.
   - --upstream=http://prowlarr.arr.svc.cluster.local:9696
-  # Cookie shared across *.apps.home for SSO between arr-oauth2-* releases.
-  - --cookie-domain=.apps.home
+  # Cookie scoped to .infra.home now that prowlarr's route moved to the
+  # infra gateway. Cross-gateway SSO with readarr is intentionally gone —
+  # admins log into prowlarr separately (it's admin-only anyway).
+  - --cookie-domain=.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
-  # Match the sibling release's cookie name so the same cookie validates on
-  # both. Without this, each release defaults to its own release-name cookie
-  # and SSO fails.
   - --cookie-name=_arr_oauth2_proxy
   # Prowlarr is infra-tier — *arr apps consume its API, humans don't browse
   # the UI day-to-day. Lock to administrators only; apps_users get 403 even

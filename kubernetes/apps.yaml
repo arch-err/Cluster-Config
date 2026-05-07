@@ -313,16 +313,21 @@ components:
     # the oauth2-proxy config so X-Api-Key flows (mobile, cross-arr) keep
     # working. Prowlarr itself must be set to AuthenticationMethod=External
     # via UI (Settings → General → Authentication) — manual one-time step.
+    # Routed on the INFRA gateway — net-level isolation from apps_users (gf
+     # never crosses paths with infra.home). UI still admin-only via
+    # arr-oauth2-prowlarr's --allowed-group=administrators (defense in
+    # depth). Dashboard restored — homepage on each gateway is a clean
+    # mirror of routes living on that gateway.
     route:
-      hostname: prowlarr.apps.home
-      gateway: apps
+      hostname: prowlarr.infra.home
+      gateway: infra
       service: oauth2-prowlarr
       port: 80
-      # No dashboard entry — Prowlarr is infra-tier (consumed by readarr/
-      # sonarr/radarr APIs, not by humans). Hidden from apps homepage so
-      # apps_users never see it. Pairs with arr-oauth2-prowlarr's
-      # --allowed-group=administrators (apps_users get 403 even if they
-      # type the URL). Admins bookmark https://prowlarr.apps.home/.
+      dashboard:
+        group: Media
+        icon: prowlarr.svg
+        description: Indexer manager / proxy (admin)
+        app: prowlarr
 
   - name: readarr
     namespace: arr
@@ -399,7 +404,10 @@ components:
       # its own oidc:* block. Cookie + client + cookie-secret all match
       # across the two releases → one login = SSO across both.
       callbackUrls:
-        - https://prowlarr.apps.home/oauth2/callback
+        # prowlarr now lives on the infra gateway (admin-only); readarr
+        # stays on apps.home for apps_users. Shared OIDC client still
+        # works — pocket-id allows multiple callback URLs on one client.
+        - https://prowlarr.infra.home/oauth2/callback
         - https://readarr.apps.home/oauth2/callback
       scopes: [openid, profile, email, groups]
 
