@@ -11,10 +11,55 @@
 # Cross-ns sharing via two static kadalu PVs per subvol — see platform extras.
 # Hardlinks within each mount work natively (single fs per mount).
 # Lives in the `arr` namespace.
+#
+# Metadata mirror: readarr's binary hardcodes outbound calls to
+# https://api.bookinfo.club/. Upstream is dead since ~2024 — we self-host
+# blampe/rreading-glasses (Goodreads-backed) in the `bookinfo` ns. Three
+# moving pieces stitch the masquerade together:
+#   1. CoreDNS rewrites api.bookinfo.club → bookinfo-tls.bookinfo.svc.cluster.local
+#      (see platform/templates/extras.yaml Corefile).
+#   2. The bookinfo pod's nginx-tls sidecar serves a home-ca-issued cert
+#      with SAN=api.bookinfo.club (cert-manager Certificate `bookinfo-api-tls`).
+#   3. This file mounts the cluster-broadcast home-ca-bundle and points .NET
+#      at the merged trust file via SSL_CERT_FILE (init container + emptyDir).
+# Result: zero readarr-side configuration changes, transparent over the wire.
 
 controllers:
   main:
     strategy: Recreate
+    # ─────────────────────────────────────────────────────────────────────
+    # ca-bundle initContainer — merges home-ca-bundle into a writable CA
+    # bundle and exposes it to the main readarr container via SSL_CERT_FILE.
+    #
+    # WHY: readarr's outbound HTTPS (notably to https://api.bookinfo.club/,
+    # which we self-host on the cluster — see kubernetes/values/infra/bookinfo.yaml
+    # for the full architecture) hits a home-ca-signed cert. The linuxserver
+    # alpine + .NET runtime trusts the alpine system CA bundle by default
+    # (no public CAs => OK for goodreads scraping path, which goes server-side
+    # FROM rreading-glasses, not from readarr). To trust home-ca *and* keep
+    # public CAs working for any direct readarr→internet TLS, we concat the
+    # alpine bundle with home-ca's ca.crt into an emptyDir and point .NET at
+    # the merged file via SSL_CERT_FILE. .NET 5+ on Linux respects
+    # SSL_CERT_FILE / SSL_CERT_DIR (OpenSSL semantics).
+    initContainers:
+      ca-bundle:
+        image:
+          repository: docker.io/library/alpine
+          tag: "3.20"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            cat /etc/ssl/certs/ca-certificates.crt /home-ca/ca.crt \
+              > /merged-ca/ca-bundle.crt
+            echo "[ca-bundle] wrote /merged-ca/ca-bundle.crt ($(wc -l < /merged-ca/ca-bundle.crt) lines)"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop: [ALL]
     containers:
       app:
         image:
@@ -26,6 +71,11 @@ controllers:
           PUID: "1000"
           PGID: "1000"
           TZ: "Europe/Amsterdam"
+          # Trust home-ca for outbound HTTPS — needed for the in-cluster
+          # api.bookinfo.club (rreading-glasses w/ home-ca-issued cert).
+          # SSL_CERT_FILE points at the init-container-built merged bundle
+          # (alpine system CAs + home-ca). .NET on Linux honors this env var.
+          SSL_CERT_FILE: /merged-ca/ca-bundle.crt
           # Override config.xml's ApiKey (.NET IOptions binding picks up
           # READARR__AUTH__APIKEY → config.Auth.ApiKey). Lets us declare the
           # API key via SopsSecret so configarr / prowlarr-bootstrap CronJobs
@@ -101,3 +151,25 @@ persistence:
       main:
         app:
           - path: /library
+  # home-ca trust bundle (broadcast by trust-manager into every ns as a CM
+  # named home-ca-bundle, key ca.crt). Read-only mount; consumed by the
+  # ca-bundle init container which concats it onto the alpine system bundle.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        ca-bundle:
+          - path: /home-ca
+            readOnly: true
+  # emptyDir holding the merged CA bundle the init container produces.
+  # Mounted at /merged-ca on both containers; main app reads via SSL_CERT_FILE.
+  merged-ca:
+    type: emptyDir
+    advancedMounts:
+      main:
+        ca-bundle:
+          - path: /merged-ca
+        app:
+          - path: /merged-ca
