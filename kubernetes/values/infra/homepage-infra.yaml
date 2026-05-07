@@ -40,8 +40,15 @@ config:
     # show ALL routes; cosmetic differentiation only via title + bg + cross-link.
 
   # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
-  # Empty services.yaml means: render only what's annotated.
-  services: []
+  # Static entries below are merged with annotation-discovered services.
+  # The admin dashboard sets `dashboard: false` in infra.yaml (no auto-discovery
+  # annotations rendered), so it gets a static card here for discoverability.
+  services:
+    - Cluster:
+        - Admin Dashboard:
+            href: https://admin.infra.home
+            description: Admin panel — k8s/grafana/argocd widgets
+            icon: mdi-shield-account
 
   # Cross-link to the apps dashboard.
   bookmarks:
