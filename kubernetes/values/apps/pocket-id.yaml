@@ -36,6 +36,7 @@ database:
 updateStrategy:
   type: RollingUpdate
   rollingUpdate:
+    maxUnavailable: null
     partition: 0
 
 # ──────────────────────────────────────────────────────────────────────────
