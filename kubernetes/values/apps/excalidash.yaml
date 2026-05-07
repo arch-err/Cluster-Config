@@ -52,9 +52,11 @@ controllers:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false   # prisma writes the SQLite db + JWT secret
+          # Entrypoint chowns /app/uploads + reads JWT secret. Drop ALL kills
+          # CAP_CHOWN + CAP_DAC_OVERRIDE → "Permission denied" even as root.
           capabilities:
-            drop:
-              - ALL
+            drop: [ALL]
+            add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
 
       frontend:
         image:
@@ -91,9 +93,11 @@ controllers:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false   # nginx needs /var/cache/nginx + /var/run
+          # nginx entrypoint chowns /var/cache/nginx/* to nginx user, then
+          # binds :80. CHOWN + NET_BIND_SERVICE are the minimum set.
           capabilities:
-            drop:
-              - ALL
+            drop: [ALL]
+            add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID, NET_BIND_SERVICE]
 
     # Pod runs as image-default (root) — both excalidash images expect root
     # for entrypoint setup (chown /app/uploads, write /etc/nginx/nginx.conf).
