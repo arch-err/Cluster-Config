@@ -28,6 +28,13 @@
 #     buildarr's category-name strings — see ReadarrApplication defaults in
 #     buildarr_prowlarr/config/settings/apps/applications.py).
 
+# fsGroup so the shared /config emptyDir is gid-1000 writable (init renders
+# secrets, main reads + writes secrets.json cache).
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
 controllers:
   main:
     type: deployment
@@ -86,16 +93,17 @@ controllers:
           # the most recent published image; bundled buildarr-prowlarr is
           # >=0.5 (supports the prowlarr v1 API + Readarr application type).
           tag: "0.7.8"
-        # The image's entrypoint defaults to `daemon /config/buildarr.yml`;
-        # we make it explicit. PUID/PGID handled by the upstream entrypoint
-        # (drops to that uid:gid before exec'ing buildarr).
+        # IMPORTANT: bypass the image's /bootstrap.sh entrypoint. It runs
+        # `addgroup`/`adduser` as root then drops via su-exec — incompatible
+        # with restricted PSS (which forbids starting as root). Call the
+        # buildarr binary directly; restricted PSS is happy, no chown needed.
+        command:
+          - /usr/local/bin/buildarr
         args:
           - daemon
           - /config/buildarr.yml
         env:
           TZ: Europe/Stockholm
-          PUID: "1000"
-          PGID: "1000"
           BUILDARR_LOG_LEVEL: INFO
         resources:
           requests:
@@ -103,12 +111,11 @@ controllers:
             memory: 128Mi
           limits:
             memory: 512Mi
-        # Restricted PSS compliant. Upstream image's entrypoint runs as root
-        # only briefly to chown /config to PUID/PGID then drops via gosu/su-exec.
-        # Talos restricted PSS rejects runAsUser=0 outright — so we skip the
-        # entrypoint's chown step by pre-chowning via the init container's
-        # emptyDir (uid 1000 owns /config from creation) and force runAsUser:1000
-        # from the start. Verify in logs: no "permission denied" on /config.
+        # Restricted PSS compliant. Entrypoint bypassed (see command: above);
+        # buildarr binary itself is fine running under any uid as long as
+        # /config is writable. emptyDir created by kubelet defaults to mode
+        # 0755 root:root but with fsGroup applied (pod-level securityContext
+        # below) it's writable to gid 1000.
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
