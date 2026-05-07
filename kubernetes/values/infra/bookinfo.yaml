@@ -81,6 +81,12 @@ controllers:
               secretKeyRef:
                 name: bookinfo-db
                 key: DB_PASSWORD
+          # rreading-glasses' DSN has no sslmode; pgx defaults to "prefer"
+          # which probes for TLS, gets refused by the stock postgres image
+          # (SSL not enabled), and the fallback path errors out instead of
+          # cleanly retrying. Force cleartext via libpq env. Cluster-internal
+          # service traffic only.
+          PGSSLMODE: disable
         probes:
           liveness:
             enabled: true
