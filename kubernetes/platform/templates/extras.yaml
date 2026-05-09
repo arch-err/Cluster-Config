@@ -373,6 +373,29 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* CALIBRE-WEB (namespace baseline-PSS for linuxserver s6-overlay image)      */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if index .Values.extras "calibre-web" }}
+---
+# calibre-web namespace — baseline PSS. CWA image is linuxserver-style
+# s6-overlay (starts as root, drops to PUID:PGID via s6-applyuidgid which
+# needs SETUID/SETGID/CHOWN). Restricted PSS rejects that init flow; same
+# trade-off as prowlarr/readarr. oauth2-calibre-web sidecar release lives
+# in this same ns so the OIDC-client Secret + HTTPRoute backendRef are
+# co-located.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: calibre-web
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* ARR STACK — split-architecture                                              */}}
 {{/* `arr` ns (baseline PSS): prowlarr + readarr + future *arr apps              */}}
 {{/* `qbittorrent` ns (privileged PSS): qBit+gluetun (NET_ADMIN, authorized)     */}}

@@ -1,0 +1,143 @@
+# calibre-web — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Calibre-Web-Automated (CWA — fork of janeczku/calibre-web with automatic
+# ingest watch dir + auto-conversion + metadata enforcement).
+# Upstream: https://github.com/crocodilestick/Calibre-Web-Automated
+# Image:    crocodilestick/calibre-web-automated (linuxserver-style PUID/PGID)
+#
+# Goal: gf hits https://calibre.apps.home on her iPad, browses the library,
+# taps an EPUB → iOS share-sheet → "Copy to Books" → lands in Apple Books.
+# Web UI in Safari is the entire UX. No native app.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# OIDC via pocket-id, fronted by an oauth2-proxy sidecar release
+# (`calibre-web-oauth2`, see values/apps/calibre-web-oauth2.yaml). Mirrors the
+# arr-oauth2-{prowlarr,readarr} pattern: oauth2-proxy terminates OIDC, sets
+# X-Forwarded-User, calibre-web trusts it via reverse-proxy header.
+#
+# CWA does have native OIDC support but the proven cluster pattern is the
+# oauth2-proxy sidecar (it's what the *arr stack uses); reusing it keeps the
+# auth surface uniform. CWA's "Reverse Proxy Login" admin setting trusts
+# the X-Forwarded-User header from the oauth2-proxy upstream → user is
+# auto-provisioned/looked-up by username on each request.
+#
+# HTTPRoute in apps.yaml points at the oauth2-calibre-web service (NOT
+# directly at this workload); /api/* is bypass-routed in oauth2-proxy so OPDS
+# + send-to-Kindle flows w/ basic-auth keep working.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /config         — RWO PVC (sqlite app.db + settings + processed_books backups)
+# /calibre-library — RWX kadalu PVC, 50Gi (the actual book library: metadata.db
+#                    + cover/EPUB files; eventually written to by readarr post-
+#                    process via a future shared-volume bridge)
+# /cwa-book-ingest — RWO PVC, 5Gi watch-dir scratch space (CWA REMOVES files
+#                    after processing them into /calibre-library, so this stays
+#                    small; readarr will write here once that handoff is wired)
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label — CWA image is linuxserver-style s6-overlay (starts as
+# root, drops to PUID:PGID via s6-applyuidgid which needs SETUID/SETGID/CHOWN).
+# Restricted PSS rejects that init flow; same trade-off as prowlarr/readarr.
+
+controllers:
+  main:
+    # sqlite on RWO PVC — Recreate avoids old/new pod racing on the db file
+    # during rollouts (mirrors audiobookshelf-v2 + grafana fix).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/crocodilestick/calibre-web-automated
+          tag: "V4.0.6"  # upstream tags are uppercase-V (verified against ghcr/dockerhub)
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "Europe/Amsterdam"
+          # CWA listens on 8083 by default. Pinned explicit for clarity.
+          CWA_PORT_OVERRIDE: "8083"
+          # Single proxy in front (cilium gateway → oauth2-proxy → CWA = 2 hops
+          # but oauth2-proxy is in-pod-network ≠ a proxy-chain hop CWA cares
+          # about; CWA's ProxyFix sees X-Forwarded-* from oauth2-proxy).
+          # Default is 1 → leave default; bump to 2 if session-protection
+          # warnings show up in logs after the gf starts using it.
+          # TRUSTED_PROXY_COUNT: "1"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8083
+              # CWA cold-start does inotify setup + sqlite init; give it room.
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8083
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # linuxserver s6-overlay starts as root, uses s6-applyuidgid to drop to
+        # PUID:PGID. Dropping ALL caps removes SETUID/SETGID and breaks the
+        # privilege drop. Baseline PSS allows the default cap set; leave it.
+        # Same posture as prowlarr/readarr.
+        securityContext:
+          allowPrivilegeEscalation: false
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8083
+        targetPort: 8083
+
+persistence:
+  # CWA app state — sqlite app.db, settings, processed_books backups, plugins.
+  # Grows slowly; 5Gi is comfortable for a single-user library.
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+  # Calibre library — metadata.db + cover images + EPUB files. Books are big;
+  # 50Gi covers a large personal library. RWX so future readarr post-process
+  # can share-write into it (currently still RWO-style single-writer; flip to
+  # RWX existingClaim if readarr handoff lands).
+  calibre-library:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 50Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /calibre-library
+  # Ingest watch dir — CWA's inotify watcher picks up new files here, ingests
+  # them into /calibre-library, then DELETES them from this dir. So this PVC
+  # stays small. Eventually readarr's ebooks root folder writes here.
+  cwa-book-ingest:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /cwa-book-ingest

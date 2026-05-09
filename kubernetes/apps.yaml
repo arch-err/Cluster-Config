@@ -487,6 +487,63 @@ components:
         description: Torrent client (via Mullvad VPN)
         app: qbittorrent
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # CALIBRE-WEB (Calibre-Web-Automated, CWA fork) — ebook library server.
+  # Web UI in Safari is the entire UX (gf reads on iPad: browse → tap EPUB →
+  # iOS share-sheet → Copy to Books). Auth via oauth2-proxy sidecar release
+  # (calibre-web-oauth2) consuming the per-app pocket-id client below.
+  # extras.calibre-web renders the baseline-PSS namespace (linuxserver-style
+  # s6-overlay needs SETUID/SETGID/CHOWN to drop to PUID:PGID).
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: calibre-web
+    namespace: calibre-web
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns label) settle
+    # HTTPRoute points at oauth2-calibre-web Service (same ns), NOT directly
+    # at the calibre-web workload. /api/* + /opds + /kobo/ bypass-routed in
+    # the oauth2-proxy config so api-key + ereader-feed flows keep working.
+    # CWA must be set to trust X-Forwarded-User (Admin → Configure Advanced
+    # → "Allow Reverse Proxy Authentication") via UI — manual one-time step.
+    route:
+      hostname: calibre.apps.home
+      gateway: apps
+      service: oauth2-calibre-web
+      port: 80
+      timeout: 30m  # bulk EPUB upload + cover-fetch can take a while
+      dashboard:
+        name: Calibre
+        group: Media
+        icon: calibre-web.svg
+        description: Ebook library (CWA)
+        app: calibre-web
+    # Per-app OIDC client (pocket-id id=`calibre-web`). Secret rendered into
+    # the `calibre-web` ns as `calibre-web-oidc-client`; consumed by the
+    # calibre-web-oauth2 release. apps_users + administrators allowed at the
+    # IDP level (gf is in apps_users) on top of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://calibre.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting calibre-web. Same pattern as arr-oauth2-readarr.
+  # Lives in the same ns as calibre-web so the OIDC-client Secret + HTTPRoute
+  # backendRef are co-located.
+  - name: calibre-web-oauth2
+    namespace: calibre-web
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `calibre-web-oidc-client` Secret rendered by the calibre-web
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -539,3 +596,8 @@ extras:
   audiobookshelf-v2:
     enabled: true
     librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
+  # calibre-web (CWA): namespace only (baseline PSS — linuxserver image's
+  # s6-overlay starts as root, drops to PUID:PGID via s6-applyuidgid which
+  # needs SETUID/SETGID/CHOWN; restricted PSS rejects that init step).
+  calibre-web:
+    enabled: true

@@ -1,0 +1,108 @@
+# calibre-web-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting calibre-web (CWA). Mirrors arr-oauth2-readarr.
+# Consumes `calibre-web-oidc-client` (rendered by the calibre-web Application's
+# oidc:* block in apps.yaml; pocket-id client id=`calibre-web`, restricted to
+# apps_users + administrators at the IDP level on top of the oauth2-proxy
+# --allowed-group flags below).
+#
+# /api/* (and /opds for ereader feeds, /kobo for Kobo sync) is bypass-routed
+# so basic-auth + X-Api-Key flows keep working. CWA enforces its own auth on
+# those paths; OIDC-via-proxy is for the browser UI.
+#
+# CWA itself must be configured to TRUST the X-Forwarded-User header
+# (Admin → Configure Advanced → "Allow Reverse Proxy Authentication" + set
+# the header name) — manual UI step after first sync.
+#
+# COOKIE SECRET DRIFT: cookieSecret literal — should be migrated into a
+# SopsSecret like the sibling arr-oauth2-* releases. Tracked in the same
+# DRIFT note across that family.
+
+fullnameOverride: oauth2-calibre-web
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — calibre-web in-cluster service (calibre-web ns).
+  - --upstream=http://calibre-web.calibre-web.svc.cluster.local:8083
+  - --cookie-domain=.apps.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_calibre_web_oauth2_proxy
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
+  # CWA API + ereader-feed + Kobo-sync paths bypass OIDC (basic-auth/api-key).
+  - --skip-auth-route=^/api/
+  - --skip-auth-route=^/opds
+  - --skip-auth-route=^/kobo/
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+# OIDC creds from the platform-rendered Secret (calibre-web Application's
+# oidc:* block in apps.yaml).
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: calibre-web-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: calibre-web-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: calibre-web-oidc-client
+        key: issuer_url
+  # Distinct cookie secret per sibling oauth2-proxy release. (DRIFT — should
+  # be SopsSecret; see file header.) 32 chars random.
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    value: "Mz9F+tGq6vXn3PrLyHuDcQ4WjaZKfBeR"
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false
