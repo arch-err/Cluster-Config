@@ -47,7 +47,7 @@ controllers:
       app:
         image:
           repository: docker.io/crocodilestick/calibre-web-automated
-          tag: "V4.0.6"  # upstream tags are uppercase-V (verified against ghcr/dockerhub)
+          tag: "v4.0.6"  # docker hub tags are lowercase-v (release "Version 4.0.6")
         env:
           PUID: "1000"
           PGID: "1000"
