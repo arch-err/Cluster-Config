@@ -5,8 +5,9 @@
 # apps_users + administrators at the IDP level on top of the oauth2-proxy
 # --allowed-group flags below).
 #
-# See arr-oauth2-prowlarr.yaml for the rationale on /api/ bypass, External
-# auth, and the cookie-secret DRIFT.
+# See arr-oauth2-prowlarr.yaml for the rationale on /api/ bypass and External
+# auth. Cookie secret sourced from SopsSecret `arr-oauth2-readarr-cookie` in
+# the arr ns (kubernetes/secrets/apps/arr-oauth2-readarr-cookie.yaml).
 
 fullnameOverride: oauth2-readarr
 
@@ -64,10 +65,13 @@ extraEnv:
       secretKeyRef:
         name: readarr-oidc-client
         key: issuer_url
-  # No-SSO setup — distinct cookie secret from prowlarr sibling. (DRIFT:
-  # this is a literal; should be migrated to SopsSecret like the sibling.)
+  # No-SSO setup — distinct cookie secret from prowlarr sibling. From
+  # SopsSecret `arr-oauth2-readarr-cookie` (same ns).
   - name: OAUTH2_PROXY_COOKIE_SECRET
-    value: "Kp8Q+aEK75iIu4DjNeYxqr6DtxtxUC2k"
+    valueFrom:
+      secretKeyRef:
+        name: arr-oauth2-readarr-cookie
+        key: cookie-secret
 
 extraVolumes:
   - name: home-ca

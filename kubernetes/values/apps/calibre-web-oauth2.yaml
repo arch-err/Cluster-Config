@@ -13,9 +13,8 @@
 # (Admin → Configure Advanced → "Allow Reverse Proxy Authentication" + set
 # the header name) — manual UI step after first sync.
 #
-# COOKIE SECRET DRIFT: cookieSecret literal — should be migrated into a
-# SopsSecret like the sibling arr-oauth2-* releases. Tracked in the same
-# DRIFT note across that family.
+# COOKIE SECRET: sourced from SopsSecret `calibre-web-oauth2-cookie` in
+# the calibre-web ns (kubernetes/secrets/apps/calibre-web-oauth2-cookie.yaml).
 
 fullnameOverride: oauth2-calibre-web
 
@@ -76,10 +75,13 @@ extraEnv:
       secretKeyRef:
         name: calibre-web-oidc-client
         key: issuer_url
-  # Distinct cookie secret per sibling oauth2-proxy release. (DRIFT — should
-  # be SopsSecret; see file header.) 32 chars random.
+  # Distinct cookie secret per sibling oauth2-proxy release. From SopsSecret
+  # `calibre-web-oauth2-cookie` (same ns).
   - name: OAUTH2_PROXY_COOKIE_SECRET
-    value: "Mz9F+tGq6vXn3PrLyHuDcQ4WjaZKfBeR"
+    valueFrom:
+      secretKeyRef:
+        name: calibre-web-oauth2-cookie
+        key: cookie-secret
 
 extraVolumes:
   - name: home-ca

@@ -18,10 +18,9 @@
 # AFTER the oauth2-proxy is fronting it. This skips the *arr's own login
 # form and trusts the X-Forwarded-User header set by oauth2-proxy.
 #
-# COOKIE SECRET DRIFT: cookieSecret below is a generated literal — should
-# be migrated into a SopsSecret and referenced via existingSecret. Flagged
-# in the report. SAME literal used in arr-oauth2-readarr.yaml; if rotated
-# both must be updated together.
+# COOKIE SECRET: sourced from SopsSecret `arr-oauth2-prowlarr-cookie` in
+# the prowlarr ns (kubernetes/secrets/apps/arr-oauth2-prowlarr-cookie.yaml).
+# Distinct per release — readarr/calibre-web have their own.
 
 fullnameOverride: oauth2-prowlarr
 
@@ -94,8 +93,8 @@ extraArgs:
 
 # Inject OIDC creds + cookie secret. CLIENT_ID/SECRET come from the
 # platform-bootstrap Secret `prowlarr-oidc-client` (rendered by the prowlarr
-# Application's oidc:* block in apps.yaml). cookie secret is a literal here
-# (DRIFT — should be SOPS'd; flagged for migration).
+# Application's oidc:* block in apps.yaml). Cookie secret comes from the
+# `arr-oauth2-prowlarr-cookie` SopsSecret (kubernetes/secrets/apps/).
 extraEnv:
   - name: OAUTH2_PROXY_CLIENT_ID
     valueFrom:
@@ -112,9 +111,11 @@ extraEnv:
       secretKeyRef:
         name: prowlarr-oidc-client
         key: issuer_url
-  # COOKIE SECRET LITERAL — see file header DRIFT note. 32-char raw string.
   - name: OAUTH2_PROXY_COOKIE_SECRET
-    value: "Kp8Q+aEK75iIu4DjNeYxqr6DtxtxUC2k"
+    valueFrom:
+      secretKeyRef:
+        name: arr-oauth2-prowlarr-cookie
+        key: cookie-secret
 
 # Mount cluster-wide home-ca trust bundle (broadcast by trust-manager into
 # every ns). oauth2-proxy is a Go binary; SSL_CERT_FILE / system trust
