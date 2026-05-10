@@ -2,7 +2,15 @@
 # Book / audiobook manager — fork of Sonarr. Watches wanted-list, queries
 # Prowlarr for releases, sends torrents to qBittorrent, post-processes finished
 # downloads into /library.
-# Upstream: https://wiki.servarr.com/readarr  Image: linuxserver/readarr (develop).
+# Upstream: https://github.com/Faustvii/Readarr  (community fork — original
+# Servarr Readarr was retired). The fork is the canonical drop-in for use
+# with rreading-glasses metadata: it points at api.bookinfo.pro by default
+# and uses the route shape that rreading-glasses actually serves
+# (`/book/bulk`, `/search`, `/author/{id}`, …). The original
+# linuxserver/readarr image POSTs `/v1/book/bulk`, which doesn't exist on
+# rreading-glasses → falls through to its swagger UI handler →  HTTP 200
+# with HTML body → readarr fails to parse with the catch-all error
+# "Unable to communicate with ReadarrAPI, returning status code: OK".
 #
 # Mounts:
 #   /config        — own RWO PVC (sqlite + settings)
@@ -12,14 +20,15 @@
 # Hardlinks within each mount work natively (single fs per mount).
 # Lives in the `arr` namespace.
 #
-# Metadata mirror: readarr's binary hardcodes outbound calls to
-# https://api.bookinfo.club/. Upstream is dead since ~2024 — we self-host
-# blampe/rreading-glasses (Goodreads-backed) in the `bookinfo` ns. Three
-# moving pieces stitch the masquerade together:
-#   1. CoreDNS rewrites api.bookinfo.club → bookinfo-tls.bookinfo.svc.cluster.local
+# Metadata mirror: Faustvii's binary defaults to https://api.bookinfo.pro/.
+# We self-host blampe/rreading-glasses in the `bookinfo` ns and intercept
+# both api.bookinfo.pro and the legacy api.bookinfo.club via four pieces:
+#   1. CoreDNS rewrites api.bookinfo.pro (and api.bookinfo.club, kept as a
+#      legacy fallback) → bookinfo-tls.bookinfo.svc.cluster.local
 #      (see platform/templates/extras.yaml Corefile).
 #   2. The bookinfo pod's nginx-tls sidecar serves a home-ca-issued cert
-#      with SAN=api.bookinfo.club (cert-manager Certificate `bookinfo-api-tls`).
+#      with SANs api.bookinfo.pro + api.bookinfo.club (cert-manager
+#      Certificate `bookinfo-api-tls`).
 #   3. This file mounts the cluster-broadcast home-ca-bundle and points .NET
 #      at the merged trust file via SSL_CERT_FILE (init container + emptyDir).
 # Result: zero readarr-side configuration changes, transparent over the wire.
@@ -31,9 +40,9 @@ controllers:
     # ca-bundle initContainer — merges home-ca-bundle into a writable CA
     # bundle and exposes it to the main readarr container via SSL_CERT_FILE.
     #
-    # WHY: readarr's outbound HTTPS (notably to https://api.bookinfo.club/,
+    # WHY: readarr's outbound HTTPS (notably to https://api.bookinfo.pro/,
     # which we self-host on the cluster — see kubernetes/values/infra/bookinfo.yaml
-    # for the full architecture) hits a home-ca-signed cert. The linuxserver
+    # for the full architecture) hits a home-ca-signed cert. The Faustvii
     # alpine + .NET runtime trusts the alpine system CA bundle by default
     # (no public CAs => OK for goodreads scraping path, which goes server-side
     # FROM rreading-glasses, not from readarr). To trust home-ca *and* keep
@@ -63,16 +72,22 @@ controllers:
     containers:
       app:
         image:
-          # readarr only ships :develop / :nightly (see linuxserver docs).
-          # Pinned to a specific dated develop tag for reproducibility.
-          repository: lscr.io/linuxserver/readarr
-          tag: "develop-version-0.4.18.2805"
+          # Faustvii community fork of Readarr — the only fork we should be
+          # using long-term (the original Servarr Readarr is archived).
+          # Backwards-compatible with existing /config sqlite DBs and the
+          # linuxserver layout — confirmed by the upstream FORKS table.
+          # Pinned to a release tag (not :latest) for reproducibility.
+          repository: ghcr.io/faustvii/readarr
+          tag: "0.9.1"
         env:
-          PUID: "1000"
-          PGID: "1000"
+          # Faustvii image runs as `nobody` by default; we override the
+          # securityContext below to uid 1000 to keep PVC ownership stable
+          # with the previous linuxserver image. No PUID/PGID/TZ env — the
+          # Faustvii entrypoint is a direct exec of /app/bin/Readarr (no
+          # s6-overlay), TZ comes from /etc/timezone via tzdata in image.
           TZ: "Europe/Amsterdam"
           # Trust home-ca for outbound HTTPS — needed for the in-cluster
-          # api.bookinfo.club (rreading-glasses w/ home-ca-issued cert).
+          # api.bookinfo.pro (rreading-glasses w/ home-ca-issued cert).
           # SSL_CERT_FILE points at the init-container-built merged bundle
           # (alpine system CAs + home-ca). .NET on Linux honors this env var.
           SSL_CERT_FILE: /merged-ca/ca-bundle.crt
@@ -110,11 +125,30 @@ controllers:
             memory: 256Mi
           limits:
             memory: 1Gi
-        # linuxserver s6-overlay starts as root, uses s6-applyuidgid to drop to
-        # PUID:PGID. Dropping ALL caps removes SETUID/SETGID and breaks the
-        # privilege drop. Baseline PSS allows the default cap set, leave it.
+        # Faustvii image is non-root-clean (Dockerfile USER nobody:nogroup,
+        # entrypoint is a direct catatonit exec, no s6-overlay). Restricted
+        # PSS friendly. Lock down explicitly. We pin uid/gid to 1000 (matches
+        # the legacy linuxserver PUID:PGID we ran with previously) so the
+        # existing /config PVC + the shared kadalu /downloads + /library
+        # PVCs (also written by qbittorrent under uid 1000) all keep working
+        # without a chown migration step.
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # Readarr writes to /tmp + /config
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+# fsGroup so the writable /config PVC mounts are owned 1000:1000 on first
+# attach (idempotent on subsequent attaches via OnRootMismatch).
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
 
 service:
   main:
