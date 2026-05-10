@@ -46,38 +46,13 @@ components:
       port: 9000
       dashboard: false
 
-  - name: audiobookshelf
-    namespace: audiobookshelf
-    chart:
-      repo: https://charts.christianhuth.de
-      name: audiobookshelf
-      version: 2.2.0
-    route:
-      hostname: audiobookshelf.apps.home
-      gateway: apps
-      service: audiobookshelf
-      port: 8080
-      timeout: 30m  # large audiobook uploads via API
-      dashboard:
-        group: Media
-        description: Audiobooks + podcasts
-    # OIDC: audiobookshelf has no env / config-file hooks for OIDC — it must
-    # be configured via the admin UI. We bootstrap the pocket-id client here
-    # so the client_id/secret/issuer are ready in the
-    # `audiobookshelf-oidc-client` Secret; user pastes them into the UI
-    # (Settings -> Authentication -> OpenID Connect Authentication).
-    oidc:
-      enabled: true
-      callbackUrls:
-        - https://audiobookshelf.apps.home/auth/openid/callback
-        - https://audiobookshelf.apps.home/auth/openid/mobile-redirect
-      scopes: [openid, profile, email, groups]
-
-  # audiobookshelf-v2 — parallel green/blue alongside the existing
-  # `audiobookshelf` release. Mounts the shared kadalu media-library volume
-  # (so ABS sees the arr stack's downloads). OIDC bootstrap is fully
-  # declarative via the `audiobookshelf-v2-oidc-seed` Job (extras block):
-  # /init → /login → PATCH /api/auth-settings.
+  # audiobookshelf-v2 — replaced the legacy `audiobookshelf` release
+  # (christianhuth/audiobookshelf v2.2.0) on 2026-05-10. Mounts the shared
+  # kadalu media-library volume (so ABS sees the arr stack's downloads).
+  # OIDC: pocket-id client bootstrapped declaratively below; user pastes
+  # client_id/secret/issuer from the audiobookshelf-v2-oidc-client Secret
+  # into Settings → Authentication → OpenID Connect (no auto-seed Job —
+  # see revert e4f743d for why).
   - name: audiobookshelf-v2
     namespace: audiobookshelf-v2
     chart:
