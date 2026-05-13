@@ -25,8 +25,10 @@ global:
 
 image:
   repository: ghcr.io/crossplane-contrib/crossview
-  # Chart 4.3.0 appVersion is v4.3.0; image tag for v4.3.0 published as v4.3.0-rc.7.
-  tag: "v4.3.0-rc.7"
+  # Chart 4.3.0 appVersion is v4.3.0. The chart's artifacthub annotation
+  # claims `v4.3.0-rc.7` but that tag does not exist on ghcr.io (verified via
+  # `oras repo tags`). Actual stable tag published is `v4.3.0`.
+  tag: "v4.3.0"
   pullPolicy: IfNotPresent
 
 app:
