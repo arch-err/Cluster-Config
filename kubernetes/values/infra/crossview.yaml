@@ -74,7 +74,10 @@ database:
   enabled: true
   image:
     repository: postgres
-    tag: "16-alpine"
+    # Debian-based 16 (not -alpine): the alpine image's postgres user is uid 70,
+    # which collides with our containerSecurityContext.runAsUser=999. Debian
+    # postgres image uses uid 999 by default — matches.
+    tag: "16"
   resources:
     requests:
       cpu: 100m
