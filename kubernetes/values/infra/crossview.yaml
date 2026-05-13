@@ -170,13 +170,17 @@ secrets:
   # First SSO user becomes admin per Crossview docs — these never get used.
   adminUsername: "admin"
   adminPassword: "ChangeMeUnusedWithOIDC"
+  # NOTE: SopsSecret renders Secret `crossview-extra-secrets` (NOT crossview-secrets)
+  # because the chart's own secret template creates `crossview-secrets` for the
+  # admin{Username,Password} inline strings. Two different secrets, no name
+  # collision.
   dbPassword:
     secretKeyRef:
-      name: crossview-secrets
+      name: crossview-extra-secrets
       key: dbpassword
   sessionSecret:
     secretKeyRef:
-      name: crossview-secrets
+      name: crossview-extra-secrets
       key: sessionsecret
   OIDCClientSecret:
     secretKeyRef:
