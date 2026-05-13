@@ -243,60 +243,53 @@ components:
                    # (crossview's RBAC binds to apiextensions.crossplane.io/*)
 
   # Crossview — Crossplane UI dashboard. Helm chart 4.3.0 (latest stable from
-  # crossplane-contrib/crossview OCI registry; 4.4.0-rc.1 is a release candidate
-  # at 2026-05-08, staying on stable). The actively-maintained UI in the
-  # crossplane-contrib org. App tag pinned to v4.3.0 in values/infra/crossview.yaml.
+  # https://crossplane-contrib.github.io/crossview ; 4.4.0-rc.1 is an RC, we're
+  # on stable). Image v4.3.0-rc.7 per chart artifacthub annotations.
   #
-  # AUTH: oauth2-proxy sidecar release `crossview-oauth2` (same ns) gates the
-  # HTTPRoute → crossview svc :80 → app :3001. Crossview itself trusts the
-  # X-Forwarded-User header (AUTH_MODE=header). pocket-id OIDC client
-  # `crossview` is admin-group-restricted at the IDP (declarative below) on
-  # top of oauth2-proxy's --allowed-group=administrators (defense in depth).
+  # AUTH: native OIDC against pocket-id (per docs/SSO_SETUP.md). NO oauth2-proxy
+  # — Crossview ships its own OIDC client. The platform oidc:* block below
+  # registers the pocket-id client `crossview` (admin-group-restricted at the
+  # IDP) and renders `crossview-oidc-client` Secret in the crossview ns;
+  # values/infra/crossview.yaml wires OIDCClientSecret via secretKeyRef.
+  # First SSO user becomes admin (per upstream README); subsequent SSO users
+  # auto-provisioned as regular users.
   #
   # POSTGRES: bundled pg image with emptyDir persistence (pilot mode — local
-  # accounts lost on pod restart; OIDC users auto-recreate via header mode).
-  # Mirrors the paperless-ngx pilot pattern. Promote to a kadalu-backed PV
-  # with an init-chown container (immich pattern) when user mgmt is settled.
+  # accounts/sessions lost on pod restart; OIDC users auto-recreate on login).
+  # Promote to kadalu-backed PV with init-chown (immich pattern) when user
+  # mgmt is settled.
   - name: crossview
     namespace: crossview
     chart:
-      repo: oci://ghcr.io/crossplane-contrib/crossview-chart
+      repo: https://crossplane-contrib.github.io/crossview
       name: crossview
       version: 4.3.0
     syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
     route:
       hostname: crossview.infra.home
       gateway: infra
-      service: crossview-oauth2   # oauth2-proxy fronting; passes X-Forwarded-User
+      # Chart's service is "<release>-service" → "crossview-service".
+      service: crossview-service
       port: 80
       dashboard:
+        enabled: true
         name: Crossview
         group: GitOps
         icon: crossplane.svg
         description: Crossplane resource dashboard (admin)
         app: crossview
     # Per-app OIDC client (pocket-id id=`crossview`). Secret rendered into the
-    # `crossview` ns as `crossview-oidc-client`; consumed by the crossview-oauth2
-    # release. Single callback for the oauth2-proxy redirect.
+    # `crossview` ns as `crossview-oidc-client`; consumed by Crossview itself
+    # via OIDC_CLIENT_SECRET env var (chart secretKeyRef in values).
     oidc:
       enabled: true
       callbackUrls:
-        - https://crossview.infra.home/oauth2/callback
+        # Native Crossview OIDC callback path (per docs/SSO_SETUP.md).
+        - https://crossview.infra.home/api/auth/oidc/callback
       scopes: [openid, profile, email, groups]
       # Infra-tier — administrators only. apps_users get 403 at the IDP.
       groupRestriction:
         allowedGroups: [administrators]
-
-  # oauth2-proxy fronting crossview. Mirrors arr-oauth2-prowlarr (infra-tier).
-  - name: crossview-oauth2
-    namespace: crossview
-    chart:
-      repo: https://oauth2-proxy.github.io/manifests
-      name: oauth2-proxy
-      version: 10.4.3
-    syncWave: "3"
-    # Consumes `crossview-oidc-client` Secret rendered by the crossview
-    # Application's oidc:* block above. No oidc:* block here — this IS the proxy.
 
   # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
