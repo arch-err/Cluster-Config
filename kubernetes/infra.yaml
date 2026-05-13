@@ -255,7 +255,10 @@ components:
       repo: oci://ghcr.io/crossplane-contrib/crossview-chart
       name: crossview
       version: 4.3.0
-    syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
+    # Wave 4 (not 3) so the app-of-apps doesn't block on the pre-existing
+    # bookinfo wave-3 crashloop (bookinfo-postgres has been down for 5d).
+    # Crossplane is wave 2, so CRDs+RBAC are still in place before crossview.
+    syncWave: "4"
     route:
       hostname: crossview.infra.home
       gateway: infra
@@ -286,7 +289,7 @@ components:
       repo: https://oauth2-proxy.github.io/manifests
       name: oauth2-proxy
       version: 10.4.3
-    syncWave: "3"
+    syncWave: "4"  # same wave as crossview (see crossview block above for why)
     # Consumes `crossview-oidc-client` Secret rendered by the crossview
     # Application's oidc:* block above. No oidc:* block here — this IS the proxy.
 
