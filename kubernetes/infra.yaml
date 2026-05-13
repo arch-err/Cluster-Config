@@ -193,27 +193,35 @@ components:
   # hardcoded outbound URL Just Works without any UI configuration. The
   # bookinfo.infra.home route below is for human use (homepage card + API
   # debug); readarr's path is via the rewrite + home-ca trust, NOT this route.
-  - name: bookinfo
-    namespace: bookinfo
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    syncWave: "3"  # after extras (ns + postgres + cert + nginx cm) settle
-    route:
-      hostname: bookinfo.infra.home
-      gateway: infra
-      # bjw-s/app-template suffixes service names when multiple service blocks
-      # exist (`bookinfo-main` for HTTP, `bookinfo-tls` for the api.bookinfo.club
-      # HTTPS ingress consumed via CoreDNS rewrite). HTTPRoute hits the HTTP one.
-      service: bookinfo-main
-      port: 80
-      dashboard:
-        name: BookInfo
-        group: Tools
-        icon: readarr.svg
-        description: readarr metadata mirror (rreading-glasses)
-        app: bookinfo
+  # bookinfo — DISABLED 2026-05-13. Underlying postgres PV hit kadalu disk
+  # quota ("could not create lock file 'postmaster.pid': Disk quota exceeded").
+  # App-of-apps wave 3 was blocked indefinitely on bookinfo-postgres Deployment
+  # Progressing → wave 4 (crossview) couldn't get created. Disabling at the
+  # component layer; extras.bookinfo (ns + PV + cert + nginx CM) stays in
+  # place so data isn't lost. Re-enable after fixing kadalu subvol quota or
+  # provisioning a fresh PV. Refer to readarr metadata path: hostAliases via
+  # api.bookinfo.pro is still wired (see kubernetes/values/apps/readarr.yaml).
+  # - name: bookinfo
+  #   namespace: bookinfo
+  #   chart:
+  #     repo: https://bjw-s-labs.github.io/helm-charts
+  #     name: app-template
+  #     version: 4.6.2
+  #   syncWave: "3"  # after extras (ns + postgres + cert + nginx cm) settle
+  #   route:
+  #     hostname: bookinfo.infra.home
+  #     gateway: infra
+  #     # bjw-s/app-template suffixes service names when multiple service blocks
+  #     # exist (`bookinfo-main` for HTTP, `bookinfo-tls` for the api.bookinfo.club
+  #     # HTTPS ingress consumed via CoreDNS rewrite). HTTPRoute hits the HTTP one.
+  #     service: bookinfo-main
+  #     port: 80
+  #     dashboard:
+  #       name: BookInfo
+  #       group: Tools
+  #       icon: readarr.svg
+  #       description: readarr metadata mirror (rreading-glasses)
+  #       app: bookinfo
 
   # ════════════════════════════════════════════════════════════════════════════
   # CROSSPLANE + CROSSVIEW — control-plane core + UI dashboard
@@ -255,10 +263,7 @@ components:
       repo: oci://ghcr.io/crossplane-contrib/crossview-chart
       name: crossview
       version: 4.3.0
-    # Wave 4 (not 3) so the app-of-apps doesn't block on the pre-existing
-    # bookinfo wave-3 crashloop (bookinfo-postgres has been down for 5d).
-    # Crossplane is wave 2, so CRDs+RBAC are still in place before crossview.
-    syncWave: "4"
+    syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
     route:
       hostname: crossview.infra.home
       gateway: infra
@@ -289,7 +294,7 @@ components:
       repo: https://oauth2-proxy.github.io/manifests
       name: oauth2-proxy
       version: 10.4.3
-    syncWave: "4"  # same wave as crossview (see crossview block above for why)
+    syncWave: "3"
     # Consumes `crossview-oidc-client` Secret rendered by the crossview
     # Application's oidc:* block above. No oidc:* block here — this IS the proxy.
 
