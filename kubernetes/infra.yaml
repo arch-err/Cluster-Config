@@ -216,6 +216,81 @@ components:
         app: bookinfo
 
   # ════════════════════════════════════════════════════════════════════════════
+  # CROSSPLANE + CROSSVIEW — control-plane core + UI dashboard
+  # ════════════════════════════════════════════════════════════════════════════
+  # Crossplane core (CRDs + RBAC manager) in `crossplane-system` ns.
+  # Pure machinery — no HTTPRoute, no dashboard card. Restricted-PSS clean
+  # (chart defaults: uid 65532, drop ALL caps, allowPrivEsc=false,
+  # readOnlyRootFs=true). Pinned to chart 2.2.1 (latest stable; rc.0 releases
+  # available but staying on stable for the home cluster).
+  # NO providers installed yet (provider-cloudflare, provider-kubernetes etc.) —
+  # follow-up discussion needed on which to add.
+  - name: crossplane
+    namespace: crossplane-system
+    chart:
+      repo: https://charts.crossplane.io/stable
+      name: crossplane
+      version: 2.2.1
+    syncWave: "2"  # before crossview, which depends on crossplane CRDs existing
+                   # (crossview's RBAC binds to apiextensions.crossplane.io/*)
+
+  # Crossview — Crossplane UI dashboard. Helm chart 4.3.0 (latest stable from
+  # crossplane-contrib/crossview OCI registry; 4.4.0-rc.1 is a release candidate
+  # at 2026-05-08, staying on stable). The actively-maintained UI in the
+  # crossplane-contrib org. App tag pinned to v4.3.0 in values/infra/crossview.yaml.
+  #
+  # AUTH: oauth2-proxy sidecar release `crossview-oauth2` (same ns) gates the
+  # HTTPRoute → crossview svc :80 → app :3001. Crossview itself trusts the
+  # X-Forwarded-User header (AUTH_MODE=header). pocket-id OIDC client
+  # `crossview` is admin-group-restricted at the IDP (declarative below) on
+  # top of oauth2-proxy's --allowed-group=administrators (defense in depth).
+  #
+  # POSTGRES: bundled pg image with emptyDir persistence (pilot mode — local
+  # accounts lost on pod restart; OIDC users auto-recreate via header mode).
+  # Mirrors the paperless-ngx pilot pattern. Promote to a kadalu-backed PV
+  # with an init-chown container (immich pattern) when user mgmt is settled.
+  - name: crossview
+    namespace: crossview
+    chart:
+      repo: oci://ghcr.io/crossplane-contrib/crossview-chart
+      name: crossview
+      version: 4.3.0
+    syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
+    route:
+      hostname: crossview.infra.home
+      gateway: infra
+      service: crossview-oauth2   # oauth2-proxy fronting; passes X-Forwarded-User
+      port: 80
+      dashboard:
+        name: Crossview
+        group: GitOps
+        icon: crossplane.svg
+        description: Crossplane resource dashboard (admin)
+        app: crossview
+    # Per-app OIDC client (pocket-id id=`crossview`). Secret rendered into the
+    # `crossview` ns as `crossview-oidc-client`; consumed by the crossview-oauth2
+    # release. Single callback for the oauth2-proxy redirect.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://crossview.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      # Infra-tier — administrators only. apps_users get 403 at the IDP.
+      groupRestriction:
+        allowedGroups: [administrators]
+
+  # oauth2-proxy fronting crossview. Mirrors arr-oauth2-prowlarr (infra-tier).
+  - name: crossview-oauth2
+    namespace: crossview
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `crossview-oidc-client` Secret rendered by the crossview
+    # Application's oidc:* block above. No oidc:* block here — this IS the proxy.
+
+  # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -282,6 +357,11 @@ extras:
   # `BOOKINFO` block + values/infra/bookinfo.yaml for the architecture writeup.
   bookinfo:
     postgresSize: 5Gi
+  # crossview — restricted-PSS namespace only (no PVCs/postgres at this layer;
+  # the chart's bundled postgres uses emptyDir in pilot mode — see
+  # values/infra/crossview.yaml header for the trade-off).
+  crossview:
+    enabled: true
 
 # Gateway configuration
 gateway:

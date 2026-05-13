@@ -373,6 +373,29 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* CROSSVIEW (namespace — restricted PSS clean; explicit label for clarity)    */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.crossview }}
+---
+# crossview namespace — restricted PSS. The Crossview app runs as uid 1000
+# with allowPrivilegeEscalation=false + drop ALL caps; the bundled postgres
+# (uid 999, emptyDir — see kubernetes/values/infra/crossview.yaml pilot note)
+# is also restricted-PSS clean. Explicit labels for visibility + lock-in.
+# The oauth2-proxy sidecar release (`crossview-oauth2`) lives in this same
+# ns so the OIDC-client Secret + HTTPRoute backendRef stay co-located.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crossview
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* CALIBRE-WEB (namespace baseline-PSS for linuxserver s6-overlay image)      */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if index .Values.extras "calibre-web" }}

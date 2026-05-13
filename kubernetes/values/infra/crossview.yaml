@@ -1,0 +1,260 @@
+# crossview — chart: crossplane-contrib/crossview chart v4.3.0
+# https://github.com/crossplane-contrib/crossview (community-maintained,
+# the actively-developed UI in the crossplane-contrib org; the Piotr1215/
+# crossview repo no longer exists — `corpobit/crossview` is a fork of the
+# same project. Active commits as of 2026-05-08 (release v4.4.0-rc.1)).
+#
+# OCI chart pull at oci://ghcr.io/crossplane-contrib/crossview-chart/crossview.
+# Source: helm/crossview/ subdir of the main repo; chart version tracks the
+# app version with an `appVersion` of v4.3.0.
+#
+# ARCH:
+#   - Headless Crossview app (Node + Vite SSR) on port 3001 → svc :80.
+#   - Bundled postgres for session/user store. Talks to crossview-postgres
+#     ClusterIP svc :5432 in the same ns.
+#   - HTTPRoute target is the SIBLING `crossview-oauth2` Service (oauth2-proxy
+#     forward-auth) in the SAME ns — mirrors arr-oauth2-prowlarr/calibre-web.
+#     Direct upstream from oauth2-proxy is the `crossview` svc (this chart).
+#
+# AUTH:
+#   - Crossview built-in OIDC is DISABLED (sso.oidc.enabled=false).
+#   - AUTH_MODE=header — Crossview trusts the X-Forwarded-User header set by
+#     oauth2-proxy and auto-provisions users on first hit (createUsers=true).
+#   - Default role for auto-provisioned users = `viewer` (read-only). Promote
+#     to `admin` per-user via Crossview's user mgmt UI (admin user is the
+#     `ADMIN_USERNAME`/`ADMIN_PASSWORD` baked into the secret below — first
+#     login as that user, promote SSO users, then ignore admin/admin).
+#   - Group restriction is enforced TWICE:
+#       * pocket-id client `crossview` allowedGroups=[administrators] (chart
+#         oidc:* block in infra.yaml).
+#       * oauth2-proxy --allowed-group=administrators (crossview-oauth2.yaml).
+#
+# POSTGRES — pilot mode (emptyDir):
+#   - `database.persistence.enabled: false` → bundled pg uses emptyDir.
+#   - Rationale: Kadalu CSI doesn't honor `fsGroup` for non-root pods (cluster
+#     skill gotcha) and bundled chart doesn't ship the init-chown container
+#     immich uses; the proper fix is mirroring the immich extras pattern with
+#     a custom postgres + chown initContainer. That's strictly out of scope
+#     for the install commit. Until that lands:
+#       - Crossview's local user list (admin + manually-created accounts) is
+#         lost on pod restart.
+#       - OIDC-via-header users auto-recreate on next login (createUsers=true),
+#         so SSO flow keeps working across restarts.
+#       - Session cookies invalidated on every restart (clients re-auth via
+#         oauth2-proxy → pocket-id; passkey == one tap, trivially recoverable).
+#   - Same pilot trade-off as paperless-ngx; user-authorized via the spec.
+#   - Postgres image tag pinned away from `latest`.
+
+# Global namespace/ns-creation — handled by the platform chart, not this one.
+global:
+  namespace: crossview
+  createNamespace: false   # platform chart owns the ns (extras.yaml)
+
+# ──────────────────────────────────────────────────────────────────────────
+# CROSSVIEW APP
+# ──────────────────────────────────────────────────────────────────────────
+image:
+  repository: ghcr.io/crossplane-contrib/crossview
+  # Chart 4.3.0's appVersion is v4.3.0. Pin to match.
+  tag: "v4.3.0"
+  pullPolicy: IfNotPresent
+
+app:
+  name: crossview
+  port: 3001
+  replicas: 1
+  # Restricted-PSS clean (chart defaults; explicit here so a future chart bump
+  # can't silently relax them).
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    # Chart default is false because the Node runtime writes to /app/logs at
+    # startup. Mounted as emptyDir in the deployment template — but leaving
+    # rootFs writable for the rest of /app, since the chart doesn't expose a
+    # tmp-dir override. Acceptable risk for a UI tool.
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Chart-default probes (httpGet /api/health on :3001) are fine — keep them.
+# Lower initialDelay so first-boot doesn't sit unhealthy for a minute.
+healthCheck:
+  livenessProbe:
+    httpGet: { path: /api/health, port: 3001 }
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet: { path: /api/health, port: 3001 }
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Service: crossview svc on :80 → app :3001. oauth2-proxy upstream points here.
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3001
+  # Chart default is ClientIP session affinity; harmless behind oauth2-proxy
+  # (single replica anyway). Disable explicitly so the chart-default doesn't
+  # change behavior under our nose.
+  sessionAffinity: None
+
+# Platform chart owns routing (HTTPRoute via the apps.yaml route block).
+ingress:
+  enabled: false
+
+# ──────────────────────────────────────────────────────────────────────────
+# BUNDLED POSTGRES (pilot mode — emptyDir, see header)
+# ──────────────────────────────────────────────────────────────────────────
+database:
+  enabled: true
+  image:
+    repository: postgres
+    # Pin away from `latest`. PG 16 alpine — small, fast first boot, current.
+    # Chart's app server reportedly tested up to PG 18; 16 is safe and slim.
+    tag: "16-alpine"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Pilot: emptyDir, see header note.
+  persistence:
+    enabled: false
+  # Postgres runs as uid 999 by default in the postgres image.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 999
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+
+# ──────────────────────────────────────────────────────────────────────────
+# CROSSVIEW CONFIG (env-mapped via the chart's configmap.yaml)
+# ──────────────────────────────────────────────────────────────────────────
+config:
+  database:
+    enabled: true
+    # host defaults to "<release>-postgres" if empty — the chart prefixes the
+    # release name. Our release is `crossview`, so default lands at
+    # `crossview-postgres.crossview.svc.cluster.local:5432` — correct.
+    host: ""
+    port: 5432
+    database: crossview
+    username: postgres
+    ssl: { mode: disable, rootCert: "", cert: "", key: "" }
+  server:
+    port: 3001
+    auth:
+      # Header-mode trust: oauth2-proxy is the only ingress path, sets
+      # X-Forwarded-User. Crossview auto-provisions on first hit and grants
+      # the default role; an admin promotes later.
+      mode: header
+      header:
+        # oauth2-proxy --pass-user-headers=true sets this header to the
+        # user's preferred_username / sub. Match arr-oauth2-* convention.
+        trustedHeader: X-Forwarded-User
+        createUsers: true
+        defaultRole: viewer
+    log:
+      level: info
+    cors:
+      # MUST be the public ingress URL — post-SSO redirect destination. The
+      # chart default (http://localhost:5173) sends users to localhost after
+      # auth, which 404s in a browser away from a dev machine.
+      origin: https://crossview.infra.home
+      credentials: true
+    session:
+      cookie:
+        secure: true
+        httpOnly: true
+        maxAge: 86400000   # 1d, matches chart default
+  # Built-in OIDC disabled — oauth2-proxy is the auth layer (single source of
+  # truth + group restriction at pocket-id). Built-in OIDC + header mode is
+  # one-or-the-other, not both.
+  sso:
+    oidc:
+      enabled: false
+    saml:
+      enabled: false
+
+# ──────────────────────────────────────────────────────────────────────────
+# SECRETS
+# Sourced from kubernetes/secrets/infra/crossview-secrets.yaml (SopsSecret)
+# with keys: dbpassword, sessionsecret. adminUsername/adminPassword stay
+# inline; first-login bootstrap only, then promote SSO users + ignore admin.
+# ──────────────────────────────────────────────────────────────────────────
+secrets:
+  adminUsername: "admin"
+  # Initial admin password — used once to promote OIDC-provisioned users to
+  # admin role. Replace after first login. NOT exposed via the public route
+  # (oauth2-proxy + admin-only group means external login uses SSO; the
+  # built-in admin only logs in via the internal /api endpoints). Acceptable
+  # for a pilot; rotate to a SopsSecret entry once user mgmt is settled.
+  adminPassword: "ChangeMeAfterFirstLogin"
+  dbPassword:
+    secretKeyRef:
+      name: crossview-secrets
+      key: dbpassword
+  sessionSecret:
+    secretKeyRef:
+      name: crossview-secrets
+      key: sessionsecret
+  # OIDC + SAML disabled, no secrets needed for those.
+  OIDCClientSecret: ""
+  SAMLCert: ""
+
+# ──────────────────────────────────────────────────────────────────────────
+# RBAC + SA
+# ClusterRole gives Crossview read-only across all API groups (necessary —
+# Crossview's whole job is to traverse Crossplane resources cluster-wide).
+# Chart defaults are fine; explicit here for visibility.
+# ──────────────────────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: crossview-sa
+rbac:
+  create: true
+  clusterRole:
+    name: crossview-role
+  clusterRoleBinding:
+    name: crossview-binding
+
+# Disable HPA — single user, low load, single-replica saves the postgres
+# connection-pool headache.
+autoscaling:
+  enabled: false
+
+# Pod anti-affinity is the chart default and harmless for replicas=1.
