@@ -141,13 +141,18 @@ config:
         httpOnly: true
         maxAge: 86400000   # 1d
   # Native OIDC against pocket-id. Client ID = "crossview" (platform-rendered).
-  # Issuer URL is pocket-id's public host (auth.apps.home) — discovery resolves
-  # /authorize, /token, /userinfo automatically.
+  # Pocket-id does NOT use Keycloak-style /protocol/openid-connect/* paths —
+  # its real endpoints are /authorize, /api/oidc/token, /api/oidc/userinfo
+  # (from /.well-known/openid-configuration). Crossview's go-oidc lib doesn't
+  # auto-discover when issuer is set without explicit URLs, so set them.
   sso:
     oidc:
       enabled: true
       issuer: https://auth.apps.home
       clientId: crossview
+      authorizationURL: https://auth.apps.home/authorize
+      tokenURL: https://auth.apps.home/api/oidc/token
+      userInfoURL: https://auth.apps.home/api/oidc/userinfo
       callbackURL: https://crossview.infra.home/api/auth/oidc/callback
       scope: openid profile email
       usernameAttribute: preferred_username
