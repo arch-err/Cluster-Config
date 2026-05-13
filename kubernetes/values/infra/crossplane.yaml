@@ -44,20 +44,39 @@ resources:
     cpu: 1000m
     memory: 1Gi
 
-# Belt-and-suspenders: explicitly affirm the chart's restricted-PSS defaults
-# so a future chart change can't silently relax them. These must match (or be
-# stricter than) the chart defaults at the values-file level.
+# Belt-and-suspenders: full restricted-PSS container securityContext.
+#
+# The chart's values.yaml defaults `securityContextCrossplane:` to ONLY four
+# fields (runAsUser/Group, allowPrivEsc=false, readOnlyRootFs=true) — that's
+# NOT enough to pass restricted PSS on Talos (`with` merges, not unions with
+# implicit defaults). Verified live: pod admission rejects with
+#   "violates PodSecurity 'restricted:latest': unrestricted capabilities
+#    (containers must set securityContext.capabilities.drop=['ALL']),
+#    runAsNonRoot != true, seccompProfile..."
+# So we must include drop:[ALL], runAsNonRoot:true, and a seccompProfile.
+# Applied to BOTH the crossplane-init initContainer AND the main container
+# (the chart's deployment.yaml uses one block for both via `with`).
 securityContextCrossplane:
   runAsUser: 65532
   runAsGroup: 65532
+  runAsNonRoot: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContextRBACManager:
   runAsUser: 65532
   runAsGroup: 65532
+  runAsNonRoot: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
 
 # Metrics endpoint — kept on by default. Future work: wire a ServiceMonitor
 # (or scrape via prometheus-additional-scrape-configs) into the monitoring ns.
