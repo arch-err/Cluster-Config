@@ -360,11 +360,18 @@ extras:
   kadalu: true
   monitoring: true
   hubbleAuth: true
-  # bookinfo — ns + postgres + cert-manager Certificate (SAN=api.bookinfo.club,
-  # ClusterIssuer=home-ca) + nginx-tls ConfigMap. See platform/templates/extras.yaml
-  # `BOOKINFO` block + values/infra/bookinfo.yaml for the architecture writeup.
-  bookinfo:
-    postgresSize: 5Gi
+  # bookinfo — DISABLED 2026-05-13. The underlying postgres PVC hit a kadalu
+  # disk-quota wall ("could not create lock file 'postmaster.pid': Disk quota
+  # exceeded") and the postgres Deployment crashlooped for 5d+, which blocked
+  # the infra app-of-apps from progressing past wave 3. Setting to a falsy
+  # value short-circuits the extras render (postgres Deployment + Service +
+  # PVC + nginx CM + Certificate + ns all pruned by ArgoCD). Re-enable with
+  # a larger postgresSize once the kadalu subvol quota is fixed. Only the
+  # rreading-glasses cache is lost — rebuilds from the first readarr search.
+  # Until re-enabled, readarr still has the api.bookinfo.pro hostAliases path
+  # (see values/apps/readarr.yaml) so book metadata search still works.
+  # bookinfo:
+  #   postgresSize: 5Gi
   # crossview — restricted-PSS namespace only (no PVCs/postgres at this layer;
   # the chart's bundled postgres uses emptyDir in pilot mode — see
   # values/infra/crossview.yaml header for the trade-off).
