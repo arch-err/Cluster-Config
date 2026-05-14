@@ -37,7 +37,9 @@ extraArgs:
   - --reverse-proxy=true
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — syncthing admin UI in-cluster service (syncthing ns).
-  - --upstream=http://syncthing.syncthing.svc.cluster.local:8384
+  # Service is named `syncthing-main` because bjw-s app-template suffixes
+  # service names when >1 service is declared (we have main + sync NodePort).
+  - --upstream=http://syncthing-main.syncthing.svc.cluster.local:8384
   - --cookie-domain=.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
