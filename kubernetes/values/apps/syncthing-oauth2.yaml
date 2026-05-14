@@ -40,7 +40,7 @@ extraArgs:
   # Service is named `syncthing-main` because bjw-s app-template suffixes
   # service names when >1 service is declared (we have main + sync NodePort).
   - --upstream=http://syncthing-main.syncthing.svc.cluster.local:8384
-  - --cookie-domain=.apps.home
+  - --cookie-domain=syncthing.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_syncthing_oauth2_proxy

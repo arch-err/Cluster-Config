@@ -34,7 +34,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — readarr in-cluster service.
   - --upstream=http://readarr.arr.svc.cluster.local:8787
-  - --cookie-domain=.apps.home
+  - --cookie-domain=readarr.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   # Distinct cookie name from sibling — clients are now per-app, no SSO.

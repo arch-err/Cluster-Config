@@ -36,7 +36,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — metube in-cluster service (metube ns).
   - --upstream=http://metube.metube.svc.cluster.local:8081
-  - --cookie-domain=.apps.home
+  - --cookie-domain=metube.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_metube_oauth2_proxy

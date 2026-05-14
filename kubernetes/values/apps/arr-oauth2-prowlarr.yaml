@@ -69,7 +69,7 @@ extraArgs:
   - --upstream=http://prowlarr.prowlarr.svc.cluster.local:9696
   # Cookie scoped to .infra.home (route lives on the infra gateway). No
   # cross-app SSO — readarr lives on .apps.home with its own OIDC client.
-  - --cookie-domain=.infra.home
+  - --cookie-domain=prowlarr.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_prowlarr_oauth2_proxy

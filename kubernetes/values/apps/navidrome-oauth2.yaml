@@ -55,7 +55,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — navidrome in-cluster service (navidrome ns).
   - --upstream=http://navidrome.navidrome.svc.cluster.local:4533
-  - --cookie-domain=.apps.home
+  - --cookie-domain=navidrome.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_navidrome_oauth2_proxy

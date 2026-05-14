@@ -41,7 +41,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — calibre-web in-cluster service (calibre-web ns).
   - --upstream=http://calibre-web.calibre-web.svc.cluster.local:8083
-  - --cookie-domain=.apps.home
+  - --cookie-domain=calibre.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_calibre_web_oauth2_proxy

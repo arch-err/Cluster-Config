@@ -43,7 +43,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — home-assistant in-cluster service (home-assistant ns).
   - --upstream=http://home-assistant.home-assistant.svc.cluster.local:8123
-  - --cookie-domain=.apps.home
+  - --cookie-domain=ha.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_home_assistant_oauth2_proxy

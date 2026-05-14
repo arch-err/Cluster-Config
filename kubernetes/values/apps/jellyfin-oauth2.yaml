@@ -45,7 +45,7 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — jellyfin in-cluster service.
   - --upstream=http://jellyfin.jellyfin.svc.cluster.local:8096
-  - --cookie-domain=.apps.home
+  - --cookie-domain=jellyfin.apps.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_jellyfin_oauth2_proxy
