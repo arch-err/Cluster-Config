@@ -56,19 +56,28 @@ in the query string. Drop-in replacement for the snippet above:
 </form>
 
 <img src="x" onerror="(function(){
-  if (new URLSearchParams(window.location.search).has('local')) return;
-  if (!/login\.html/.test(window.location.hash)) return;
-  if (sessionStorage.getItem('sso-redirecting')) return;
-  sessionStorage.setItem('sso-redirecting', '1');
-  window.location.replace('/sso/OID/start/PocketID');
+  try {
+    if (new URLSearchParams(parent.location.search).has('local')) return;
+    if (!/login\.html/.test(parent.location.hash)) return;
+    if (parent.sessionStorage.getItem('sso-redirecting')) return;
+    parent.sessionStorage.setItem('sso-redirecting', '1');
+    parent.location.replace('/sso/OID/start/PocketID');
+  } catch(e) { console.error('SSO redirect blocked:', e); }
 })()" style="display:none">
 ```
 
-**Why `<img onerror>` and not `<script>`?** Jellyfin injects the disclaimer
-HTML via `innerHTML`, which parses but does not execute `<script>` tags
-(HTML5 spec). Event handlers on elements DO fire when inserted via
-innerHTML — `<img src="x">` intentionally fails to load → `onerror`
-handler runs → redirect logic executes. Standard SPA branding workaround.
+**Why `<img onerror>` and not `<script>`?** Jellyfin injects the
+disclaimer HTML via `innerHTML`, which parses but does not execute
+`<script>` tags (HTML5 spec). Event handlers on elements DO fire when
+inserted via innerHTML — `<img src="x">` intentionally fails to load
+→ `onerror` handler runs → redirect logic executes.
+
+**Why `parent.location` not `window.location`?** Jellyfin renders the
+disclaimer inside a sandboxed iframe in current versions. Direct
+`window.*` from inside the iframe is blocked with `Permission denied to
+access property 'localName'` style errors. Using `parent.*` navigates
+the host page. Wrapped in `try/catch` so a future Jellyfin tightening
+(strict-iframe-sandbox) fails gracefully instead of breaking the page.
 
 **Escape hatch — bookmark this for admin / recovery access:**
 
