@@ -28,15 +28,14 @@ branding slot, which Jellyfin renders inline on the login page.
 ### Snippet (paste into Login Disclaimer)
 
 ```html
-<form action="/sso/OID/start/PocketID" method="post" id="sso-form">
-  <button
-    class="raised block emby-button button-submit"
-    type="submit"
-    style="margin-top:1em">
-    Sign in with PocketID
-  </button>
-</form>
+<a href="/sso/OID/start/PocketID" class="raised block emby-button button-submit"
+   style="margin-top:1em; display:block; text-align:center; text-decoration:none">
+  Sign in with PocketID
+</a>
 ```
+
+*(Earlier versions of this doc used a `<form method="post">` — that returns
+405 Method Not Allowed; the plugin's start endpoint accepts GET only.)*
 
 The `PocketID` in the action URL is the **Name of OID Provider** you set
 when configuring the SSO-Auth plugin (Dashboard → Plugins → SSO-Auth).
@@ -49,12 +48,10 @@ page to `/sso/OID/start/PocketID` automatically — unless `?local=1` is
 in the query string. Drop-in replacement for the snippet above:
 
 ```html
-<form action="/sso/OID/start/PocketID" method="post" id="sso-form">
-  <button class="raised block emby-button button-submit" type="submit"
-          style="margin-top:1em">
-    Sign in with PocketID
-  </button>
-</form>
+<a href="/sso/OID/start/PocketID" class="raised block emby-button button-submit"
+   style="margin-top:1em; display:block; text-align:center; text-decoration:none">
+  Sign in with PocketID
+</a>
 <script>
   (function() {
     // Escape hatch: append ?local=1 to URL to skip auto-redirect
