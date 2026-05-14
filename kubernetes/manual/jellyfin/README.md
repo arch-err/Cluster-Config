@@ -42,25 +42,69 @@ The `PocketID` in the action URL is the **Name of OID Provider** you set
 when configuring the SSO-Auth plugin (Dashboard → Plugins → SSO-Auth).
 Case-sensitive. Must match exactly.
 
-### Optional — make OIDC the only path
+### Optional — auto-redirect to SSO (with escape hatch)
 
-To hide Jellyfin's native username/password form and force users through
-SSO, add this CSS to the same Branding section's **Custom CSS Code** (or
-the standalone Custom CSS plugin if you have it). Local admin login
-still works at `/web/index.html#!/login.html?autoLaunch=0` style URL or
-via API.
+Adds a tiny JS snippet inside the disclaimer that redirects the login
+page to `/sso/OID/start/PocketID` automatically — unless `?local=1` is
+in the query string. Drop-in replacement for the snippet above:
+
+```html
+<form action="/sso/OID/start/PocketID" method="post" id="sso-form">
+  <button class="raised block emby-button button-submit" type="submit"
+          style="margin-top:1em">
+    Sign in with PocketID
+  </button>
+</form>
+<script>
+  (function() {
+    // Escape hatch: append ?local=1 to URL to skip auto-redirect
+    if (new URLSearchParams(window.location.search).has('local')) return;
+    // Only trigger on the actual login page (Branding can render in other contexts)
+    if (!/\/login\.html/.test(window.location.hash)) return;
+    // Avoid double-redirect if already mid-SSO flow
+    if (sessionStorage.getItem('sso-redirecting')) return;
+    sessionStorage.setItem('sso-redirecting', '1');
+    window.location.replace('/sso/OID/start/PocketID');
+  })();
+</script>
+```
+
+**Escape hatch — bookmark this for admin / recovery access:**
+
+```
+https://jellyfin.apps.home/web/index.html#!/login.html?local=1
+```
+
+This URL shows the local username/password form even with auto-redirect
+on. Save the URL somewhere outside the cluster (Vaultwarden, sticky note,
+etc.) in case SSO ever breaks.
+
+**Caveats:**
+
+- If `<script>` is sanitized out by a future Jellyfin version's branding
+  filter, auto-redirect silently stops working — the form/button still
+  works as a click-through. Worth testing after any Jellyfin upgrade.
+- Mobile/TV native apps don't render Branding; they use `MediaBrowser`
+  token auth against `/Users/AuthenticateByName`. Auto-redirect doesn't
+  affect them.
+- The `sessionStorage` guard prevents infinite redirects if the SSO flow
+  ever bounces back to `/login.html` mid-handshake.
+
+### Hide the local form entirely (most aggressive)
+
+To remove the native username/password form completely instead of just
+auto-redirecting past it, add this CSS to **Custom CSS Code**:
 
 ```css
 /* Hide Jellyfin's native login form, leaving only the SSO button */
 #loginPage form#loginForm { display: none !important; }
 ```
 
-Caveat: if SSO breaks (plugin update, pocket-id misconfig, expired cert)
-this leaves you locked out of the browser UI. Mobile/TV apps unaffected
-(they use `MediaBrowser` token auth, not the web login). Keep an admin
-account creds noted so you can re-enable the form via API or
-PVC-direct-edit if needed. Recommend NOT hiding the form unless you have
-that fallback plan.
+**Strongly discouraged** unless you've got a separate plan to recover
+admin access (PVC edit, API). The escape hatch URL above will NOT save
+you if the form is CSS-hidden — you'd need to edit branding via direct
+DB/PVC access or hit the API to unset it. Auto-redirect is the better
+default; native form stays in the DOM as a recovery path.
 
 ---
 
