@@ -242,6 +242,11 @@ controllers:
         env:
           POSTGRES_DB: "crossview"
           POSTGRES_USER: "postgres"
+          # Put PGDATA in a subdir so postgres owns + can chmod it. With
+          # drop:[ALL] (no CAP_FOWNER), postgres can't chmod the mount root
+          # which is owned root:postgres via fsGroup. PGDATA subdir is
+          # created BY postgres, so it owns it outright.
+          PGDATA: "/var/lib/postgresql/data/pgdata"
           POSTGRES_PASSWORD:
             valueFrom:
               secretKeyRef:
