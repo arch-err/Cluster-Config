@@ -1,0 +1,235 @@
+# home-assistant — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Home Assistant Core. Upstream: https://www.home-assistant.io/
+# Image: ghcr.io/home-assistant/home-assistant — official multi-arch image,
+# s6-overlay (entrypoint /init starts as root, supervises HA python process).
+#
+# ─── Scope (clean install, pure network) ──────────────────────────────────────
+# First step in migrating services off the laptop. NO USB dongles, NO Bluetooth,
+# NO multicast integrations for now. Pure HTTP/network integrations only.
+# Hooks for future host-network / device mounts are commented inline below so
+# enabling them is a values-file delta, not a rewrite.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# HA's native auth doesn't speak OIDC (no built-in OIDC provider). Front-door
+# pattern via oauth2-proxy sidecar release (home-assistant-oauth2), same shape
+# as calibre-web / arr-oauth2-{prowlarr,readarr}. HA's `trusted_proxies` +
+# `use_x_forwarded_for` (rendered via configuration.yaml ConfigMap + init copy
+# below) lets it trust X-Forwarded-* from the in-cluster oauth2-proxy.
+#
+# After first deploy HA shows its onboarding/owner-account screen — that's
+# expected; create the local owner account once, then the oauth2-proxy front
+# gates all further access (X-Forwarded-User isn't auto-bound to an HA user
+# without a custom auth provider — that's a future step if/when the user wants
+# SSO username-mapping; for now oauth2-proxy gates *access*, HA owns *identity*).
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label (extras renders it). HA's image is s6-overlay; /init runs
+# as root then supervises HA. Restricted PSS rejects that init flow (same
+# trade-off as calibre-web / prowlarr / readarr). HA writes everything to
+# /config as root by default — leaving uid at image default (0) for now.
+
+controllers:
+  main:
+    # sqlite (home-assistant_v2.db) on the /config PVC — Recreate avoids
+    # old/new pod racing on the db file during rollout (mirrors abs-v2 /
+    # calibre-web / grafana fix).
+    strategy: Recreate
+    # Init container drops our managed configuration.yaml snippet into
+    # /config on first boot (and tops it up on rollout if missing). HA reads
+    # configuration.yaml at startup; we need `http.use_x_forwarded_for: true`
+    # + `http.trusted_proxies` for the oauth2-proxy front-door to work.
+    # Idempotent: only writes if the target file is absent — never clobbers
+    # user edits made later in the UI / via the File editor add-on.
+    initContainers:
+      seed-config:
+        image:
+          repository: docker.io/library/busybox
+          tag: "1.37.0"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            if [ ! -f /config/configuration.yaml ]; then
+              echo "[seed-config] /config/configuration.yaml missing; seeding from configmap"
+              cp /seed/configuration.yaml /config/configuration.yaml
+            else
+              echo "[seed-config] /config/configuration.yaml exists; leaving alone"
+            fi
+        securityContext:
+          # Baseline-PSS ns; busybox runs as root by default. Explicitly
+          # declare it so PSS audit logs are clean.
+          runAsUser: 0
+          runAsGroup: 0
+    containers:
+      app:
+        image:
+          repository: ghcr.io/home-assistant/home-assistant
+          # Pinned. Latest stable as of 2026-05-14. Bump deliberately via
+          # cluster-upgrade skill.
+          tag: "2026.5.1"
+        env:
+          TZ: "Europe/Amsterdam"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8123
+              # HA cold-start does sqlite init + integration discovery; give
+              # it room. Aligns with abs-v2 / calibre-web pattern.
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8123
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          # s6-overlay /init needs root to supervise; we DON'T drop here.
+          # Baseline PSS allows the default cap set.
+          allowPrivilegeEscalation: false
+
+# ─── Future-proofing hooks ────────────────────────────────────────────────────
+# When the user later wants multicast/SSDP discovery (Sonos, Plex, Chromecast,
+# Apple TV, etc.) OR a USB Zigbee/Z-Wave dongle (Conbee, SkyConnect, Aeotec),
+# the changes go HERE — not elsewhere in the file. Switch the ns to privileged
+# PSS in extras.yaml first, then uncomment / fill the relevant block.
+#
+# (1) hostNetwork — required for multicast/mDNS/SSDP. Trade: pod uses node's
+#     network namespace, port 8123 must be free on the node, loses k8s
+#     service-mesh networking (oauth2-proxy upstream becomes 127.0.0.1:8123).
+#     Need to also drop the kube-system dns policy to ClusterFirstWithHostNet.
+#
+# defaultPodOptions:
+#   hostNetwork: true
+#   dnsPolicy: ClusterFirstWithHostNet
+#
+# (2) USB device for Zigbee/Z-Wave — Talos needs the device exposed via the
+#     `extraMounts` config in talconfig (separately), then the pod mounts the
+#     /dev/ttyUSB* path. Easiest is a hostPath; cleaner is the smarter-devices
+#     / generic-device-plugin. Pin the pod to the node with the dongle via
+#     nodeSelector / nodeAffinity.
+#
+# controllers:
+#   main:
+#     containers:
+#       app:
+#         securityContext:
+#           privileged: true     # blunt; tightening to capabilities later
+#         volumeDevices: []      # OR hostPath via persistence: below
+#
+# persistence:
+#   zigbee-dongle:
+#     type: hostPath
+#     hostPath: /dev/serial/by-id/usb-dresden_elektronik_ConBee_II-if00
+#     hostPathType: CharDevice
+#     advancedMounts:
+#       main:
+#         app:
+#           - path: /dev/ttyACM0
+#
+# (3) Bluetooth — needs hostNetwork + /var/run/dbus + bluetoothd on the node.
+#     Talos doesn't ship dbus; this likely won't ever work without a
+#     side-car node running a normal linux distro. Out of scope.
+
+defaultPodOptions:
+  securityContext:
+    # When/if we later drop HA to non-root, set runAsUser: 1000 / runAsGroup:
+    # 1000 + flip the seed-config init container too. For now image runs as
+    # root and writes to /config as root.
+    fsGroup: 0
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8123
+        targetPort: 8123
+
+persistence:
+  # /config — HA state. sqlite home-assistant_v2.db, configuration.yaml,
+  # secrets.yaml, custom_components, blueprints, .storage/* registry files.
+  # 5Gi is comfortable for a small install; recorder history can grow this
+  # over time. Kadalu RWX is forward-looking — HA itself is single-writer,
+  # but RWX lets us mount /config read-only from a backup pod or hass-cli
+  # sidecar later without surgery.
+  config:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+        seed-config:
+          - path: /config
+  # configuration.yaml seed. Mounted into the init container only; copied
+  # into /config on first boot if absent. HA's own File editor / UI is the
+  # source of truth from then on. The chart renders the ConfigMap inline
+  # from the `configMaps.seed` block below (cross-ref via `identifier`).
+  seed:
+    enabled: true
+    type: configMap
+    identifier: seed
+    advancedMounts:
+      main:
+        seed-config:
+          - path: /seed
+  # Future-proofing: when the user wants to add a Zigbee dongle hostPath
+  # mount, the second `persistence:` entry goes here (see commented block
+  # above for the shape).
+
+# bjw-s app-template can render a ConfigMap inline. Define it here so the
+# seed file is in this same values file (single-file edit when changing).
+configMaps:
+  seed:
+    enabled: true
+    data:
+      configuration.yaml: |
+        # Managed by GitOps — see kubernetes/values/apps/home-assistant.yaml.
+        # Seeded once by the seed-config init container if /config is empty.
+        # After first boot, edit via HA UI / File editor — this file is NOT
+        # re-templated unless you manually rm /config/configuration.yaml.
+
+        # Default HA setup
+        default_config:
+
+        # Reverse-proxy trust — oauth2-proxy front-door sits in front of HA.
+        # use_x_forwarded_for: HA respects the X-Forwarded-For header for
+        # client IP attribution (banning, logs, etc).
+        # trusted_proxies: HA only accepts forwarded headers from the cluster
+        # pod CIDR (cilium default 10.244.0.0/16). Without this, HA refuses
+        # to honor the headers and the proxy chain fails with
+        # "X-Forwarded-For header from untrusted proxy".
+        http:
+          use_x_forwarded_for: true
+          trusted_proxies:
+            - 10.244.0.0/16    # cilium pod CIDR (cluster)
+            - 10.96.0.0/12     # service CIDR (for completeness)
+            - 127.0.0.1
+
+        # Standard HA frontend / system modules; default_config above pulls
+        # in most of them but listing explicitly keeps the seed self-doc.
+        frontend:
+        config:
+        system_health:
+        mobile_app:
+
+        # Recorder defaults to sqlite at /config/home-assistant_v2.db — fine
+        # for a starter install. Migrate to postgres later if history grows.

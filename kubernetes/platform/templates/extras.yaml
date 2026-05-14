@@ -419,6 +419,32 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* HOME-ASSISTANT (namespace baseline-PSS for HA's s6-overlay /init as root)  */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if index .Values.extras "home-assistant" }}
+---
+# home-assistant namespace — baseline PSS. Official HA image
+# (ghcr.io/home-assistant/home-assistant) uses s6-overlay; /init starts as
+# root and supervises the HA python process. Restricted PSS rejects the
+# root-init flow. oauth2-home-assistant sidecar release lives in this same
+# ns so the OIDC-client Secret + HTTPRoute backendRef are co-located.
+#
+# When the user later wants USB dongles / hostNetwork (multicast/SSDP), flip
+# this to privileged PSS — the labels swap is the trade-acknowledging step
+# before the values-file delta lands.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home-assistant
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* ARR STACK — split-architecture                                              */}}
 {{/* `arr` ns (baseline PSS): prowlarr + readarr + future *arr apps              */}}
 {{/* `qbittorrent` ns (privileged PSS): qBit+gluetun (NET_ADMIN, authorized)     */}}

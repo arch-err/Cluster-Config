@@ -573,6 +573,64 @@ components:
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
   # ──────────────────────────────────────────────────────────────────────────
+  # HOME-ASSISTANT — smart-home hub. First migration step off the laptop.
+  # Pure network integrations only for now; future-proofing for USB dongles +
+  # hostNetwork (multicast) is inlined as commented hooks in the values file.
+  # Auth via oauth2-proxy sidecar release (home-assistant-oauth2) consuming
+  # the per-app pocket-id client below. extras.home-assistant renders the
+  # baseline-PSS namespace (HA image is s6-overlay; /init starts as root).
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: home-assistant
+    namespace: home-assistant
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns label) settle
+    # HTTPRoute points at oauth2-home-assistant Service (same ns), NOT
+    # directly at the home-assistant workload. /api/* bypass-routed in the
+    # oauth2-proxy config so HA's REST API + WebSocket (long-lived token
+    # auth) keeps working. HA itself trusts X-Forwarded-* via configuration.
+    # yaml (trusted_proxies includes the cilium pod CIDR) — rendered by the
+    # seed ConfigMap + init container; see values/apps/home-assistant.yaml.
+    route:
+      hostname: ha.apps.home
+      gateway: apps
+      service: oauth2-home-assistant
+      port: 80
+      dashboard:
+        name: Home Assistant
+        group: Smart Home
+        icon: home-assistant.svg
+        description: Smart-home hub
+        app: home-assistant
+    # Per-app OIDC client (pocket-id id=`home-assistant`). Secret rendered
+    # into the `home-assistant` ns as `home-assistant-oidc-client`; consumed
+    # by the home-assistant-oauth2 release. apps_users + administrators
+    # allowed at the IDP level on top of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://ha.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting home-assistant. Same pattern as calibre-web-oauth2.
+  # Lives in the same ns as home-assistant so the OIDC-client Secret +
+  # HTTPRoute backendRef are co-located.
+  - name: home-assistant-oauth2
+    namespace: home-assistant
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `home-assistant-oidc-client` Secret rendered by the
+    # home-assistant Application's oidc:* block. No oidc:* block here —
+    # this IS the proxy.
+
+  # ──────────────────────────────────────────────────────────────────────────
   # VAULTWARDEN — self-hosted Bitwarden-compatible password manager. Replaces
   # the laptop's docker-compose instance at /srv/vaultwarden (data migration
   # is a separate follow-up; this is a clean deploy).
@@ -661,4 +719,10 @@ extras:
   # s6-overlay starts as root, drops to PUID:PGID via s6-applyuidgid which
   # needs SETUID/SETGID/CHOWN; restricted PSS rejects that init step).
   calibre-web:
+    enabled: true
+  # home-assistant: namespace only (baseline PSS — HA's s6-overlay /init runs
+  # as root to supervise the python process; restricted PSS rejects that
+  # init flow). Flip to privileged later when adding USB dongles or
+  # hostNetwork for multicast/SSDP.
+  home-assistant:
     enabled: true
