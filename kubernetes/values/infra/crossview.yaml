@@ -341,7 +341,6 @@ persistence:
       main:
         01-ca-bundle-merge:
           - path: /merged-ca
-          - path: /merged-ca
         app:
           - path: /merged-ca
             readOnly: true
