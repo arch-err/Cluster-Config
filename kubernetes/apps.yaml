@@ -519,6 +519,59 @@ components:
     # Consumes `calibre-web-oidc-client` Secret rendered by the calibre-web
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # SYNCTHING — self-hosted continuous file sync. Replaces the laptop's
+  # /srv/syncthing instance (data migration is a separate follow-up; this is
+  # a clean deploy). Admin UI gated by oauth2-proxy + pocket-id OIDC; native
+  # GUI auth disabled. Sync protocol (22000/tcp+udp) exposed via NodePort
+  # 30022 — peers reach it via <node-ip>:30022 directly, NOT via the L7
+  # gateway. UDP local-discovery (21027) intentionally omitted; global
+  # discovery + relays cover peer discovery.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: syncthing
+    namespace: syncthing
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    # HTTPRoute points at oauth2-syncthing Service (same ns), NOT directly
+    # at the syncthing workload. Sync ports (22000) live on a separate
+    # NodePort Service (`syncthing-sync`) outside the gateway entirely.
+    route:
+      hostname: syncthing.apps.home
+      gateway: apps
+      service: oauth2-syncthing
+      port: 80
+      dashboard:
+        name: Syncthing
+        group: Files
+        icon: syncthing.svg
+        description: Continuous file sync (admin UI)
+        app: syncthing
+    # Per-app OIDC client (pocket-id id=`syncthing`). Secret rendered into
+    # the `syncthing` ns as `syncthing-oidc-client`; consumed by the
+    # syncthing-oauth2 release. apps_users + administrators allowed at the
+    # IDP level on top of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://syncthing.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting syncthing. Same pattern as calibre-web-oauth2.
+  # Lives in the same ns as syncthing so the OIDC-client Secret + HTTPRoute
+  # backendRef are co-located.
+  - name: syncthing-oauth2
+    namespace: syncthing
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    # Consumes `syncthing-oidc-client` Secret rendered by the syncthing
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.

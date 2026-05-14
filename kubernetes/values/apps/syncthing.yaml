@@ -1,0 +1,134 @@
+# syncthing — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted continuous file sync. Upstream: https://syncthing.net/
+# Image: docker.io/syncthing/syncthing — official. Runs as uid 1000 by default.
+#
+# ─── Auth ──────────────────────────────────────────────────────────────────────
+# Admin UI (:8384) is fronted by an oauth2-proxy sidecar release (`syncthing-
+# oauth2`, see values/apps/syncthing-oauth2.yaml) terminating pocket-id OIDC.
+# Native HTTP-basic auth on the GUI is DISABLED here — oauth2-proxy is the
+# only gate. Same pattern as calibre-web.
+#
+# ─── Sync ports ────────────────────────────────────────────────────────────────
+# Admin UI lives behind the apps gateway (ClusterIP service `syncthing` :8384).
+# Sync protocol (peer-to-peer) needs DIRECT reachability — runs on a separate
+# NodePort service so peers can talk to a node IP:22000 without going through
+# the L7 gateway. UDP local-discovery (21027) is intentionally omitted —
+# multicast doesn't traverse the cluster network usefully; global discovery +
+# relays (syncthing.net) cover peer discovery for now.
+#
+# ─── Migration ─────────────────────────────────────────────────────────────────
+# Clean deploy. The laptop's /srv/syncthing data is NOT migrated here — that's
+# a separate follow-up. This pod starts with empty /var/syncthing/{config,sync}.
+
+controllers:
+  main:
+    # sqlite-backed index in /var/syncthing/config — Recreate avoids old/new
+    # pod racing on the index files during rollouts.
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/syncthing/syncthing
+          tag: "2.0.16"
+        env:
+          # Bind GUI to all-ifaces so the ClusterIP service can reach it.
+          STGUIADDRESS: "0.0.0.0:8384"
+          # Don't self-upgrade; image pinning controls version.
+          STNOUPGRADE: "true"
+          # Where config + index live.
+          STHOMEDIR: /var/syncthing/config
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "Europe/Amsterdam"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8384
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8384
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted PSS clean — syncthing/syncthing runs as uid 1000 by default.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  # Admin UI — ClusterIP, fronted by oauth2-proxy sidecar release. HTTPRoute in
+  # apps.yaml points at the oauth2-proxy Service (NOT this one directly).
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8384
+        targetPort: 8384
+  # Sync protocol — NodePort so peers can hit <node-ip>:22000 directly.
+  # Port 22000/tcp is the BEP (Block Exchange Protocol) port; 22000/udp is
+  # QUIC. NodePort 30022 picked from the default 30000-32767 range; if a
+  # router port-forward later sends WAN 22000 → node:30022 we get inbound
+  # peers (currently outbound-only works fine, peers initiate to us only
+  # if NAT-traversal succeeds — usually via relay).
+  sync:
+    controller: main
+    type: NodePort
+    ports:
+      sync-tcp:
+        port: 22000
+        targetPort: 22000
+        protocol: TCP
+        nodePort: 30022
+      sync-udp:
+        port: 22000
+        targetPort: 22000
+        protocol: UDP
+        nodePort: 30022
+
+persistence:
+  # Config + sqlite index. Small.
+  config:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 1Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /var/syncthing/config
+  # The actual synced data. Start at 50Gi (kadalu is expandable). Mount path
+  # `/sync` (not `/data`) for clarity — this is the user-data subtree.
+  sync:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 50Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /var/syncthing/sync
