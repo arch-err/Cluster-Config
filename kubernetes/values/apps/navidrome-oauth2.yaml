@@ -1,0 +1,126 @@
+# navidrome-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting Navidrome's web UI. Mirrors metube-oauth2 /
+# calibre-web-oauth2. Consumes `navidrome-oidc-client` (rendered by the
+# navidrome Application's oidc:* block in apps.yaml; pocket-id client
+# id=`navidrome`, restricted to apps_users + administrators at the IDP
+# level on top of the oauth2-proxy --allowed-group flags below).
+#
+# ─── Mobile / Subsonic API bypass ─────────────────────────────────────────────
+# Subsonic mobile clients (Symfonium, Amperfy, DSub, play:Sub, …) auth with
+# username+password sent in the request to /rest/* — they DO NOT speak OIDC.
+# `^/rest/` is skip-auth-route'd so Subsonic clients hit Navidrome directly
+# and authenticate against Navidrome's native user DB.
+#
+# Mobile setup:
+#   Server URL : https://navidrome.apps.home
+#   Username   : <navidrome native user> (created in the web UI admin panel)
+#   Password   : <that user's navidrome password — NOT pocket-id>
+#
+# /share/* (public share links) is also bypassed so anyone with a share URL
+# can stream without an OIDC login.
+#
+# ─── Web UI auth chain ────────────────────────────────────────────────────────
+# Browser → cilium gateway → oauth2-proxy → Navidrome.
+# oauth2-proxy sets X-Forwarded-User; Navidrome trusts it via ExtAuth
+# (ND_EXTAUTH_USERHEADER + ND_EXTAUTH_TRUSTEDSOURCES, see values/apps/
+# navidrome.yaml). The header username MUST already exist as a Navidrome
+# user — first-boot the admin creates the bootstrap user via the initial
+# /app screen.
+#
+# COOKIE SECRET: sourced from SopsSecret `navidrome-oauth2-cookie` in the
+# navidrome ns (kubernetes/secrets/apps/navidrome-oauth2-cookie.yaml).
+
+fullnameOverride: oauth2-navidrome
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — navidrome in-cluster service (navidrome ns).
+  - --upstream=http://navidrome.navidrome.svc.cluster.local:4533
+  - --cookie-domain=.apps.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_navidrome_oauth2_proxy
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
+  # Subsonic API bypass — mobile clients (Symfonium, Amperfy, DSub, play:Sub)
+  # hit /rest/* with native username+password auth (salted-MD5 or token).
+  # They have no OIDC support; gating /rest/* with OIDC would brick every
+  # mobile client. Navidrome's own auth enforces creds on /rest/*.
+  - --skip-auth-route=^/rest/
+  # Public share links — anyone with a share URL can stream without an OIDC
+  # login. Navidrome generates and authorizes these tokens itself.
+  - --skip-auth-route=^/share/
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+# OIDC creds from the platform-rendered Secret (navidrome Application's
+# oidc:* block in apps.yaml).
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: navidrome-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: navidrome-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: navidrome-oidc-client
+        key: issuer_url
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: navidrome-oauth2-cookie
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false

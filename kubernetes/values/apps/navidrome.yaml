@@ -1,0 +1,181 @@
+# navidrome — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted music server (Subsonic API-compatible). Upstream:
+# https://www.navidrome.org/  •  Source: https://github.com/navidrome/navidrome
+# Image: docker.io/deluan/navidrome — official upstream, runs as uid 1000 by
+# default, restricted-PSS clean.
+#
+# ─── Auth (the tricky part) ───────────────────────────────────────────────────
+# Navidrome has TWO orthogonal auth surfaces, handled DIFFERENTLY:
+#
+# a) Web UI  (browser at https://navidrome.apps.home)
+#    Fronted by oauth2-proxy (release `navidrome-oauth2`, see
+#    values/apps/navidrome-oauth2.yaml). Mirrors the calibre-web / metube
+#    pattern. NO native OIDC in Navidrome — checked v0.61.2 source: the
+#    `configOptions` struct has no OIDC fields; only `ExtAuth.{TrustedSources,
+#    UserHeader,LogoutURL}` (legacy names: ReverseProxyWhitelist /
+#    ReverseProxyUserHeader). So: oauth2-proxy terminates OIDC, sets
+#    X-Forwarded-User, Navidrome trusts that header via ExtAuth.
+#
+# b) Subsonic API  (mobile clients: Symfonium, Amperfy, DSub, play:Sub, …)
+#    Mobile Subsonic clients authenticate with username + password sent in
+#    the Subsonic request (salted-MD5 or token). They DO NOT speak OIDC.
+#    The oauth2-proxy sidecar bypasses `^/rest/` so mobile clients hit
+#    Navidrome's Subsonic endpoint directly — see
+#    values/apps/navidrome-oauth2.yaml --skip-auth-route flags.
+#
+#    To use a mobile app the user MUST create a **native Navidrome user**
+#    (with a password) from the web UI admin panel. That username/password
+#    is then entered into the mobile app's server settings — pocket-id
+#    is NOT involved on the mobile side.
+#
+# ─── ExtAuth header trust ─────────────────────────────────────────────────────
+# oauth2-proxy forwards the authenticated username in `X-Forwarded-User`.
+# Navidrome's ExtAuth requires BOTH:
+#   - ND_EXTAUTH_USERHEADER       — name of the header to read
+#   - ND_EXTAUTH_TRUSTEDSOURCES   — CIDR whitelist of proxy source IPs
+# The proxy lives in the same ns and the request reaches Navidrome from the
+# cilium pod network, so we trust the cluster pod CIDR (10.244.0.0/16 —
+# same as home-assistant `trusted_proxies`). Note: the username from the
+# header MUST already exist as a Navidrome user, otherwise the header is
+# ignored (see server/auth.go: FindByUsernameWithPassword fall-through).
+# First-time setup: visit /app via oauth2-proxy → land on Navidrome's
+# initial-admin screen → create the bootstrap user. From then on, ExtAuth
+# auto-logs that user in on each visit.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /music   — shared kadalu media-library RWX PVC via existingClaim, with
+#            subPath=music so files land at media-library/music/* on the
+#            backing kadalu subvol. READ-ONLY mount (Navidrome only scans).
+#            Other apps (jellyfin, ABS-v2, metube) use different subPaths
+#            (Movies/, _podcasts/, YouTube/) — no collision. File ownership
+#            doesn't matter as long as world-readable; kadalu subvol bits
+#            are 0777 already.
+# /data    — small RWO PVC 5Gi (sqlite navidrome.db + cache + image cache +
+#            transcoded snippets). Restricted-PSS, fsGroup=1000.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted (default ns label). Image runs uid 1000 non-root; explicit
+# securityContext below locks it down. fsGroup=1000 on the data PVC so the
+# sqlite + cache writes land cleanly.
+
+controllers:
+  main:
+    # sqlite in /data — Recreate avoids old/new pod racing on the same db
+    # file during rollouts (mirrors audiobookshelf-v2 / calibre-web).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/deluan/navidrome
+          tag: "0.61.2"
+        env:
+          # ── core paths ──
+          ND_MUSICFOLDER: /music
+          ND_DATAFOLDER: /data
+          ND_PORT: "4533"
+          ND_ADDRESS: 0.0.0.0
+          # ── logging + scan ──
+          ND_LOGLEVEL: info
+          ND_SCANSCHEDULE: 1h
+          # ── UI niceties ──
+          ND_ENABLEGRAVATAR: "false"
+          ND_SESSIONTIMEOUT: 24h
+          # ── ExtAuth — accept X-Forwarded-User from oauth2-proxy ──
+          # Header name MUST match what oauth2-proxy sets (--pass-user-headers
+          # = X-Forwarded-User by default).
+          ND_EXTAUTH_USERHEADER: X-Forwarded-User
+          # Cilium pod CIDR — the oauth2-proxy pod's source IP for in-cluster
+          # service-to-service calls comes from this range. Same scope as
+          # home-assistant's trusted_proxies. Tighten later if you can pin
+          # the proxy to a known service IP.
+          ND_EXTAUTH_TRUSTEDSOURCES: "10.244.0.0/16"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 4533
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 4533
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted-PSS clean — deluan/navidrome ships as a single static
+        # Go binary, runs as uid 1000 by default. Lock down explicitly.
+        # readOnlyRootFilesystem=true: Navidrome only writes to /data and
+        # /music (which is RO-mounted); a writable /tmp is provided below
+        # for transcoded streams (ffmpeg scratch).
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 4533
+        targetPort: 4533
+
+persistence:
+  # Navidrome state — sqlite navidrome.db + cache + image cache + transcode
+  # scratch. ~5Gi is comfortable; the DB itself is tiny (~tens of MB even
+  # for 100k tracks), the bulk is image+transcode cache.
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /data
+  # Shared kadalu media-library — static RWX PV bound to the existing
+  # `media-library` PVC in the navidrome ns (provisioned by extras.navidrome
+  # block; subvol/ar/lb/media-library on hostvol replica2 — SAME backing
+  # data as jellyfin / metube / audiobookshelf-v2 / arr stack). Mounted
+  # READ-ONLY at /music with subPath=music so navidrome only sees the
+  # `music/` subtree of the shared library.
+  music:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-library
+    advancedMounts:
+      main:
+        app:
+          - path: /music
+            subPath: music
+            readOnly: true
+  # readOnlyRootFilesystem=true → Navidrome's ffmpeg transcode pipeline
+  # writes scratch files into /tmp.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp

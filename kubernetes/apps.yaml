@@ -773,6 +773,74 @@ components:
     # Consumes `jellyfin-oidc-client` Secret rendered by the jellyfin
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # NAVIDROME — music server (Subsonic API-compatible). Streams from the
+  # shared kadalu media-library volume (same backing subvol as arr / ABS-v2
+  # / jellyfin / metube), mounted READ-ONLY at /music with subPath=music.
+  #
+  # AUTH: TWO orthogonal surfaces.
+  #   - Web UI is fronted by oauth2-proxy (navidrome-oauth2 below) — Navidrome
+  #     has NO native OIDC (verified against v0.61.2 source), but it has an
+  #     ExtAuth header-trust mode (ND_EXTAUTH_USERHEADER + TRUSTEDSOURCES).
+  #     oauth2-proxy sets X-Forwarded-User, Navidrome trusts it.
+  #   - Subsonic API (/rest/*) is bypassed in oauth2-proxy — mobile clients
+  #     (Symfonium, Amperfy, DSub, play:Sub) auth with username+password
+  #     against Navidrome's native user DB. User MUST create a Navidrome
+  #     account via the web UI's admin panel for each mobile device.
+  # See values/apps/navidrome.yaml + navidrome-oauth2.yaml for the full
+  # rationale + the env var matrix.
+  #
+  # extras.navidrome renders the ns + twin media-library PV/PVC pair.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: navidrome
+    namespace: navidrome
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + media-library twin PV) settle
+    # HTTPRoute points at oauth2-navidrome Service (same ns), NOT directly at
+    # the navidrome workload. /rest/* (Subsonic API for mobile clients) and
+    # /share/* (public share links) are skip-auth-route'd in the oauth2-proxy
+    # so they reach Navidrome directly — Navidrome enforces its own auth on
+    # those paths via its native user DB.
+    route:
+      hostname: navidrome.apps.home
+      gateway: apps
+      service: oauth2-navidrome
+      port: 80
+      timeout: 30m  # large library scans + long-running transcode requests
+      dashboard:
+        name: Navidrome
+        group: Media
+        icon: navidrome.svg
+        description: Music server (Subsonic API)
+        app: navidrome
+    # Per-app OIDC client (pocket-id id=`navidrome`). Secret rendered into
+    # the `navidrome` ns as `navidrome-oidc-client`; consumed by the
+    # navidrome-oauth2 release. apps_users + administrators allowed at the
+    # IDP level on top of oauth2-proxy's --allowed-group (defense in depth).
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://navidrome.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting navidrome. Same pattern as calibre-web-oauth2 /
+  # metube-oauth2 / jellyfin-oauth2. Lives in the same ns as navidrome so
+  # the OIDC-client Secret + HTTPRoute backendRef are co-located.
+  - name: navidrome-oauth2
+    namespace: navidrome
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `navidrome-oidc-client` Secret rendered by the navidrome
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -849,4 +917,12 @@ extras:
   # + a fifth twin-PV/PVC for `media-library` in the jellyfin ns pointing at
   # the SAME kadalu subvol path the arr stack / audiobookshelf-v2 / metube use.
   jellyfin:
+    librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
+  # navidrome — ns (default restricted PSS — deluan/navidrome is a single
+  # static Go binary, runs uid 1000 cleanly) + a sixth twin-PV/PVC for
+  # `media-library` in the navidrome ns pointing at the SAME kadalu subvol
+  # path the arr / ABS-v2 / metube / jellyfin twin PVs use. Navidrome mounts
+  # with subPath=music READ-ONLY → it only scans media-library/music/* and
+  # never writes (no risk to files written by other apps as different uids).
+  navidrome:
     librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol

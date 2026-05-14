@@ -723,6 +723,72 @@ spec:
 {{/*     SAME kadalu subvol path the arr / audiobookshelf-v2 / qbittorrent     */}}
 {{/*     PVs use (subvol/ar/lb/media-library). RWX + hardlinks intact.          */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* NAVIDROME — music server (Subsonic API-compatible)                         */}}
+{{/* Renders:                                                                    */}}
+{{/*   - navidrome namespace (default restricted PSS — deluan/navidrome image   */}}
+{{/*     is a static Go binary, runs uid 1000 non-root cleanly)                 */}}
+{{/*   - twin-PV/PVC for `media-library` in navidrome ns pointing at the SAME   */}}
+{{/*     subvol path the arr / ABS-v2 / metube / jellyfin twin PVs use          */}}
+{{/*     (subvol/ar/lb/media-library). Navidrome mounts it with subPath=music   */}}
+{{/*     read-only — so it only scans media-library/music/* and never writes.   */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.navidrome }}
+{{- $nd := .Values.extras.navidrome }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: navidrome
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — sixth static kadalu PV/PVC pair pointing at the SAME subvol
+# path the arr / ABS-v2 / metube / jellyfin twin PVs use. Same proven pattern.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: navidrome-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ $nd.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: navidrome-media-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: subvol/ar/lb/media-library
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: media-library
+    namespace: navidrome
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: navidrome
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ $nd.librarySize | default "1500Gi" }}
+  volumeName: navidrome-media-library
+{{- end }}
+
 {{- if .Values.extras.jellyfin }}
 {{- $jf := .Values.extras.jellyfin }}
 ---
