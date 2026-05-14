@@ -223,6 +223,13 @@ controllers:
   # auto-recreate on next login. Promote to kadalu-backed PV with init-chown
   # (immich pattern) when user mgmt graduates from pilot.
   postgres:
+    # forceRename: avoid Deployment-selector immutability collision with the
+    # leftover `crossview-postgres` Deployment from the upstream chart (its
+    # matchLabels differ from bjw-s's controller-scoped labels, and selectors
+    # are immutable). New Deployment named `crossview-postgres-v2`; the
+    # service below keeps the name `crossview-postgres` so DB_HOST stays
+    # stable. Old Deployment gets pruned by ArgoCD on next sync.
+    forceRename: crossview-postgres-v2
     strategy: Recreate
     containers:
       app:
