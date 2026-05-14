@@ -663,6 +663,60 @@ components:
         description: Password manager (Bitwarden-compatible)
         app: vaultwarden
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # METUBE — yt-dlp web UI. Downloads land in media-library/YouTube/ on the
+  # shared kadalu subvol (subPath=YouTube on the PVC), visible to ABS-v2 at
+  # /library/YouTube and to Jellyfin at /media/YouTube. Auth via oauth2-proxy
+  # sidecar release (metube-oauth2) consuming the per-app pocket-id client
+  # below. extras.metube renders the ns + twin media-library PV/PVC pair.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: metube
+    namespace: metube
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + media-library twin PV) settle
+    # HTTPRoute points at oauth2-metube Service (same ns), NOT directly at
+    # the metube workload. metube has zero native auth — oauth2-proxy is the
+    # only gate. No /api/* bypass needed (no mobile-app integration).
+    route:
+      hostname: metube.apps.home
+      gateway: apps
+      service: oauth2-metube
+      port: 80
+      timeout: 30m  # long yt-dlp downloads (HD videos) shouldn't trip route timeout
+      dashboard:
+        name: Metube
+        group: Media
+        icon: metube.png
+        description: yt-dlp web UI (YouTube downloader)
+        app: metube
+    # Per-app OIDC client (pocket-id id=`metube`). Secret rendered into the
+    # `metube` ns as `metube-oidc-client`; consumed by the metube-oauth2
+    # release. apps_users + administrators allowed at the IDP level on top
+    # of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://metube.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting metube. Same pattern as syncthing-oauth2.
+  # Lives in the same ns as metube so the OIDC-client Secret + HTTPRoute
+  # backendRef are co-located.
+  - name: metube-oauth2
+    namespace: metube
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `metube-oidc-client` Secret rendered by the metube
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -726,3 +780,10 @@ extras:
   # hostNetwork for multicast/SSDP.
   home-assistant:
     enabled: true
+  # metube — ns (default restricted PSS, metube image runs uid 1000 non-root)
+  # + a fourth twin-PV/PVC for `media-library` in the metube ns pointing at
+  # the SAME kadalu subvol path the arr stack / audiobookshelf-v2 use.
+  # metube mounts it with subPath=YouTube so downloads land in
+  # media-library/YouTube/* on the backing volume.
+  metube:
+    librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol

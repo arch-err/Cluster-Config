@@ -1,0 +1,127 @@
+# metube — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# yt-dlp web UI. Upstream: https://github.com/alexta69/metube
+# Image: ghcr.io/alexta69/metube — official upstream. Single static binary
+# served by Node behind a small aiohttp server; runs as uid 1000 by default,
+# restricted-PSS clean.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# OIDC via pocket-id, fronted by an oauth2-proxy sidecar release (`metube-
+# oauth2`, see values/apps/metube-oauth2.yaml). Mirrors the syncthing /
+# calibre-web / home-assistant pattern. metube itself has zero auth and
+# trusts the upstream — every request is gated by oauth2-proxy before it
+# hits the UI. No API surface to worry about (no mobile-app integration).
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /config       — RWO PVC 1Gi (metube state: download history, queue sqlite)
+# /downloads    — shared kadalu media-library RWX PVC via existingClaim, with
+#                 subPath=YouTube so files land at media-library/YouTube/* on
+#                 the backing kadalu subvol. Visible to ABS-v2 at
+#                 /library/YouTube and to Jellyfin at /media/YouTube. Separate
+#                 subdir avoids collision with Movies/ TV/ etc. that jellyfin
+#                 will index from the same library.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted (default ns label). metube's image runs as uid 1000 non-root by
+# default; explicit securityContext below locks it down.
+
+controllers:
+  main:
+    # sqlite-backed state in /config — Recreate avoids old/new pod racing on
+    # the db file during rollouts (mirrors audiobookshelf-v2 / grafana fix).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: ghcr.io/alexta69/metube
+          tag: "2026.04.28"
+        env:
+          # metube listens on :8081 by default.
+          PORT: "8081"
+          # Where metube writes finished downloads. Mounted at /downloads via
+          # the media-library PVC (subPath=YouTube → media-library/YouTube/*).
+          DOWNLOAD_DIR: /downloads
+          # metube's own state (sqlite + queue). Small.
+          STATE_DIR: /config
+          # Root path of the UI. oauth2-proxy passes the request path through
+          # unchanged, so leave at /.
+          URL_PREFIX: /
+          # Output filename template. Mirrors metube's documented default.
+          OUTPUT_TEMPLATE: "%(title)s.%(ext)s"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8081
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8081
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted-PSS clean — ghcr.io/alexta69/metube runs as uid 1000 by
+        # default. Lock down explicitly. readOnlyRootFilesystem=false because
+        # yt-dlp writes scratch files into the workdir during downloads
+        # (segment muxing etc.).
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8081
+        targetPort: 8081
+
+persistence:
+  # metube's own state — download history + active queue (sqlite). Tiny.
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+  # Shared kadalu media-library — static RWX PV bound to the existing
+  # `media-library` PVC in the metube ns (provisioned by extras.metube block;
+  # subvol/ar/lb/media-library on hostvol replica2 — SAME backing data as
+  # audiobookshelf-v2 / readarr / qbittorrent). subPath=YouTube isolates
+  # downloads from the rest of the library tree so Jellyfin can scan
+  # Movies/, TV/, etc. without picking up YouTube content.
+  downloads:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: media-library
+    advancedMounts:
+      main:
+        app:
+          - path: /downloads
+            subPath: YouTube

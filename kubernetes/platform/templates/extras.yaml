@@ -647,6 +647,74 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* METUBE (yt-dlp web UI w/ shared media-library mount)                       */}}
+{{/* Renders:                                                                    */}}
+{{/*   - metube namespace (default restricted PSS — metube image runs as uid    */}}
+{{/*     1000 non-root)                                                          */}}
+{{/*   - twin-PV/PVC for `media-library` in metube ns, pointing at the SAME     */}}
+{{/*     kadalu subvol path the arr stack + audiobookshelf-v2 use               */}}
+{{/*     (subvol/ar/lb/media-library). RWX semantics + hardlinks intact.        */}}
+{{/*     metube mounts this PVC with subPath=YouTube → all metube downloads     */}}
+{{/*     land under media-library/YouTube/ on the shared volume.                */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.metube }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metube
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — additional static kadalu PV/PVC pair pointing at the SAME
+# subvol path the arr stack / ABS-v2 / jellyfin-to-be use. Cross-ns sharing
+# via parallel kadalu PVs on one subvol; subPath=YouTube in the metube values
+# isolates downloads from Movies/ TV/ etc.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: metube-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ .Values.extras.metube.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: metube-media-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: subvol/ar/lb/media-library
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: media-library
+    namespace: metube
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: metube
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ .Values.extras.metube.librarySize | default "1500Gi" }}
+  volumeName: metube-media-library
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}
