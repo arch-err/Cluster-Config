@@ -720,9 +720,10 @@ components:
   # ──────────────────────────────────────────────────────────────────────────
   # JELLYFIN — video media server. Streams movies + TV shows from the shared
   # kadalu media-library volume (same backing subvol/ar/lb/media-library as
-  # arr / audiobookshelf-v2 / qbittorrent / metube). Auth via oauth2-proxy
-  # sidecar release (jellyfin-oauth2) consuming the per-app pocket-id client
-  # below. extras.jellyfin renders the ns + twin media-library PV/PVC pair.
+  # arr / audiobookshelf-v2 / qbittorrent / metube). Auth via the native
+  # jellyfin-plugin-sso (configured against pocket-id) for browser/web OIDC;
+  # mobile/TV native apps continue to use Jellyfin's own MediaBrowser token
+  # auth. extras.jellyfin renders the ns + twin media-library PV/PVC pair.
   # ──────────────────────────────────────────────────────────────────────────
   - name: jellyfin
     namespace: jellyfin
@@ -731,16 +732,13 @@ components:
       name: jellyfin
       version: 3.2.0
     syncWave: "3"  # after extras (ns + media-library twin PV) settle
-    # HTTPRoute points at oauth2-jellyfin Service (same ns), NOT directly at
-    # the jellyfin workload. /web/ (browser UI) goes through OIDC; every
-    # other path is skip-auth-route'd so Jellyfin's native mobile/TV apps
-    # authenticate to Jellyfin directly with `MediaBrowser` token auth.
-    # See values/apps/jellyfin-oauth2.yaml for the full skip-route list.
+    # HTTPRoute points directly at the jellyfin workload Service. The SSO
+    # plugin handles OIDC per-user-click inside Jellyfin; no proxy gating.
     route:
       hostname: jellyfin.apps.home
       gateway: apps
-      service: oauth2-jellyfin
-      port: 80
+      service: jellyfin
+      port: 8096
       timeout: 30m  # large library scans + media uploads via API
       dashboard:
         name: Jellyfin
@@ -749,32 +747,17 @@ components:
         description: Video media server (movies + TV)
         app: jellyfin
     # Per-app OIDC client (pocket-id id=`jellyfin`). Secret rendered into the
-    # `jellyfin` ns as `jellyfin-oidc-client`; consumed by jellyfin-oauth2.
-    # apps_users + administrators allowed at the IDP level on top of
-    # oauth2-proxy's --allowed-group (defense in depth).
+    # `jellyfin` ns as `jellyfin-oidc-client`; consumed by the SSO plugin.
+    # apps_users + administrators allowed at the IDP level.
     oidc:
       enabled: true
       callbackUrls:
-        - https://jellyfin.apps.home/oauth2/callback
         # SSO-Auth plugin (jellyfin-plugin-sso) callback. Provider name in the
         # plugin config = `PocketID` (case-sensitive — last path segment).
         - https://jellyfin.apps.home/sso/OID/redirect/PocketID
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [apps_users, administrators]
-
-  # oauth2-proxy fronting jellyfin. Same pattern as calibre-web-oauth2.
-  # Lives in the same ns as jellyfin so the OIDC-client Secret + HTTPRoute
-  # backendRef are co-located.
-  - name: jellyfin-oauth2
-    namespace: jellyfin
-    chart:
-      repo: https://oauth2-proxy.github.io/manifests
-      name: oauth2-proxy
-      version: 10.4.3
-    syncWave: "3"
-    # Consumes `jellyfin-oidc-client` Secret rendered by the jellyfin
-    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
   # ──────────────────────────────────────────────────────────────────────────
   # NAVIDROME — music server (Subsonic API-compatible). Streams from the
