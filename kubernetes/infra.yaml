@@ -242,34 +242,41 @@ components:
     syncWave: "2"  # before crossview, which depends on crossplane CRDs existing
                    # (crossview's RBAC binds to apiextensions.crossplane.io/*)
 
-  # Crossview — Crossplane UI dashboard. Helm chart 4.3.0 (latest stable from
-  # https://crossplane-contrib.github.io/crossview ; 4.4.0-rc.1 is an RC, we're
-  # on stable). Image v4.3.0-rc.7 per chart artifacthub annotations.
+  # Crossview — Crossplane UI dashboard. WRAPPED VIA bjw-s app-template v4.6.2
+  # (NOT the upstream crossplane-contrib/crossview chart) because the upstream
+  # chart only exposes app.extraEnv — no extraVolumes / extraInitContainers
+  # hook, which blocked declarative mounting of `home-ca-bundle` + the
+  # CA-merge init container Crossview's Go TLS stack needs to trust pocket-id
+  # for OIDC token exchange. See values/infra/crossview.yaml header for the
+  # full migration rationale. Image still ghcr.io/crossplane-contrib/crossview
+  # v4.3.0, pinned in the values file.
   #
   # AUTH: native OIDC against pocket-id (per docs/SSO_SETUP.md). NO oauth2-proxy
   # — Crossview ships its own OIDC client. The platform oidc:* block below
   # registers the pocket-id client `crossview` (admin-group-restricted at the
   # IDP) and renders `crossview-oidc-client` Secret in the crossview ns;
-  # values/infra/crossview.yaml wires OIDCClientSecret via secretKeyRef.
+  # values/infra/crossview.yaml wires OIDC_CLIENT_SECRET via secretKeyRef.
   # First SSO user becomes admin (per upstream README); subsequent SSO users
   # auto-provisioned as regular users.
   #
-  # POSTGRES: bundled pg image with emptyDir persistence (pilot mode — local
-  # accounts/sessions lost on pod restart; OIDC users auto-recreate on login).
-  # Promote to kadalu-backed PV with init-chown (immich pattern) when user
-  # mgmt is settled.
+  # POSTGRES: folded into the same Helm release as a `controllers.postgres`
+  # block. emptyDir persistence (pilot mode — local accounts/sessions lost on
+  # pod restart; OIDC users auto-recreate on login). Promote to kadalu-backed
+  # PV with init-chown (immich pattern) when user mgmt is settled.
   - name: crossview
     namespace: crossview
     chart:
-      repo: https://crossplane-contrib.github.io/crossview
-      name: crossview
-      version: 4.3.0
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
     syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
     route:
       hostname: crossview.infra.home
       gateway: infra
-      # Chart's service is "<release>-service" → "crossview-service".
-      service: crossview-service
+      # bjw-s app-template renders services as `<release>-<key>` (with
+      # nameOverride). Values file declares service key `app` →
+      # rendered name `crossview-app`.
+      service: crossview-app
       port: 80
       dashboard:
         enabled: true
