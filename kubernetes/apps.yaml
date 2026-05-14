@@ -572,6 +572,39 @@ components:
     # Consumes `syncthing-oidc-client` Secret rendered by the syncthing
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # VAULTWARDEN — self-hosted Bitwarden-compatible password manager. Replaces
+  # the laptop's docker-compose instance at /srv/vaultwarden (data migration
+  # is a separate follow-up; this is a clean deploy).
+  #
+  # Auth: end-user UI uses vaultwarden's native account flow (email + master
+  # password) — NO oauth2-proxy (would break Bitwarden client integration via
+  # /identity/connect/*). /admin panel is gated by ADMIN_TOKEN env var (argon2id
+  # PHC hash from SopsSecret vaultwarden-admin-token, plaintext lives in the
+  # same secret as ADMIN_TOKEN_PLAINTEXT for retrieval).
+  #
+  # SSO migration path: vaultwarden/server:<ver>-sso (experimental upstream)
+  # adds native OIDC. Not used here — first deploy is plain admin-token.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: vaultwarden
+    namespace: vaultwarden
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    route:
+      hostname: vaultwarden.apps.home
+      gateway: apps
+      service: vaultwarden
+      port: 80
+      timeout: 30m  # vault attachment uploads + send-large-files can be slow
+      dashboard:
+        name: Vaultwarden
+        group: Security
+        icon: vaultwarden.svg
+        description: Password manager (Bitwarden-compatible)
+        app: vaultwarden
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.

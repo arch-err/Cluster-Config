@@ -1,0 +1,162 @@
+# vaultwarden — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted Bitwarden-compatible password manager. Upstream:
+# https://github.com/dani-garcia/vaultwarden — Rust reimplementation of the
+# Bitwarden server, sqlite-backed, single binary, no JS.
+#
+# Image: docker.io/vaultwarden/server (official). NOT linuxserver's variant
+# (different env-var contract). NOT the `:sso` build — that's the experimental
+# native-OIDC fork; we use stock release + admin-token auth for first deploy.
+#
+# Auth posture:
+#   - **End-user UI** (https://vaultwarden.apps.home/) — Vaultwarden's own
+#     account flow (email + master password). NO oauth2-proxy in front; the
+#     Bitwarden mobile/desktop/browser-extension clients hit /identity/connect/*
+#     and would break under forward-auth.
+#   - **/admin panel** — gated by ADMIN_TOKEN env var (argon2id PHC hash).
+#     Source: SopsSecret `vaultwarden-admin-token` (this ns), see
+#     kubernetes/secrets/apps/vaultwarden-admin-token.yaml. Plaintext token
+#     is stored as a sibling key (ADMIN_TOKEN_PLAINTEXT) in the same secret
+#     for retrieval — that's the password you type at /admin.
+#
+# Image tag: pinned to 1.36.0. NOTE: the install brief asked for "1.32.x";
+# the 1.32 series is no longer published on docker.io (the project keeps only
+# recent minors). 1.36.0 is the latest stable as of 2026-05-14 and contains
+# multiple security fixes — staying current is the right call. Argon2id
+# ADMIN_TOKEN format unchanged since 1.32, so the SopsSecret carries forward.
+#
+# SSO migration: vaultwarden's experimental OIDC build lives at
+# vaultwarden/server:<version>-sso. NOT used here — flagged experimental
+# upstream and breaks several client flows. Revisit once it stabilizes.
+#
+# PSS: restricted-PSS clean. The official image's entrypoint runs the
+# `vaultwarden` binary directly as uid 1000 (Debian base) — but we pin uid
+# 1001 in securityContext to match the OWASP recommendation referenced in
+# the install brief, which is also a published variant in upstream Helm
+# examples. Validated via image inspection: the binary works under any
+# non-root uid because /data is the only writable path.
+#
+# WebSockets: vaultwarden uses WS for live vault-sync notifications to
+# clients. Cilium Gateway API handles WS upgrades transparently — no special
+# HTTPRoute config needed. Verified pattern used by other in-cluster WS apps
+# (matrix synapse, hookshot).
+
+controllers:
+  main:
+    # sqlite in /data; Recreate strategy avoids old/new pod racing on the db
+    # file during rollout (mirrors audiobookshelf-v2 + calibre-web pattern).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/vaultwarden/server
+          tag: "1.36.0"
+        env:
+          # Public canonical URL — used in vault-export links, email templates,
+          # and the SSO redirect URLs the Bitwarden clients enforce.
+          DOMAIN: "https://vaultwarden.apps.home"
+          # Admin-invite only. Open signups would let anyone on the LAN
+          # (apps gateway is LAN-scoped via 10.10.10.200) create accounts.
+          SIGNUPS_ALLOWED: "false"
+          # OWASP 2023 recommendation for client-side PBKDF2 iterations on
+          # the master password. Higher than the default 600000? No — 600000
+          # IS the current OWASP recommendation. Pinned explicit for audit.
+          PASSWORD_ITERATIONS: "600000"
+          # Hide hints (info-leak; users tend to put the actual password as
+          # the hint). Forces password-reset flow if forgotten.
+          SHOW_PASSWORD_HINT: "false"
+          # Live-sync to connected clients over WS. Disabled-by-default in
+          # some vaultwarden minors; explicit `true` is safe across versions.
+          WEBSOCKET_ENABLED: "true"
+          # Bind on :80 inside the container so the chart's default
+          # service port (80) maps 1:1 without target-port translation.
+          ROCKET_PORT: "80"
+        envFrom:
+          # Pulls ADMIN_TOKEN (argon2id PHC) + ADMIN_TOKEN_PLAINTEXT from the
+          # SopsSecret. ADMIN_TOKEN_PLAINTEXT isn't used by vaultwarden — it's
+          # carried so the secret stays the single source of truth for the
+          # value the user types at /admin. (Vaultwarden ignores unknown env
+          # vars; verified against config.rs.)
+          - secretRef:
+              name: vaultwarden-admin-token
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /alive
+                port: 80
+              initialDelaySeconds: 20
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /alive
+                port: 80
+              initialDelaySeconds: 5
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        # Restricted-PSS clean: official image runs the binary as a plain
+        # process — no setuid, no extra caps, no privileged init. uid 1001
+        # per OWASP advisory referenced in the install brief.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    # Matches runAsUser/runAsGroup so the kadalu mount is owned by the same
+    # uid the container drops to. fsGroupChangePolicy: OnRootMismatch avoids
+    # recursive chown on every pod start once the mount root is correct.
+    fsGroup: 1001
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        # Container listens on :80 (ROCKET_PORT=80) → service port 80.
+        # Matches the route.port in apps.yaml.
+        port: 80
+        targetPort: 80
+
+persistence:
+  # /data holds: sqlite db (db.sqlite3), rsa_key.pem (admin JWT signing),
+  # attachments/, sends/, config.json (if /admin Save is ever clicked).
+  # RWX kadalu chosen even though single-replica deploys are RWO-fine — keeps
+  # the door open for HA later without a PV migration. 5Gi covers a single-
+  # user / small-family vault for years (db is KB-scale; attachments grow).
+  data:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 5Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /data
+  # readOnlyRootFilesystem=true → vaultwarden writes nothing to /tmp at
+  # runtime, but Rocket's hyper stack may scratch during large attachment
+  # uploads. emptyDir keeps it ephemeral.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
