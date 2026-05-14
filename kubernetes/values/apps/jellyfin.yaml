@@ -1,0 +1,105 @@
+# jellyfin — chart: jellyfin/jellyfin v3.2.0 (app version 10.11.8)
+# Video media server. Streams movies + TV shows from the shared kadalu
+# `media-library` volume (same backing subvol as readarr / qbittorrent /
+# audiobookshelf-v2 — single source of truth for all media files).
+# Upstream: https://jellyfin.org/  chart: https://github.com/jellyfin/jellyfin-helm
+#
+# Auth: oauth2-proxy in front (release `jellyfin-oauth2` in this ns) gates
+# the browser UI (/web/) via pocket-id OIDC. Native Jellyfin clients (mobile
+# / TV apps) skip oauth2-proxy via skip-auth-route on every non-/web/ path
+# and authenticate to Jellyfin directly with their `MediaBrowser` token —
+# see values/apps/jellyfin-oauth2.yaml for the route list.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /config   — RWO PVC, 5Gi (Jellyfin's sqlite DB + metadata cache + plugins)
+# /cache    — emptyDir (transcoding scratch; ephemeral by design — re-built
+#             from /config + /media on pod restart)
+# /media    — kadalu RWX `media-library` PVC (existingClaim, twin of the
+#             arr/audiobookshelf-v2 PVs — same subvol/ar/lb/media-library
+#             backing data). READ-WRITE: Jellyfin writes alongside-file
+#             metadata (.nfo / fanart) into the library tree.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted: image runs as root by default but the chart exposes
+# pod/container securityContext so we override to uid 1000. The shared
+# media-library mount is already 0777 (kadalu CSI subvol bits — verified
+# live via readarr exec), so no init-chown needed. /config is a fresh
+# PVC; fsGroup=1000 handles first-attach ownership.
+#
+# ─── Transcoding ──────────────────────────────────────────────────────────────
+# Software-only (CPU). No hardware accel — no GPU node yet. When a GPU
+# node lands, flip `hardwareAcceleration.enabled` + add a nodeSelector;
+# chart supports VAAPI/NVENC/QSV/RKMPP envs (see chart values.yaml).
+
+image:
+  repository: docker.io/jellyfin/jellyfin
+  tag: "10.11.8"  # match chart app version, pinned for reproducibility
+  pullPolicy: IfNotPresent
+
+# Disable chart's built-in ingress + HTTPRoute — platform chart owns routing.
+# Routing here points at the oauth2-proxy upstream (oauth2-jellyfin svc), NOT
+# directly at this workload. See apps.yaml `jellyfin` route block.
+ingress:
+  enabled: false
+httpRoute:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 8096
+  portName: http
+
+# Restricted-PSS clean. Image defaults to root; override to uid 1000.
+# media-library mount is 0777 (kadalu subvol), so no init-chown needed.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem left false — Jellyfin writes to /tmp + some other
+  # paths during transcode setup. Locking down further is a future polish.
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    # No CPU limit — software transcode is CPU-bound and capping it hurts
+    # playback. Memory cap is conservative; raise if OOM-killed.
+    memory: 4Gi
+
+# Jellyfin cold-start indexes the library before serving /health; the chart's
+# default startupProbe (5 minutes) is comfortable for our ~121G initial scan.
+# Keep defaults.
+
+persistence:
+  # Jellyfin internal state — sqlite DB, metadata cache, plugins, logs.
+  # Default size is 5Gi which matches our convention (audiobookshelf-v2 /config).
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+  # Shared kadalu media-library — static RWX PV (twin of arr/audiobookshelf-v2
+  # PVs, same backing subvol/ar/lb/media-library). REUSED via existingClaim.
+  # Mounted RW so Jellyfin can write metadata fanart/.nfo files alongside the
+  # media files. Chart maps `persistence.media` → /media inside the container.
+  media:
+    enabled: true
+    type: pvc
+    existingClaim: media-library
+  # Transcoding scratch — emptyDir keeps it ephemeral (re-built from
+  # /config + /media on each pod restart). Simpler than a PVC; the
+  # transcoded segments are HLS chunks not worth persisting.
+  cache:
+    enabled: false  # emptyDir fallback (chart logic when enabled=false)

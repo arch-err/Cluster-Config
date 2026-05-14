@@ -715,6 +715,71 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* JELLYFIN — video media server                                              */}}
+{{/* Renders:                                                                    */}}
+{{/*   - jellyfin namespace (default restricted PSS — chart-supported           */}}
+{{/*     non-root via securityContext override in values/apps/jellyfin.yaml)    */}}
+{{/*   - fourth twin-PV/PVC for `media-library` in jellyfin ns, pointing at the */}}
+{{/*     SAME kadalu subvol path the arr / audiobookshelf-v2 / qbittorrent     */}}
+{{/*     PVs use (subvol/ar/lb/media-library). RWX + hardlinks intact.          */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.jellyfin }}
+{{- $jf := .Values.extras.jellyfin }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jellyfin
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — fourth static kadalu PV/PVC pair pointing at the SAME subvol
+# path the arr / audiobookshelf-v2 twin PVs use. Same proven pattern.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jellyfin-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ $jf.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: jellyfin-media-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: subvol/ar/lb/media-library
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: media-library
+    namespace: jellyfin
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: jellyfin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ $jf.librarySize | default "1500Gi" }}
+  volumeName: jellyfin-media-library
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}

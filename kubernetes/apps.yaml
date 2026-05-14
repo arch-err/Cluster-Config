@@ -717,6 +717,62 @@ components:
     # Consumes `metube-oidc-client` Secret rendered by the metube
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # JELLYFIN — video media server. Streams movies + TV shows from the shared
+  # kadalu media-library volume (same backing subvol/ar/lb/media-library as
+  # arr / audiobookshelf-v2 / qbittorrent / metube). Auth via oauth2-proxy
+  # sidecar release (jellyfin-oauth2) consuming the per-app pocket-id client
+  # below. extras.jellyfin renders the ns + twin media-library PV/PVC pair.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: jellyfin
+    namespace: jellyfin
+    chart:
+      repo: https://jellyfin.github.io/jellyfin-helm
+      name: jellyfin
+      version: 3.2.0
+    syncWave: "3"  # after extras (ns + media-library twin PV) settle
+    # HTTPRoute points at oauth2-jellyfin Service (same ns), NOT directly at
+    # the jellyfin workload. /web/ (browser UI) goes through OIDC; every
+    # other path is skip-auth-route'd so Jellyfin's native mobile/TV apps
+    # authenticate to Jellyfin directly with `MediaBrowser` token auth.
+    # See values/apps/jellyfin-oauth2.yaml for the full skip-route list.
+    route:
+      hostname: jellyfin.apps.home
+      gateway: apps
+      service: oauth2-jellyfin
+      port: 80
+      timeout: 30m  # large library scans + media uploads via API
+      dashboard:
+        name: Jellyfin
+        group: Media
+        icon: jellyfin.svg
+        description: Video media server (movies + TV)
+        app: jellyfin
+    # Per-app OIDC client (pocket-id id=`jellyfin`). Secret rendered into the
+    # `jellyfin` ns as `jellyfin-oidc-client`; consumed by jellyfin-oauth2.
+    # apps_users + administrators allowed at the IDP level on top of
+    # oauth2-proxy's --allowed-group (defense in depth).
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://jellyfin.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting jellyfin. Same pattern as calibre-web-oauth2.
+  # Lives in the same ns as jellyfin so the OIDC-client Secret + HTTPRoute
+  # backendRef are co-located.
+  - name: jellyfin-oauth2
+    namespace: jellyfin
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `jellyfin-oidc-client` Secret rendered by the jellyfin
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -786,4 +842,11 @@ extras:
   # metube mounts it with subPath=YouTube so downloads land in
   # media-library/YouTube/* on the backing volume.
   metube:
+    librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
+  # jellyfin — ns (default restricted PSS — chart-supported non-root via
+  # securityContext override to uid 1000 in values/apps/jellyfin.yaml; the
+  # shared /media mount is 0777 on the kadalu side so no init-chown needed)
+  # + a fifth twin-PV/PVC for `media-library` in the jellyfin ns pointing at
+  # the SAME kadalu subvol path the arr stack / audiobookshelf-v2 / metube use.
+  jellyfin:
     librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
