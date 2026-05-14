@@ -756,6 +756,9 @@ components:
       enabled: true
       callbackUrls:
         - https://jellyfin.apps.home/oauth2/callback
+        # SSO-Auth plugin (jellyfin-plugin-sso) callback. Provider name in the
+        # plugin config = `PocketID` (case-sensitive — last path segment).
+        - https://jellyfin.apps.home/sso/OID/redirect/PocketID
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [apps_users, administrators]
