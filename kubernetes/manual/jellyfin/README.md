@@ -48,23 +48,27 @@ page to `/sso/OID/start/PocketID` automatically — unless `?local=1` is
 in the query string. Drop-in replacement for the snippet above:
 
 ```html
-<a href="/sso/OID/start/PocketID" class="raised block emby-button button-submit"
-   style="margin-top:1em; display:block; text-align:center; text-decoration:none">
-  Sign in with PocketID
-</a>
-<script>
-  (function() {
-    // Escape hatch: append ?local=1 to URL to skip auto-redirect
-    if (new URLSearchParams(window.location.search).has('local')) return;
-    // Only trigger on the actual login page (Branding can render in other contexts)
-    if (!/\/login\.html/.test(window.location.hash)) return;
-    // Avoid double-redirect if already mid-SSO flow
-    if (sessionStorage.getItem('sso-redirecting')) return;
-    sessionStorage.setItem('sso-redirecting', '1');
-    window.location.replace('/sso/OID/start/PocketID');
-  })();
-</script>
+<form action="/sso/OID/start/PocketID">
+  <button class="raised block emby-button button-submit"
+          style="margin-top:1em">
+    Sign in with PocketID
+  </button>
+</form>
+
+<img src="x" onerror="(function(){
+  if (new URLSearchParams(window.location.search).has('local')) return;
+  if (!/login\.html/.test(window.location.hash)) return;
+  if (sessionStorage.getItem('sso-redirecting')) return;
+  sessionStorage.setItem('sso-redirecting', '1');
+  window.location.replace('/sso/OID/start/PocketID');
+})()" style="display:none">
 ```
+
+**Why `<img onerror>` and not `<script>`?** Jellyfin injects the disclaimer
+HTML via `innerHTML`, which parses but does not execute `<script>` tags
+(HTML5 spec). Event handlers on elements DO fire when inserted via
+innerHTML — `<img src="x">` intentionally fails to load → `onerror`
+handler runs → redirect logic executes. Standard SPA branding workaround.
 
 **Escape hatch — bookmark this for admin / recovery access:**
 
