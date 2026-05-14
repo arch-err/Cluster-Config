@@ -287,8 +287,10 @@ controllers:
             type: RuntimeDefault
 
 # fsGroup applies to the merged-ca emptyDir + the postgres data dir.
+# Set to 999 so postgres (uid 999) can chmod its data dir during initdb.
 defaultPodOptions:
   securityContext:
+    fsGroup: 999
     fsGroupChangePolicy: OnRootMismatch
 
 # ──────────────────────────────────────────────────────────────────────────────
