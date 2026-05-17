@@ -200,6 +200,12 @@ configMaps:
         [storage.local]
         data_dir = "/app/data"
 
+        # Badger DB dir — feed state + episode index. Default would land
+        # under the (read-only) config mount dir; pin to a writable subdir
+        # of the data PVC. Tiny (~MB).
+        [database]
+        dir = "/app/data/db"
+
         [tokens]
         # Empty — podsync falls back to yt-dlp scraping. Add a real YT
         # Data API key when arch-err sets one up (Google Cloud Console).
