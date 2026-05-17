@@ -1,0 +1,231 @@
+# podsync — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# YouTube/Vimeo → podcast RSS+mp3 bridge. Upstream:
+# https://github.com/mxpv/podsync  •  v2.8.0 (2025-07-14, MIT)
+# Image: ghcr.io/mxpv/podsync — Alpine + Go binary + bundled yt-dlp/ffmpeg.
+#
+# ─── How it fits the cluster ──────────────────────────────────────────────────
+# Audiobookshelf-v2 subscribes to podsync's per-feed RSS URLs via the
+# in-cluster Service DNS (http://podsync.podsync.svc.cluster.local:8080/<id>/feed.xml)
+# and downloads each new episode into ABS's own podcasts library. Gateway-side
+# `podsync.apps.home` is for arch-err to eyeball the HTML index + per-feed
+# pages from a browser; oauth2-proxy gates that. `/<feed-id>/...` (RSS XML
+# + mp3 enclosures) is skip-auth-route'd so ABS can fetch unauthenticated.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# OIDC via pocket-id, fronted by oauth2-proxy sidecar release (`podsync-
+# oauth2`, see values/apps/podsync-oauth2.yaml). Mirrors the navidrome
+# pattern with /rest/ bypass — here we bypass `/<feed>/` (regex matches
+# `^/[A-Za-z0-9_-]+/`) so any feed slug + its enclosure files reach podsync
+# directly. The bare `/` (HTML index) stays gated.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /app/data    — RWO PVC 50Gi on kadalu.replica2-retain (VALUABLE tier —
+#                downloaded mp3 enclosures + RSS XML; podsync owns episode
+#                cleanup via clean.keep_last so we don't want a stray PVC
+#                delete to nuke a working backlog). Use the new retain SC
+#                rather than post-install kubectl patch — see
+#                docs/pvc-reclaim-policy.md.
+# /app/db      — same /app/data PVC subPath=db (podsync stores feed state
+#                here; tiny, but needs to survive restarts).
+# /app/config  — ConfigMap mount with config.toml (rendered below).
+# /app/cookies — Secret mount with cookies.txt (SopsSecret
+#                kubernetes/secrets/apps/podsync-cookies.yaml). Bootstrap
+#                placeholder until real burner-account cookies are sealed.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted (default ns label). Upstream Dockerfile has no USER directive
+# (root) but the binary itself doesn't need root + the only writable paths
+# are /app/data + /usr/local/bin (yt-dlp self-update, dir chmod'd 777 in the
+# Dockerfile). Explicit runAsUser=1000 here. fsGroup=1000 on the data PVC.
+#
+# ─── Cookies rotation (manual, expect ~6x/year) ───────────────────────────────
+# When podsync logs "Sign in to confirm you're not a bot":
+#   1. Log into a burner Google account in Firefox/Chrome
+#   2. Install "Get cookies.txt LOCALLY" extension
+#   3. Visit youtube.com, export cookies to /tmp/cookies.txt
+#   4. Re-seal:
+#        sops -e --age age1sjrw9cudya5fhnucvlhqsrfpv8g6zn56tvffx3ns5rr935z3v3aq7hydlz \
+#             --encrypted-regex '^stringData$' \
+#             <(yq -y '.spec.secretTemplates[0].stringData["cookies.txt"] = load("/tmp/cookies.txt")' \
+#                 kubernetes/secrets/apps/podsync-cookies.yaml) \
+#             > kubernetes/secrets/apps/podsync-cookies.yaml.new
+#   5. Replace, commit, push. Pod restart pulls fresh secret.
+#
+# ─── YouTube Data API key (optional but recommended) ──────────────────────────
+# Without a key, podsync scrapes via yt-dlp — fragile, more likely to hit
+# bot wall. With a key, channel metadata lookup uses the official API
+# (10k units/day default quota; ~120 units/day for 20 channels × 6 polls).
+# To add: Google Cloud Console → create project → enable YouTube Data API
+# v3 → credentials → API key. Then either set tokens.youtube in config.toml
+# below OR (preferred) seal as SopsSecret and inject via env
+# PODSYNC_YOUTUBE_API_KEY. Currently empty.
+
+controllers:
+  main:
+    # podsync writes to a small sqlite-style db + per-feed mp3s; Recreate
+    # avoids races on the data PVC during rollouts.
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: ghcr.io/mxpv/podsync
+          tag: "v2.8.0"
+        env:
+          # Explicit config path; podsync defaults to ./config.toml relative
+          # to /app workdir. Mount at /app/config/config.toml.
+          PODSYNC_CONFIG_PATH: /app/config/config.toml
+          # YT Data API key — empty for now. Replace with sealed secret
+          # injection when arch-err sets up the Google Cloud project.
+          PODSYNC_YOUTUBE_API_KEY: ""
+        args:
+          - --config
+          - /app/config/config.toml
+          - --no-banner
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          # yt-dlp writes scratch + the binary self-updates into
+          # /usr/local/bin which the Dockerfile chmod 777'd. Root FS
+          # otherwise read-only would be nice but yt-dlp also drops
+          # caches into ~/.cache. Leave writable.
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        targetPort: 8080
+
+# RECLAIM: PVC uses kadalu.replica2-retain SC — underlying PV inherits
+# Retain reclaim from the SC default. See docs/pvc-reclaim-policy.md.
+persistence:
+  # podsync /app/data — episode mp3s + per-feed RSS XML + small sqlite state.
+  # VALUABLE tier (rebuilding means re-downloading + losing per-feed cursor).
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 50Gi
+    storageClass: kadalu.replica2-retain
+    advancedMounts:
+      main:
+        app:
+          - path: /app/data
+  # config.toml from ConfigMap (rendered below).
+  config:
+    enabled: true
+    type: configMap
+    name: podsync-config
+    advancedMounts:
+      main:
+        app:
+          - path: /app/config
+            readOnly: true
+  # cookies.txt from SopsSecret — bootstrap placeholder until burner-account
+  # cookies are sealed in. Read-only mount.
+  cookies:
+    enabled: true
+    type: secret
+    name: podsync-cookies
+    advancedMounts:
+      main:
+        app:
+          - path: /app/cookies
+            readOnly: true
+
+# ─── config.toml (inline ConfigMap) ───────────────────────────────────────────
+# Bootstrap config:
+#   - one example feed (Veritasium — high-profile science channel, never
+#     unavailable, large enough that scraping reliably yields content for
+#     verification)
+#   - keep_last = 5 to bound PVC growth during eval
+#   - cookies path wired to the secret mount
+#
+# To add a feed: append a [feeds.<id>] block, commit, push. podsync does
+# NOT hot-reload — restart pod with:
+#   kubectl -n podsync rollout restart deploy/podsync-main
+configMaps:
+  config:
+    enabled: true
+    data:
+      config.toml: |
+        [server]
+        port = 8080
+        # hostname controls the public URL podsync writes into RSS
+        # <enclosure> tags. ABS fetches via in-cluster DNS but iTunes-style
+        # absolute URLs in the XML help when previewing in a browser. Use
+        # the gateway hostname — even though /<feed>/ is bypassed, the
+        # enclosures resolve through the same path.
+        hostname = "https://podsync.apps.home"
+
+        [storage]
+        type = "local"
+        [storage.local]
+        data_dir = "/app/data"
+
+        [tokens]
+        # Empty — podsync falls back to yt-dlp scraping. Add a real YT
+        # Data API key when arch-err sets one up (Google Cloud Console).
+        # When set, podsync uses the official API for channel resolution
+        # which is far more reliable than scraping.
+        youtube = ""
+
+        # ── Bootstrap test feed ──
+        # Veritasium — high-profile, never deplatformed, large channel for
+        # verification. Replace/extend by adding more [feeds.<id>] blocks.
+        [feeds.veritasium]
+        url = "https://www.youtube.com/@veritasium"
+        page_size = 10
+        update_period = "12h"
+        quality = "high"
+        format = "audio"
+        clean = { keep_last = 5 }
+        # Per-feed yt-dlp args — wire the cookies.txt mount. Shared across
+        # all feeds for now; split per-feed when accounts diverge.
+        youtube_dl_args = ["--cookies", "/app/cookies/cookies.txt"]
+
+# Disable chart's built-in ingress/route — platform chart owns routing via
+# HTTPRoute (registered in apps.yaml).
+route:
+  main:
+    enabled: false
+ingress:
+  main:
+    enabled: false

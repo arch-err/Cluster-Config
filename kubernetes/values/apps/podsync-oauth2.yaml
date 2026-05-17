@@ -1,0 +1,110 @@
+# podsync-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting podsync's HTML index. Mirrors navidrome-oauth2 /
+# metube-oauth2. Consumes `podsync-oidc-client` (rendered by the podsync
+# Application's oidc:* block in apps.yaml; pocket-id client id=`podsync`,
+# restricted to apps_users + administrators at the IDP level on top of the
+# oauth2-proxy --allowed-group flags below).
+#
+# ─── In-cluster RSS bypass ────────────────────────────────────────────────────
+# Audiobookshelf-v2 fetches per-feed RSS XML + mp3 enclosures from podsync.
+# ABS uses the in-cluster Service DNS (podsync.podsync.svc.cluster.local:8080)
+# which BYPASSES the gateway entirely — it doesn't touch oauth2-proxy at all.
+# So the `--skip-auth-route=^/[A-Za-z0-9_-]+/` below is only relevant when
+# someone hits gateway-side `https://podsync.apps.home/<feed-id>/...`
+# directly in a browser (handy for debugging RSS without an OIDC login).
+# The bare `/` (HTML index of all feeds) stays gated — only authenticated
+# users see the feed-list page.
+#
+# COOKIE SECRET: sourced from SopsSecret `podsync-oauth2-cookie` in the
+# podsync ns (kubernetes/secrets/apps/podsync-oauth2-cookie.yaml).
+
+fullnameOverride: oauth2-podsync
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — podsync in-cluster service (podsync ns).
+  - --upstream=http://podsync.podsync.svc.cluster.local:8080
+  - --cookie-domain=podsync.apps.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_podsync_oauth2_proxy
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
+  # Feed-path bypass — any URL starting with /<feed-id>/ (matches the
+  # podsync URL shape: /<feed-id>/feed.xml + /<feed-id>/<video-id>.mp3)
+  # passes through unauthenticated. Browser hits to bare `/` (HTML index)
+  # stay gated. ABS uses Service DNS so it never traverses the gateway,
+  # but this lets a browser pull RSS for debugging without an OIDC login.
+  - --skip-auth-route=^/[A-Za-z0-9_-]+/
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: podsync-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: podsync-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: podsync-oidc-client
+        key: issuer_url
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: podsync-oauth2-cookie
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false
