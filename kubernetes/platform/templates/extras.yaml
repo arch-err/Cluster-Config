@@ -926,6 +926,24 @@ parameters:
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
+---
+# StorageClass for kadalu.replica2-retain — sibling SC for CRITICAL/VALUABLE PVCs
+# Same backing storage as kadalu.replica2; only difference is reclaimPolicy.
+# New apps holding user data must opt in via `storageClassName: kadalu.replica2-retain`.
+# See docs/pvc-reclaim-policy.md.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kadalu.replica2-retain
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+provisioner: kadalu
+parameters:
+  storage_name: replica2
+  single_pv_per_pool: "False"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}

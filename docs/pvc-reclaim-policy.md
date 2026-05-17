@@ -45,9 +45,19 @@ kubectl get pv -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.claimR
 
 Expected output: only `monitoring/prometheus-server`, `monitoring/storage-loki-0`, `immich/immich-machine-learning`, `immich/immich-valkey`, `matrix/redis-data-matrix-redis-replicas-*`, `stirling-pdf/stirling-pdf`. Anything else → patch it.
 
-## Future: `kadalu.replica2-retain` storage class
+## `kadalu.replica2-retain` storage class (deployed 2026-05-17)
 
-Adding a sibling StorageClass with `reclaimPolicy: Retain` would let CRITICAL/VALUABLE apps opt into Retain-by-default via `storageClassName: kadalu.replica2-retain` in their PVC spec — no post-install patch needed. Proposal lives in this repo PR thread; not deployed yet (decision pending: change default SC to retain vs add sibling SC vs keep current). The single biggest win is removing the "did we remember to patch the PV after first sync" footgun.
+Sibling StorageClass to `kadalu.replica2` — same backing kadalu pool (`replica2`), only `reclaimPolicy: Retain` differs. Lives in `kubernetes/platform/templates/extras.yaml` immediately after the default SC block. It is **not** the cluster default — opt-in only.
+
+**NEW apps**: any PVC holding CRITICAL or VALUABLE data MUST set `storageClassName: kadalu.replica2-retain` in its values file. SKIP-tier (caches, prometheus tsdb, redis replicas, loki storage, ML model caches, scratch) may use the default `kadalu.replica2`. This replaces Pattern B's post-install `kubectl patch pv` dance for new apps — the dynamically-provisioned PV inherits Retain from the SC.
+
+**EXISTING apps**: PVCs already patched to Retain via `kubectl patch pv` on 2026-05-17 are safe — their underlying PVs are Retain regardless of what their PVC's `storageClassName` says. Migration to the new SC is **not required** and is destructive: `storageClassName` is immutable on bound PVCs, so the only way to flip is destroy+recreate the PVC, which detaches and reprovisions storage. Verify current state any time with:
+
+```bash
+kubectl get pv -o custom-columns=NAME:.metadata.name,CLAIM:.spec.claimRef.name,SC:.spec.storageClassName,RECLAIM:.spec.persistentVolumeReclaimPolicy
+```
+
+The natural migration moment is when a PVC is being recreated for some other reason (resize past kadalu's online expansion limits, namespace move, app reinstall) — at that point, swap the values file to the new SC so the freshly provisioned PV gets Retain via the SC default instead of needing a manual patch.
 
 ## When retiring an app
 
