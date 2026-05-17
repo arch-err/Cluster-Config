@@ -152,7 +152,7 @@ persistence:
   config:
     enabled: true
     type: configMap
-    name: podsync-config
+    identifier: config
     advancedMounts:
       main:
         app:
