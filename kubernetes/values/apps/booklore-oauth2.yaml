@@ -1,0 +1,104 @@
+# booklore-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting booklore. Mirrors calibre-web-oauth2.
+# Consumes `booklore-oidc-client` (rendered by the booklore Application's
+# oidc:* block in apps.yaml; pocket-id client id=`booklore`, restricted to
+# apps_users + administrators at the IDP level on top of the oauth2-proxy
+# --allowed-group flags below).
+#
+# Booklore trusts X-Remote-User / X-Remote-Email / X-Remote-Groups headers
+# via REMOTE_AUTH_ENABLED=true (see values/apps/booklore.yaml). oauth2-proxy
+# `--pass-user-headers` + `--set-xauthrequest` provides these.
+#
+# Unlike calibre-web, NO api/opds bypass-routes yet — booklore's OPDS+Kobo
+# sync endpoints live under /api/v1 and need their own auth (basic-auth /
+# bearer token) — defer until first user wires a Kobo or KOReader client.
+#
+# COOKIE SECRET: sourced from SopsSecret `booklore-oauth2-cookie` in the
+# booklore ns (kubernetes/secrets/apps/booklore-oauth2-cookie.yaml).
+
+fullnameOverride: oauth2-booklore
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — booklore in-cluster service (booklore ns).
+  - --upstream=http://booklore.booklore.svc.cluster.local:6060
+  - --cookie-domain=booklore.apps.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_booklore_oauth2_proxy
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+# OIDC creds from the platform-rendered Secret (booklore Application's
+# oidc:* block in apps.yaml).
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: booklore-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: booklore-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: booklore-oidc-client
+        key: issuer_url
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: booklore-oauth2-cookie
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false

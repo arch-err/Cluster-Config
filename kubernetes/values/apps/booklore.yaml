@@ -1,0 +1,207 @@
+# booklore — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted multi-user ebook library w/ smart shelves, OPDS, Kobo+KOReader
+# sync, built-in EPUB/PDF/CBX reader. Spring Boot (eclipse-temurin:25-jre-alpine)
+# behind an Angular SPA. Upstream: https://github.com/booklore-app/booklore
+# Image: ghcr.io/booklore-app/booklore (linuxserver-style USER_ID/GROUP_ID +
+# su-exec drop, like calibre-web).
+#
+# Goal: deployed ALONGSIDE calibre-web reading the SAME physical book files
+# on the kadalu calibre-library subvol. Both apps maintain independent
+# metadata DBs (calibre uses sqlite at /config, booklore uses MariaDB) and
+# will drift on metadata, but agree on the underlying files. User is
+# comparing UIs over the same library for a few weeks before deciding to
+# migrate or remove one.
+#
+# ─── Library sharing (the big design choice) ──────────────────────────────────
+# Calibre-web owns `calibre-library` PVC in `calibre-web` ns — RWO, bound to a
+# dynamically-provisioned kadalu PV at subvol `subvol/bc/1c/pvc-152292a5-...`.
+# Booklore needs to READ those same files from its own namespace. Three
+# options were considered (see ~/.agents/cluster-builder/state/active-agents.md):
+#   (A) flip the existing PVC to RWX  — `accessModes` immutable on bound PVCs,
+#       requires destroy+recreate the PVC. Per data-destruction rules this
+#       requires explicit per-PVC user approval AND with kadalu's dynamic SC
+#       the underlying subvol path is uuid-derived → high risk of losing the
+#       bind to the existing data. REJECTED.
+#   (B) rsync into a fresh booklore-owned PVC  — duplicates ~50Gi of storage
+#       and drifts on file additions. clunky. REJECTED.
+#   (C) parallel static kadalu PV pointing at the SAME subvol path in this
+#       ns, RWX (kadalu supports multi-PV-per-subvol — see media-library twin
+#       pattern in platform/templates/extras.yaml + audiobookshelf-v2 block
+#       at L582-647). No destruction, no duplication, same gluster bricks.
+#       ACCEPTED — see extras.booklore in apps.yaml + platform extras block.
+#
+# Defense-in-depth on top of (C): booklore mounts the bridged PV READ-ONLY at
+# /books AND we set DISK_TYPE=NETWORK to disable booklore's file-write paths
+# entirely (metadata writing, file renaming, file organization — booklore's
+# own README warns these are unsafe on network storage and provides this
+# kill-switch). Pure-reader posture means calibre-web stays the sole writer;
+# booklore can't reorganize files calibre owns. Per the upstream README:
+# "metadata is stored in the database only and your files are never modified.
+# This is the only supported configuration for network storage."
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# OIDC via pocket-id, fronted by an oauth2-proxy sidecar release
+# (`booklore-oauth2`, see values/apps/booklore-oauth2.yaml). Mirrors the
+# calibre-web pattern exactly — booklore has native OIDC, but native OIDC is
+# configured via the in-app admin UI (no env-var wiring), which means a
+# manual post-deploy step per session. oauth2-proxy + REMOTE_AUTH (booklore's
+# reverse-proxy auth mode via X-Remote-User header) is fully declarative and
+# matches the cluster's existing pattern.
+#
+# REMOTE_AUTH_ENABLED=true makes booklore trust X-Remote-User/X-Remote-Email
+# headers set by oauth2-proxy. REMOTE_AUTH_CREATE_NEW_USERS=true auto-
+# provisions new users on first OIDC login. Native local auth still works as
+# fallback in case OIDC is broken — FORCE_DISABLE_OIDC is left off (default).
+#
+# HTTPRoute in apps.yaml points at the oauth2-booklore service (NOT directly
+# at this workload). API paths (/api/*) are NOT bypass-routed — booklore's
+# OPDS/Kobo endpoints live under /api/v1 and basic-auth + token flows can be
+# wired later if needed.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /app/data    — RWO PVC, 2Gi, kadalu.replica2-retain SC (CRITICAL — booklore's
+#                own state: app config, caches, processed files; the MariaDB
+#                in extras holds the actual metadata DB)
+# /books       — RWX kadalu static PV bridge (extras.booklore), mounted
+#                READ-ONLY at the chart's expected path. Points at the same
+#                subvol the calibre-web `calibre-library` PVC binds to.
+# /bookdrop    — NOT mounted (booklore-only feature; calibre-web has its own
+#                /cwa-book-ingest watch dir; no need to duplicate).
+#
+# ─── DB ───────────────────────────────────────────────────────────────────────
+# Booklore requires MariaDB (won't fall back to sqlite — checked
+# application.yaml). Bundled subchart would be the path of least resistance
+# but there's no shared cluster MariaDB and we want PSS + PVC control, so
+# we render a plain MariaDB Deployment + Service + PVC via extras.booklore
+# (mirrors the immich-postgres pattern in platform/templates/extras.yaml).
+# Image: docker.io/library/mariadb:11.4 (matches LSIO version used in the
+# upstream docker-compose).
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label — booklore image is alpine + su-exec, starts as root,
+# drops to USER_ID:GROUP_ID via su-exec which needs SETUID/SETGID. Restricted
+# PSS rejects that init flow; same trade as calibre-web/prowlarr/readarr.
+# MariaDB Deployment in extras runs uid 999 non-root with chown init container
+# (same pattern as immich-postgres).
+
+controllers:
+  main:
+    # Java app w/ JDBC pool, but only one replica should write to the data
+    # dir at a time. Recreate avoids old/new pod racing on /app/data during
+    # rollouts (same posture as calibre-web).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: ghcr.io/booklore-app/booklore
+          tag: "v2.3.0"  # latest release as of 2026-04-29
+        env:
+          # linuxserver-style user-drop. Match calibre-web (uid 1000) so any
+          # shared file ops (if we ever flip /books to RW) land as the same
+          # owner. Currently irrelevant because /books is RO + DISK_TYPE=NETWORK.
+          USER_ID: "1000"
+          GROUP_ID: "1000"
+          TZ: "Europe/Amsterdam"
+          BOOKLORE_PORT: "6060"
+          # NETWORK mode — disables file-write paths (metadata writing, file
+          # renaming, file organization). Required because /books is bridged
+          # off the calibre-web kadalu subvol and we don't want booklore
+          # rearranging files calibre owns. README also explicitly says
+          # NETWORK is the only supported mode for non-local fs. Pure-reader.
+          DISK_TYPE: "NETWORK"
+          # MariaDB connection — host/port resolved via in-ns Service
+          # `booklore-mariadb` (rendered by extras.booklore).
+          DATABASE_URL: "jdbc:mariadb://booklore-mariadb:3306/booklore?createDatabaseIfNotExist=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true"
+          DATABASE_USERNAME: "booklore"
+          DATABASE_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: booklore-db
+                key: DB_PASSWORD
+          # Trust oauth2-proxy's reverse-proxy auth headers — see auth notes
+          # in file header. Booklore reads X-Remote-User on each request and
+          # auto-creates the user record on first sight.
+          REMOTE_AUTH_ENABLED: "true"
+          REMOTE_AUTH_CREATE_NEW_USERS: "true"
+          REMOTE_AUTH_HEADER_USER: "X-Remote-User"
+          REMOTE_AUTH_HEADER_EMAIL: "X-Remote-Email"
+          REMOTE_AUTH_HEADER_GROUPS: "X-Remote-Groups"
+          REMOTE_AUTH_HEADER_NAME: "X-Remote-Name"
+          # admins-group bootstrap — first user in this pocket-id group lands
+          # as a booklore admin. Matches pocket-id's `administrators` group.
+          REMOTE_AUTH_ADMIN_GROUP: "administrators"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v1/healthcheck
+                port: 6060
+              # JVM cold-start + Flyway migration on first boot; give it room.
+              initialDelaySeconds: 90
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v1/healthcheck
+                port: 6060
+              initialDelaySeconds: 30
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi   # Spring Boot baseline; JVM uses MaxRAMPercentage=75
+          limits:
+            memory: 1536Mi  # bumped vs calibre-web — Spring Boot+Tomcat heavier than CWA's Python
+        # alpine + su-exec needs SETUID/SETGID/CHOWN to drop from root to
+        # USER_ID:GROUP_ID. Dropping ALL caps breaks the privilege drop —
+        # baseline PSS leaves default caps. Same posture as calibre-web.
+        securityContext:
+          allowPrivilegeEscalation: false
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 6060
+        targetPort: 6060
+
+persistence:
+  # Booklore app state — settings, caches, application-level scratch. The
+  # actual metadata DB lives in MariaDB (extras.booklore), not here.
+  # CRITICAL-tier (irreplaceable user state if MariaDB is the source of truth
+  # for the catalog) — use the retain SC.
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    storageClassName: kadalu.replica2-retain
+    advancedMounts:
+      main:
+        app:
+          - path: /app/data
+  # Shared book library — bridged static PV `booklore-calibre-library`
+  # rendered by extras.booklore (claimRef'd in this ns, points at the SAME
+  # kadalu subvol that calibre-web's `calibre-library` PVC is bound to).
+  # Mounted READ-ONLY: defense in depth alongside DISK_TYPE=NETWORK.
+  books:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: booklore-calibre-library
+    advancedMounts:
+      main:
+        app:
+          - path: /books
+            readOnly: true

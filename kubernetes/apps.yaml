@@ -551,6 +551,69 @@ components:
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
   # ──────────────────────────────────────────────────────────────────────────
+  # BOOKLORE — second self-hosted ebook UI deployed ALONGSIDE calibre-web.
+  # Reads the SAME physical book files via a parallel kadalu static PV
+  # (extras.booklore.calibreLibrarySubvolPath points at the exact subvol the
+  # calibre-web `calibre-library` PVC binds to). Mounted READ-ONLY +
+  # DISK_TYPE=NETWORK so booklore can't write/reorganize files calibre owns.
+  #
+  # Booklore is a Spring Boot app w/ MariaDB (no sqlite fallback) — the
+  # MariaDB Deployment + PVC live in extras.booklore (mirrors immich-postgres
+  # shape: chown init + non-root mariadb runtime). MariaDB password in
+  # SopsSecret `booklore-db` (kubernetes/secrets/apps/booklore-db.yaml).
+  #
+  # Auth: oauth2-proxy + pocket-id (booklore has native OIDC but it's
+  # admin-UI-configured, not env-var-wired). Booklore trusts X-Remote-User
+  # headers via REMOTE_AUTH_ENABLED=true. Mirrors calibre-web exactly.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: booklore
+    namespace: booklore
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + bridged PV + mariadb) settle
+    # HTTPRoute points at the oauth2-booklore Service (NOT directly at the
+    # booklore workload). No /api bypass yet — OPDS/Kobo auth wiring deferred
+    # until first user needs it.
+    route:
+      hostname: booklore.apps.home
+      gateway: apps
+      service: oauth2-booklore
+      port: 80
+      timeout: 30m  # bulk metadata scan / cover-fetch can take a while
+      dashboard:
+        name: Booklore
+        group: Media
+        icon: si-bookstack.svg
+        description: Ebook library (booklore — evaluating alongside calibre-web)
+        app: booklore
+    # Per-app OIDC client (pocket-id id=`booklore`). Secret rendered into the
+    # `booklore` ns as `booklore-oidc-client`; consumed by the booklore-oauth2
+    # release. apps_users + administrators allowed at the IDP level (gf eligible)
+    # on top of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://booklore.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting booklore. Same pattern as calibre-web-oauth2.
+  # Lives in the same ns as booklore so the OIDC-client Secret + HTTPRoute
+  # backendRef are co-located.
+  - name: booklore-oauth2
+    namespace: booklore
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `booklore-oidc-client` Secret rendered by the booklore
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
+  # ──────────────────────────────────────────────────────────────────────────
   # SYNCTHING — self-hosted continuous file sync. Replaces the laptop's
   # /srv/syncthing instance (data migration is a separate follow-up; this is
   # a clean deploy). Admin UI gated by oauth2-proxy + pocket-id OIDC; native
@@ -910,6 +973,24 @@ extras:
   # needs SETUID/SETGID/CHOWN; restricted PSS rejects that init step).
   calibre-web:
     enabled: true
+  # booklore: ns (baseline PSS — su-exec drop needs SETUID/SETGID, same as
+  # calibre-web) + bridged static kadalu PV pointing at the SAME subvol as
+  # calibre-web's `calibre-library` PVC (RWX, Retain, claimRef'd in the
+  # booklore ns) + MariaDB Deployment+PVC+Service (booklore needs MariaDB,
+  # no sqlite fallback). Mounted READ-ONLY at /books in the booklore pod,
+  # alongside DISK_TYPE=NETWORK as defense-in-depth: calibre-web stays the
+  # only writer to the underlying library, booklore is pure-reader.
+  #
+  # calibreLibrarySubvolPath is hard-coded to the exact subvol that
+  # calibre-web's dynamically-provisioned PV
+  # (pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1) bound to on 2026-05-09.
+  # Verify before any change to calibre-web's storage:
+  #   kubectl get pv $(kubectl -n calibre-web get pvc calibre-web-calibre-library \
+  #     -o jsonpath='{.spec.volumeName}') -o jsonpath='{.spec.csi.volumeAttributes.path}'
+  booklore:
+    librarySize: 50Gi  # mirror calibre-web's calibre-library PVC size
+    mariadbSize: 5Gi
+    calibreLibrarySubvolPath: subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1
   # home-assistant: namespace only (baseline PSS — HA's s6-overlay /init runs
   # as root to supervise the python process; restricted PSS rejects that
   # init flow). Flip to privileged later when adding USB dongles or

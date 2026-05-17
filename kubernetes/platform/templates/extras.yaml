@@ -419,6 +419,207 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* BOOKLORE (namespace + bridged calibre-library PV/PVC + MariaDB)             */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* Renders, in this ns:                                                        */}}
+{{/*   - booklore namespace (baseline PSS — booklore image uses su-exec to       */}}
+{{/*     drop from root to USER_ID:GROUP_ID; same trade as calibre-web)          */}}
+{{/*   - Static kadalu PV `booklore-calibre-library` (RWX, Retain) pointing at   */}}
+{{/*     the EXACT same subvol path the calibre-web `calibre-library` PVC binds  */}}
+{{/*     to (subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1). Kadalu      */}}
+{{/*     supports multi-PV-per-subvol (see arr media-library twin pattern at     */}}
+{{/*     L505-580 of this file, and ABS-v2 twin at L582-647). NO destruction of  */}}
+{{/*     calibre-web's existing PVC — this is a parallel bridge.                 */}}
+{{/*   - Bound PVC `booklore-calibre-library` in booklore ns.                    */}}
+{{/*   - MariaDB PVC + Service + Deployment (booklore's metadata DB — Spring     */}}
+{{/*     Boot + Hibernate w/ JDBC, no sqlite fallback). Mirrors the immich-      */}}
+{{/*     postgres pattern (chown init container + non-root mariadb runtime).     */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.booklore }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: booklore
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Bridged kadalu PV — points at the same subvol the calibre-web
+# `calibre-library` PVC is bound to. Kadalu's static CSI accepts multiple
+# PVs per subvol so this co-exists with the dynamically-provisioned PV
+# already attached to calibre-web. RWX so the same backing data can be
+# read by both apps' pods on any node.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: booklore-calibre-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ .Values.extras.booklore.librarySize | default "50Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: booklore-calibre-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: {{ .Values.extras.booklore.calibreLibrarySubvolPath | default "subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1" }}
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: booklore-calibre-library
+    namespace: booklore
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: booklore-calibre-library
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ .Values.extras.booklore.librarySize | default "50Gi" }}
+  volumeName: booklore-calibre-library
+---
+# MariaDB data PVC — booklore's metadata store. CRITICAL-tier (catalog
+# state + smart-shelf rules + per-user reading progress). Retain SC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: booklore-mariadb
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ .Values.extras.booklore.mariadbSize | default "5Gi" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booklore-mariadb
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  selector:
+    app: booklore-mariadb
+  ports:
+    - name: mariadb
+      port: 3306
+      targetPort: 3306
+---
+# MariaDB Deployment — mirrors immich-postgres pattern: chown init container
+# (kadalu PVCs come root-owned; fsGroup alone isn't enough for mariadb's
+# strict dir-mode checks) + non-root mariadb runtime (uid 999 per mariadb
+# Dockerfile).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booklore-mariadb
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: booklore-mariadb
+  template:
+    metadata:
+      labels:
+        app: booklore-mariadb
+    spec:
+      securityContext:
+        fsGroup: 999
+      initContainers:
+        - name: chown-data
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /var/lib/mysql
+              chown -R 999:999 /var/lib/mysql
+              chmod 700 /var/lib/mysql
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+      containers:
+        - name: mariadb
+          image: docker.io/library/mariadb:11.4.5
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          ports:
+            - name: mariadb
+              containerPort: 3306
+          env:
+            - name: MARIADB_DATABASE
+              value: booklore
+            - name: MARIADB_USER
+              value: booklore
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: booklore-db
+                  key: DB_PASSWORD
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: booklore-db
+                  key: MYSQL_ROOT_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: booklore-mariadb
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* HOME-ASSISTANT (namespace baseline-PSS for HA's s6-overlay /init as root)  */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if index .Values.extras "home-assistant" }}
