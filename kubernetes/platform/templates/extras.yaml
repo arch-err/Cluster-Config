@@ -642,6 +642,56 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: booklore-mariadb
+---
+# media-library — additional static kadalu PV/PVC pair pointing at the SAME
+# subvol path the arr stack / audiobookshelf-v2 / metube / jellyfin /
+# navidrome twin PVs use (extras.arr → subvol/ar/lb/media-library). Kadalu
+# supports multi-PV-per-subvol; this is just one more sibling. Booklore
+# mounts it with subPath=books-j and subPath=books-e (see
+# values/apps/booklore.yaml) so per-user ebook folders land under the same
+# tree ABS already uses for audiobooks.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: booklore-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ .Values.extras.booklore.mediaLibrarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  csi:
+    driver: kadalu
+    volumeHandle: booklore-media-library
+    volumeAttributes:
+      fstype: xfs
+      hostvol: replica2
+      path: subvol/ar/lb/media-library
+      pvtype: subvol
+      single_pv_per_pool: "False"
+      type: Replica2
+  claimRef:
+    name: booklore-media-library
+    namespace: booklore
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: booklore-media-library
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ .Values.extras.booklore.mediaLibrarySize | default "1500Gi" }}
+  volumeName: booklore-media-library
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
