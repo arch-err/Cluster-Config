@@ -1,0 +1,253 @@
+# papra — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Minimal self-hosted document management. Sqlite + plain files on disk
+# (db-nuke recoverable: originals live unencrypted at
+# /app/app-data/documents/<orgId>/originals/<docId>).
+# Upstream: https://github.com/papra-hq/papra  •  https://docs.papra.app
+#
+# REPLACES paperless-ngx (POC, decommissioned in the same commit chain). No
+# data migration — paperless was a pilot.
+#
+# ─── Image ────────────────────────────────────────────────────────────────────
+# ghcr.io/papra-hq/papra:26.4.0-rootless — pinned, NOT `latest`.
+# Rootless variant runs as uid/gid 999 (`nonroot`, created in Dockerfile).
+# Debian-slim base (node:26-slim → glibc), so getaddrinfo resolves
+# auth.apps.home cleanly without the hostAliases workaround that
+# audiobookshelf-v2 needs (that one runs on musl).
+# Tag scheme on ghcr matches the `@papra/app@<x.y.z>` release tag in GitHub.
+#
+# ─── Port ─────────────────────────────────────────────────────────────────────
+# 1221 (PORT env default, EXPOSE in Dockerfile). Health endpoint /api/health
+# (200 when DB is reachable). /api/ping is a lighter alternative.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /app/app-data — single RWX kadalu PVC, 20Gi to start. Holds:
+#   - app-data/db/db.sqlite           (drizzle/sqlite metadata DB)
+#   - app-data/documents/<org>/...    (plain files — pdf is pdf, jpg is jpg)
+#   - app-data/<other-config>         (PAPRA_CONFIG_DIR points here)
+# RWX even though single-pod (Recreate strategy) — keeps door open for HA
+# without a PV migration later. Same posture as vaultwarden.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# Papra has NATIVE OIDC via better-auth's generic-oauth plugin
+# (AUTH_PROVIDERS_CUSTOMS). NO oauth2-proxy sidecar — papra handles the
+# OIDC dance itself, including the OIDC callback at
+# /api/auth/oauth2/callback/<providerId>. Provider id = `pocket-id` (drives
+# the callback URL the platform's oidc-bootstrap registers in pocket-id).
+#
+# AUTH_PROVIDERS_CUSTOMS must be a JSON string env var. The platform's
+# oidc-bootstrap Job writes a Secret `papra-oidc-client` with separate
+# `client_id` / `client_secret` / `issuer_url` keys. We assemble the JSON at
+# container start via a tiny sh wrapper (no envsubst dep needed — node:26-slim
+# has sh + printf only). Same shape pattern as paperless's wrapper, but
+# without the gettext dep.
+#
+# AUTH_SECRET (better-auth session signing) comes from SopsSecret
+# `papra-auth-secret` in this ns (kubernetes/secrets/apps/papra-auth-secret.yaml).
+# Generated via `openssl rand -hex 48` per upstream guidance.
+#
+# Registration is DISABLED (AUTH_IS_REGISTRATION_ENABLED=false) once first
+# user is onboarded via OIDC. AUTH_FIRST_USER_AS_ADMIN=true means the first
+# OIDC-bound user gets the admin role automatically. Email/password auth is
+# turned OFF (AUTH_PROVIDERS_EMAIL_IS_ENABLED=false) so the only path in is
+# pocket-id; combined with the pocket-id group restriction (apps_users +
+# administrators, declared in apps.yaml below) that's the auth wall.
+#
+# ─── home-ca trust ────────────────────────────────────────────────────────────
+# Node TLS uses NODE_EXTRA_CA_CERTS to load home-ca-bundle/ca.crt so OIDC
+# discovery against https://auth.apps.home succeeds without
+# NODE_TLS_REJECT_UNAUTHORIZED. trust-manager broadcasts home-ca-bundle into
+# every ns automatically.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted-PSS clean. Dockerfile.rootless runs as nonroot (uid 999), no
+# privileged init, no setuid, no extra caps. securityContext locks this down
+# explicitly: runAsNonRoot, drop ALL caps, RuntimeDefault seccomp,
+# readOnlyRootFilesystem=true (papra writes only to /app/app-data + /tmp).
+
+controllers:
+  main:
+    # Single-pod app, sqlite on the mounted PVC. Recreate avoids old/new pod
+    # racing on the db file during rollout (same pattern as vaultwarden /
+    # audiobookshelf-v2 / calibre-web).
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: ghcr.io/papra-hq/papra
+          tag: "26.4.0-rootless"
+        # Wrap the upstream CMD (`pnpm start:with-migrations`) so we can
+        # assemble AUTH_PROVIDERS_CUSTOMS from the platform-rendered OIDC
+        # secret without needing envsubst in the image. Plain POSIX sh.
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            : "${OIDC_CLIENT_ID:?missing}"
+            : "${OIDC_CLIENT_SECRET:?missing}"
+            : "${OIDC_ISSUER_URL:?missing}"
+            # Better-auth discovery URL — pocket-id exposes the standard
+            # /.well-known/openid-configuration off the issuer.
+            discovery="${OIDC_ISSUER_URL%/}/.well-known/openid-configuration"
+            export AUTH_PROVIDERS_CUSTOMS="$(printf '%s' "[
+              {
+                \"providerId\": \"pocket-id\",
+                \"providerName\": \"Pocket ID\",
+                \"providerIconUrl\": \"https://auth.apps.home/api/application-configuration/logo\",
+                \"clientId\": \"${OIDC_CLIENT_ID}\",
+                \"clientSecret\": \"${OIDC_CLIENT_SECRET}\",
+                \"type\": \"oidc\",
+                \"discoveryUrl\": \"${discovery}\",
+                \"scopes\": [\"openid\", \"profile\", \"email\", \"groups\"],
+                \"pkce\": true
+              }
+            ]")"
+            exec pnpm start:with-migrations
+        env:
+          # Listen on the documented default port. 0.0.0.0 bind is the
+          # SERVER_HOSTNAME default; explicit for clarity.
+          PORT: "1221"
+          SERVER_HOSTNAME: "0.0.0.0"
+          NODE_ENV: "production"
+          # Public canonical URL. Better-auth uses this for trustedOrigins +
+          # OIDC redirect URL construction. Setting APP_BASE_URL overrides
+          # both CLIENT_BASE_URL + SERVER_BASE_URL — correct for the Docker
+          # build where server serves the client assets too.
+          APP_BASE_URL: "https://papra.apps.home"
+          # SQLite lives on the mounted PVC under app-data/db/db.sqlite. The
+          # Dockerfile pre-creates ./app-data/db with the right ownership.
+          DATABASE_URL: "file:./app-data/db/db.sqlite"
+          DOCUMENT_STORAGE_DRIVER: "filesystem"
+          DOCUMENT_STORAGE_FILESYSTEM_ROOT: "./app-data/documents"
+          PAPRA_CONFIG_DIR: "./app-data"
+          # Disable native email/password — pocket-id OIDC is the only path in.
+          AUTH_PROVIDERS_EMAIL_IS_ENABLED: "false"
+          # Belt-and-suspenders: even though email signup is off, lock the
+          # registration toggle too. Better-auth still permits OIDC-bound
+          # account creation on first login (which is what we want).
+          AUTH_IS_REGISTRATION_ENABLED: "true"
+          # First OIDC-bound user becomes admin. Subsequent users are members.
+          AUTH_FIRST_USER_AS_ADMIN: "true"
+          # Trust cilium gateway X-Forwarded-For for rate-limit IP.
+          AUTH_IP_ADDRESS_HEADERS: "x-forwarded-for"
+          # Node TLS: trust the cluster's home CA so OIDC discovery against
+          # https://auth.apps.home doesn't fail cert verification.
+          NODE_EXTRA_CA_CERTS: "/etc/ssl/home-ca/ca.crt"
+          # better-auth telemetry off (Dockerfile sets this already; explicit
+          # for grep-ability).
+          BETTER_AUTH_TELEMETRY: "0"
+          # OIDC client_id / client_secret / issuer_url — sourced from the
+          # platform-rendered Secret (papra Application's oidc:* block in
+          # apps.yaml). Consumed by the entrypoint wrapper above which
+          # assembles AUTH_PROVIDERS_CUSTOMS from them.
+          OIDC_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: papra-oidc-client
+                key: client_id
+          OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: papra-oidc-client
+                key: client_secret
+          OIDC_ISSUER_URL:
+            valueFrom:
+              secretKeyRef:
+                name: papra-oidc-client
+                key: issuer_url
+        envFrom:
+          # AUTH_SECRET (and only AUTH_SECRET) — better-auth session signing.
+          - secretRef:
+              name: papra-auth-secret
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/health
+                port: 1221
+              # Cold start migrates the sqlite schema; give it room.
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/ping
+                port: 1221
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            # tesseract.js OCR runs in-process — bursts cpu during scans.
+            # Keep reqs conservative; let the limit absorb spikes.
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted-PSS clean. nonroot user is uid 999 per the rootless
+        # Dockerfile. Node binary needs no caps; the app writes only to
+        # /app/app-data (PVC) + /tmp (emptyDir) — / can stay read-only.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+          runAsGroup: 999
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    # Match the kadalu mount to the container's runtime uid so writes work
+    # without a separate init-chown container. fsGroupChangePolicy avoids the
+    # recursive chown on every pod start once the mount root is correct.
+    fsGroup: 999
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 1221
+        targetPort: 1221
+
+persistence:
+  # Single RWX kadalu PVC, 20Gi. Holds sqlite db + plain-file document tree +
+  # any other app-data papra writes (search index, etc.). Kadalu PVCs are
+  # expandable; start small and grow.
+  app-data:
+    enabled: true
+    accessMode: ReadWriteMany
+    size: 20Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /app/app-data
+  # readOnlyRootFilesystem=true → papra still needs scratch (pdf-parse,
+  # tesseract intermediate files). emptyDir keeps it ephemeral.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
+  # home-ca trust bundle (broadcast by trust-manager into every ns). Mounted
+  # read-only so NODE_EXTRA_CA_CERTS can load ca.crt at process start. This
+  # is what makes OIDC discovery against https://auth.apps.home succeed.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true

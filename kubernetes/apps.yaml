@@ -254,33 +254,50 @@ components:
         icon: stirling-pdf.png
         description: Web PDF toolbox
 
-  # paperless-ngx — pilot install. Bundled bitnami pg + redis (emptyDir; pilot
-  # data loss on restart is acceptable). Future prod work: shared volumes for
-  # external file-manager access, proper backups, SMTP. NS is baseline-PSS
-  # (extras.paperless-ngx) — paperless image's supervisord and bitnami init
-  # bits don't pass restricted PSS.
-  - name: paperless-ngx
-    namespace: paperless-ngx
+  # ──────────────────────────────────────────────────────────────────────────
+  # PAPRA — minimal self-hosted document management. Replaces the paperless-ngx
+  # POC (decommissioned in the same commit). Sqlite metadata + plain-file
+  # storage (originals at /app/app-data/documents/<orgId>/...; nuking the db
+  # leaves files trivially readable on disk). Built-in tesseract.js OCR.
+  #
+  # Auth: NATIVE OIDC via better-auth's generic-oauth plugin (no oauth2-proxy
+  # sidecar). Pocket-id is the only sign-in path (native email/password is
+  # disabled in the values file). Provider id = `pocket-id` (drives the
+  # callback URL the platform's oidc-bootstrap registers in pocket-id).
+  # See values/apps/papra.yaml for the AUTH_PROVIDERS_CUSTOMS wiring.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: papra
+    namespace: papra
     chart:
-      repo: https://charts.gabe565.com
-      name: paperless-ngx
-      version: 0.24.1
-    syncWave: "3"  # after extras (ns label) settle
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
     route:
-      hostname: paperless.apps.home
+      hostname: papra.apps.home
       gateway: apps
-      service: paperless-ngx
-      port: 8000
+      service: papra
+      port: 1221
+      timeout: 30m  # large document uploads + OCR backlogs
       dashboard:
-        name: Paperless
+        name: Papra
         group: Documents
-        icon: paperless-ngx.png
-        description: Document mgmt + OCR
+        icon: papra.png
+        description: Minimal document archive (OCR, plain-file storage)
+        app: papra
+    # Per-app OIDC client (pocket-id id=`papra`). Secret rendered into the
+    # `papra` ns as `papra-oidc-client`; consumed by papra directly via the
+    # AUTH_PROVIDERS_CUSTOMS env (assembled at container start from the
+    # secret's client_id/client_secret/issuer_url keys — see values file).
+    # Better-auth's generic-oauth callback path: /api/auth/oauth2/callback/<id>.
+    # apps_users + administrators allowed at the IDP level (gf eventually uses
+    # this too; for now just admins until UI is dialled in).
     oidc:
       enabled: true
       callbackUrls:
-        - https://paperless.apps.home/accounts/oidc/pocket-id/login/callback/
+        - https://papra.apps.home/api/auth/oauth2/callback/pocket-id
       scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
 
   # ──────────────────────────────────────────────────────────────────────────
   # ARR STACK — 3 apps in one shared `arr` ns (extras.arr provides ns + PVCs).
@@ -851,11 +868,6 @@ extras:
   immich:
     librarySize: 1Ti
     postgresSize: 20Gi
-  # paperless-ngx pilot: namespace only (baseline PSS — paperless image's
-  # supervisord runs as root then drops, and the bundled bitnami subcharts'
-  # init paths don't all pass restricted PSS).
-  paperless-ngx:
-    enabled: true
   # stirling-pdf: namespace only (baseline PSS — image's entrypoint runs as
   # root to set up tessdata + /usr/local/bin/diagnostics symlinks before
   # dropping to uid 1000, which restricted PSS rejects).
