@@ -223,8 +223,13 @@ configMaps:
         # ── Bootstrap test feed ──
         # Veritasium — high-profile, never deplatformed, large channel for
         # verification. Replace/extend by adding more [feeds.<id>] blocks.
+        # NOTE: podsync only accepts the legacy /channel/<UC...> URL shape
+        # for YouTube — the modern /@handle URLs (and /c/, /user/ shapes)
+        # are rejected with "unsupported link format". To find a channel's
+        # UC-prefixed ID: open the channel page → view-source → grep
+        # "channelId":"UC...". Veritasium's is UCHnyfMqiRRG1u-2MsSQLbXA.
         [feeds.veritasium]
-        url = "https://www.youtube.com/@veritasium"
+        url = "https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA"
         page_size = 10
         update_period = "12h"
         quality = "high"
