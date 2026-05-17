@@ -496,6 +496,25 @@ spec:
       storage: {{ .Values.extras.booklore.librarySize | default "50Gi" }}
   volumeName: booklore-calibre-library
 ---
+# Booklore app-data PVC — booklore's own state (settings, processed files;
+# the metadata DB lives in MariaDB below, not here). CRITICAL — Retain SC.
+# Pre-rendered here instead of chart-provisioned because bjw-s app-template
+# v4.6.2's persistence schema rejects storageClassName at top level.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: booklore-data
+  namespace: booklore
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ .Values.extras.booklore.dataSize | default "2Gi" }}
+---
 # MariaDB data PVC — booklore's metadata store. CRITICAL-tier (catalog
 # state + smart-shelf rules + per-user reading progress). Retain SC.
 apiVersion: v1

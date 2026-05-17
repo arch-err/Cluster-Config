@@ -181,13 +181,13 @@ service:
 persistence:
   # Booklore app state — settings, caches, application-level scratch. The
   # actual metadata DB lives in MariaDB (extras.booklore), not here.
-  # CRITICAL-tier (irreplaceable user state if MariaDB is the source of truth
-  # for the catalog) — use the retain SC.
+  # PVC `booklore-data` is pre-rendered in extras.booklore (kadalu.replica2-
+  # retain SC) instead of chart-provisioned because the bjw-s app-template
+  # persistence schema rejects storageClassName at the top level.
   data:
     enabled: true
-    accessMode: ReadWriteOnce
-    size: 2Gi
-    storageClassName: kadalu.replica2-retain
+    type: persistentVolumeClaim
+    existingClaim: booklore-data
     advancedMounts:
       main:
         app:
