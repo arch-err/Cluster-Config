@@ -74,9 +74,12 @@ controllers:
           # Explicit config path; podsync defaults to ./config.toml relative
           # to /app workdir. Mount at /app/config/config.toml.
           PODSYNC_CONFIG_PATH: /app/config/config.toml
-          # YT Data API key — empty for now. Replace with sealed secret
-          # injection when arch-err sets up the Google Cloud project.
-          PODSYNC_YOUTUBE_API_KEY: ""
+          # YT Data API key — INTENTIONALLY UNSET. podsync rejects an empty
+          # string at startup ("key can't be empty"). When arch-err sets
+          # one up, inject here as PODSYNC_YOUTUBE_API_KEY via env
+          # valueFrom.secretKeyRef pointing at a new SopsSecret. Without
+          # it, podsync falls back to scraping (works for most channels
+          # until YouTube flags the cluster IP).
         args:
           - --config
           - /app/config/config.toml
@@ -206,12 +209,16 @@ configMaps:
         [database]
         dir = "/app/data/db"
 
-        [tokens]
-        # Empty — podsync falls back to yt-dlp scraping. Add a real YT
-        # Data API key when arch-err sets one up (Google Cloud Console).
-        # When set, podsync uses the official API for channel resolution
-        # which is far more reliable than scraping.
-        youtube = ""
+        # [tokens]
+        # YouTube Data API key. INTENTIONALLY OMITTED at bootstrap — podsync
+        # rejects an empty string ("key can't be empty"). When arch-err
+        # provisions a key from Google Cloud Console (enable YouTube Data
+        # API v3 → credentials → API key), uncomment + set:
+        #   [tokens]
+        #   youtube = "AIza...your-key-here..."
+        # or inject via env PODSYNC_YOUTUBE_API_KEY (see env: in
+        # controllers.main.containers.app above). Without a key, podsync
+        # falls back to yt-dlp scraping for channel resolution.
 
         # ── Bootstrap test feed ──
         # Veritasium — high-profile, never deplatformed, large channel for
