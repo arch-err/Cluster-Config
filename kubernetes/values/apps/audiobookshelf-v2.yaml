@@ -167,6 +167,7 @@ service:
         port: 8080
         targetPort: 8080
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # ABS sqlite + ffmpeg/ffprobe binaries live here. Small.
   config:

@@ -143,6 +143,7 @@ service:
         port: 4533
         targetPort: 4533
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # Navidrome state — sqlite navidrome.db + cache + image cache + transcode
   # scratch. ~5Gi is comfortable; the DB itself is tiny (~tens of MB even

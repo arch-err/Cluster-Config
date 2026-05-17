@@ -162,6 +162,7 @@ service:
         port: 8123
         targetPort: 8123
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # /config — HA state. sqlite home-assistant_v2.db, configuration.yaml,
   # secrets.yaml, custom_components, blueprints, .storage/* registry files.

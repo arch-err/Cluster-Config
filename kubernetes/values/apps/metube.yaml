@@ -100,6 +100,7 @@ service:
         port: 8081
         targetPort: 8081
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # metube's own state — download history + active queue (sqlite). Tiny.
   config:

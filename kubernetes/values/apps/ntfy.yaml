@@ -25,6 +25,7 @@ gateway:
   enabled: false
 
 # SQLite db on kadalu.replica2 (cluster default storageClass)
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   enabled: true
   size: 5Gi

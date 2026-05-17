@@ -1,6 +1,9 @@
 # immich — chart: immich/immich v0.11.1 (immich-app official)
 # https://artifacthub.io/packages/helm/immich/immich
 #
+# RECLAIM: immich-postgres + immich-library PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
+# (immich-machine-learning + immich-valkey remain at Delete — they're caches, SKIP-tier)
+#
 # Postgres + library PVC + namespace are created via the platform chart's
 # `extras.immich` block (see kubernetes/apps.yaml + platform/templates/extras.yaml).
 # Postgres password lives in SopsSecret `immich-db` (kubernetes/secrets/apps/immich-db.yaml).

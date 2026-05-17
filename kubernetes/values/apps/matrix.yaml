@@ -19,6 +19,7 @@ ingress:
 extra_python_modules: []
 
 # Persistence for Synapse data + sqlite db
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   enabled: true
   storageClassName: kadalu.replica2

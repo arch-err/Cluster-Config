@@ -137,6 +137,7 @@ service:
         port: 80
         targetPort: 80
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # /data holds: sqlite db (db.sqlite3), rsa_key.pem (admin JWT signing),
   # attachments/, sends/, config.json (if /admin Save is ever clicked).

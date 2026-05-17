@@ -83,6 +83,7 @@ resources:
 # default startupProbe (5 minutes) is comfortable for our ~121G initial scan.
 # Keep defaults.
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # Jellyfin internal state — sqlite DB, metadata cache, plugins, logs.
   # Default size is 5Gi which matches our convention (audiobookshelf-v2 /config).

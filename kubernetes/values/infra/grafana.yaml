@@ -3,6 +3,7 @@
 # Dashboards via git-sync sidecar from arch-err/grafana-dashboards
 
 # Persistence for grafana DB (sqlite by default)
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   enabled: true
   storageClassName: kadalu.replica2

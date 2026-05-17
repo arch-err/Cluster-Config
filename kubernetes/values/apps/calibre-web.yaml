@@ -107,6 +107,7 @@ service:
         port: 8083
         targetPort: 8083
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # CWA app state — sqlite app.db, settings, processed_books backups, plugins.
   # Grows slowly; 5Gi is comfortable for a single-user library.

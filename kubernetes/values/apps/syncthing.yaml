@@ -112,6 +112,7 @@ service:
         protocol: UDP
         nodePort: 30022
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # Config + sqlite index. Small.
   config:

@@ -219,6 +219,7 @@ service:
         port: 1221
         targetPort: 1221
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   # Single RWX kadalu PVC, 20Gi. Holds sqlite db + plain-file document tree +
   # any other app-data papra writes (search index, etc.). Kadalu PVCs are

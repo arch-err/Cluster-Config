@@ -148,6 +148,7 @@ service:
         port: 9696
         targetPort: 9696
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   config:
     enabled: true

@@ -25,6 +25,7 @@ masterPassword:
   existingSecret: agent-vault-master
   secretKey: AGENT_VAULT_MASTER_PASSWORD
 
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   enabled: true
   size: 2Gi
