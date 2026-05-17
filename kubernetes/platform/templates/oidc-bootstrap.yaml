@@ -41,7 +41,16 @@ Pocket-id authenticates that token via the `X-API-Key` request header.
 {{- if and $component.oidc $component.oidc.enabled }}
 {{- $app := $component.name }}
 {{- $appNs := $component.namespace | default $component.name }}
-{{- $secretName := default (printf "%s-oidc-client" $app) $component.oidc.secretName }}
+{{- /* clientId override — decouples the pocket-id client id (+ derived
+       resource names) from the component name. Defaults to $app for
+       backwards-compat. Use when the k8s-side component is locked to an
+       awkward legacy name (e.g. `audiobookshelf-v2`) but the OIDC client
+       should carry a clean prod name. Driving the SA/Role/CM/Job names
+       off $clientId means ArgoCD prunes the old bootstrap resources when
+       the clientId changes (the pocket-id-side client itself is external
+       state — delete that out-of-band via the API/UI). */}}
+{{- $clientId := default $app $component.oidc.clientId }}
+{{- $secretName := default (printf "%s-oidc-client" $clientId) $component.oidc.secretName }}
 {{- $callbackUrls := $component.oidc.callbackUrls | default (list) }}
 {{- $scopes := $component.oidc.scopes | default (list "openid" "profile" "email") }}
 {{- $isPublic := $component.oidc.public | default false }}
@@ -66,35 +75,35 @@ Pocket-id authenticates that token via the `X-API-Key` request header.
 {{- $allowedGroups = $component.oidc.groupRestriction.allowedGroups }}
 {{- end }}
 {{- /* hash inputs so the Job is recreated when the spec changes */}}
-{{- $specBlob := printf "%s|%s|%s|%v|%v|%s|%s|%s" $app $appNs (join "," $callbackUrls) $isPublic $pkceEnabled (join "," $scopes) (join "," $logoutCallbackUrls) (join "," $allowedGroups) }}
+{{- $specBlob := printf "%s|%s|%s|%s|%v|%v|%s|%s|%s" $clientId $app $appNs (join "," $callbackUrls) $isPublic $pkceEnabled (join "," $scopes) (join "," $logoutCallbackUrls) (join "," $allowedGroups) }}
 {{- $specHash := $specBlob | sha256sum | trunc 10 }}
 ---
 # ─────────── ServiceAccount (lives in pocket-id ns) ───────────
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: oidc-bootstrap-{{ $app }}
+  name: oidc-bootstrap-{{ $clientId }}
   namespace: pocket-id
   annotations:
     argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
-    oidc-bootstrap/app: {{ $app | quote }}
+    oidc-bootstrap/app: {{ $clientId | quote }}
 ---
 # ─────────── Cross-ns RBAC (Role + Binding in app's ns) ───────────
 # Tightest possible: only the one Secret, only the verbs we need.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: oidc-bootstrap-{{ $app }}
+  name: oidc-bootstrap-{{ $clientId }}
   namespace: {{ $appNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
-    oidc-bootstrap/app: {{ $app | quote }}
+    oidc-bootstrap/app: {{ $clientId | quote }}
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -109,35 +118,35 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: oidc-bootstrap-{{ $app }}
+  name: oidc-bootstrap-{{ $clientId }}
   namespace: {{ $appNs }}
   annotations:
     argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
-    oidc-bootstrap/app: {{ $app | quote }}
+    oidc-bootstrap/app: {{ $clientId | quote }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: oidc-bootstrap-{{ $app }}
+  name: oidc-bootstrap-{{ $clientId }}
 subjects:
   - kind: ServiceAccount
-    name: oidc-bootstrap-{{ $app }}
+    name: oidc-bootstrap-{{ $clientId }}
     namespace: pocket-id
 ---
 # ─────────── Bootstrap script (ConfigMap in pocket-id ns) ───────────
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: oidc-bootstrap-{{ $app }}
+  name: oidc-bootstrap-{{ $clientId }}
   namespace: pocket-id
   annotations:
     argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
-    oidc-bootstrap/app: {{ $app | quote }}
+    oidc-bootstrap/app: {{ $clientId | quote }}
 data:
   bootstrap.sh: |
     #!/usr/bin/env bash
@@ -330,7 +339,7 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: oidc-bootstrap-{{ $app }}-{{ $specHash }}
+  name: oidc-bootstrap-{{ $clientId }}-{{ $specHash }}
   namespace: pocket-id
   annotations:
     argocd.argoproj.io/sync-wave: "11"
@@ -342,7 +351,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
-    oidc-bootstrap/app: {{ $app | quote }}
+    oidc-bootstrap/app: {{ $clientId | quote }}
     oidc-bootstrap/spec-hash: {{ $specHash | quote }}
 spec:
   ttlSecondsAfterFinished: 600
@@ -352,9 +361,9 @@ spec:
       labels:
         app.kubernetes.io/managed-by: platform-chart
         app.kubernetes.io/component: oidc-bootstrap
-        oidc-bootstrap/app: {{ $app | quote }}
+        oidc-bootstrap/app: {{ $clientId | quote }}
     spec:
-      serviceAccountName: oidc-bootstrap-{{ $app }}
+      serviceAccountName: oidc-bootstrap-{{ $clientId }}
       restartPolicy: OnFailure
       securityContext:
         runAsNonRoot: true
@@ -375,7 +384,7 @@ spec:
               drop: ["ALL"]
           env:
             - name: APP_NAME
-              value: {{ $app | quote }}
+              value: {{ $clientId | quote }}
             - name: APP_NS
               value: {{ $appNs | quote }}
             - name: SECRET_NAME
@@ -425,7 +434,7 @@ spec:
       volumes:
         - name: script
           configMap:
-            name: oidc-bootstrap-{{ $app }}
+            name: oidc-bootstrap-{{ $clientId }}
             defaultMode: 0755
         - name: tmp
           emptyDir:

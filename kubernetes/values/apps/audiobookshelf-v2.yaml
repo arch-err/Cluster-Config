@@ -1,7 +1,15 @@
-# audiobookshelf-v2 — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# audiobookshelf — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
 # Audiobooks + podcasts. Self-hosted. Upstream: https://www.audiobookshelf.org/
 # Image: docker.io/advplyr/audiobookshelf — runs as uid 1000 (`node`),
 # restricted-PSS clean (verified live: runAsNonRoot, drop ALL caps, RuntimeDefault).
+#
+# Hostname: https://audiobookshelf.apps.home
+# OIDC client_id: audiobookshelf (Secret: audiobookshelf-oidc-client)
+#
+# Note: the component name in apps.yaml is still `audiobookshelf-v2` (locks
+# the namespace / deployment / PVCs / ArgoCD app to legacy names — renaming
+# would force a destructive PVC recreate). The clean prod names live on the
+# user-facing surfaces only (hostname + OIDC client_id, via oidc.clientId).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # CHART MIGRATION (2026-05-07): christianhuth/audiobookshelf v2.2.0 → bjw-s
@@ -25,10 +33,10 @@
 #
 # WHAT THE USER LOSES + MUST RE-DO IN UI AFTER THIS LANDS:
 #   - Admin user (gone with /config sqlite). Open the UI → create root user.
-#   - OIDC settings — paste from `audiobookshelf-v2-oidc-client` Secret in
+#   - OIDC settings — paste from `audiobookshelf-oidc-client` Secret in
 #     this ns:
 #       Issuer URL  = stringData/issuer_url   (https://auth.apps.home/.well-known/openid-configuration)
-#       Client ID   = stringData/client_id    (audiobookshelf-v2)
+#       Client ID   = stringData/client_id    (audiobookshelf)
 #       Client Sec. = stringData/client_secret
 #     Auto-discovery NOW WORKS (NODE_EXTRA_CA_CERTS resolves the home-ca
 #     chain). Toggle "Match existing users by email", scopes

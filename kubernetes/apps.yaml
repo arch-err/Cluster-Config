@@ -49,8 +49,13 @@ components:
   # audiobookshelf-v2 — replaced the legacy `audiobookshelf` release
   # (christianhuth/audiobookshelf v2.2.0) on 2026-05-10. Mounts the shared
   # kadalu media-library volume (so ABS sees the arr stack's downloads).
+  # The component name is locked to `audiobookshelf-v2` (ns / deployment /
+  # PVCs / ArgoCD app — renaming any of those would force a destructive
+  # PVC recreate). Hostname + OIDC client carry clean prod names:
+  #   - hostname:  audiobookshelf.apps.home
+  #   - OIDC client_id: audiobookshelf (via oidc.clientId override)
   # OIDC: pocket-id client bootstrapped declaratively below; user pastes
-  # client_id/secret/issuer from the audiobookshelf-v2-oidc-client Secret
+  # client_id/secret/issuer from the audiobookshelf-oidc-client Secret
   # into Settings → Authentication → OpenID Connect (no auto-seed Job —
   # see revert e4f743d for why).
   - name: audiobookshelf-v2
@@ -68,29 +73,38 @@ components:
       version: 4.6.2
     syncWave: "3"  # after extras (ns + media-library twin PV) settle
     route:
-      hostname: audiobookshelf-v2.apps.home
+      hostname: audiobookshelf.apps.home
       gateway: apps
       service: audiobookshelf-v2
       port: 8080
       timeout: 30m  # large audiobook uploads via API
       dashboard:
-        name: AudiobookShelf v2
+        name: AudiobookShelf
         group: Media
         icon: audiobookshelf.svg
-        description: Audiobooks + podcasts (parallel install w/ media-library mount)
+        description: Audiobooks + podcasts
     oidc:
       enabled: true
+      # Clean OIDC client_id, decoupled from the legacy component name.
+      # Drives the pocket-id client id + the rendered Secret name
+      # (audiobookshelf-oidc-client). The old `audiobookshelf-v2` pocket-id
+      # client is external state — delete it via the pocket-id admin UI/API
+      # after this lands (ArgoCD only prunes the k8s-side bootstrap
+      # resources, not the pocket-id-side client doc).
+      clientId: audiobookshelf
       # advplyr/audiobookshelf image bakes ROUTER_BASE_PATH=/audiobookshelf
       # into its Dockerfile, which prefixes ABS's callback path. Empty-string
       # env override is silently ignored (Node || falls through). Easier to
       # accept the prefix and register both forms — root form kept in case
       # the image ever drops the bake-in.
       callbackUrls:
-        - https://audiobookshelf-v2.apps.home/audiobookshelf/auth/openid/callback
-        - https://audiobookshelf-v2.apps.home/audiobookshelf/auth/openid/mobile-redirect
-        - https://audiobookshelf-v2.apps.home/auth/openid/callback
-        - https://audiobookshelf-v2.apps.home/auth/openid/mobile-redirect
+        - https://audiobookshelf.apps.home/audiobookshelf/auth/openid/callback
+        - https://audiobookshelf.apps.home/audiobookshelf/auth/openid/mobile-redirect
+        - https://audiobookshelf.apps.home/auth/openid/callback
+        - https://audiobookshelf.apps.home/auth/openid/mobile-redirect
       scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
 
   - name: agent-vault
     namespace: agent-vault
