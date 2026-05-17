@@ -597,16 +597,21 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+          # First-boot mariadb-install-db on kadalu storage takes ~2-3 min.
+          # Give the readiness probe room before it can flap the pod into
+          # restart loops during the initial install.
           readinessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
-            initialDelaySeconds: 15
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 30
           livenessProbe:
             exec:
               command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
-            initialDelaySeconds: 60
+            initialDelaySeconds: 300
             periodSeconds: 30
+            failureThreshold: 5
           resources:
             requests:
               cpu: 50m
