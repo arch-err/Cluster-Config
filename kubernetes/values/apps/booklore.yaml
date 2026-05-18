@@ -233,9 +233,10 @@ persistence:
           - path: /app/data
   # Shared media-library — parallel static PV `booklore-media-library`
   # rendered by extras.booklore. Same subvol the rest of the media apps
-  # share (subvol/ar/lb/media-library on hostvol replica2). Two mount
-  # points via subPath split per-user ebook folders. DISK_TYPE=NETWORK is
-  # still set so booklore cannot rename/reorganize files on the shared tree.
+  # share (subvol/ar/lb/media-library on hostvol replica2). Three mount
+  # points via subPath: two per-user folders + one cross-user shared folder.
+  # DISK_TYPE=NETWORK is still set so booklore cannot rename/reorganize
+  # files on the shared tree.
   media-library:
     enabled: true
     type: persistentVolumeClaim
@@ -247,6 +248,8 @@ persistence:
             subPath: books-j
           - path: /books-e
             subPath: books-e
+          - path: /books-shared
+            subPath: books-shared
   # home-ca trust-bundle, broadcast by trust-manager into every ns as the
   # `home-ca-bundle` ConfigMap (key: ca.crt). Mounted on the init container
   # ONLY — the main container reads the rendered JKS truststore via the
