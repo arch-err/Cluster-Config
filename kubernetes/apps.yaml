@@ -596,6 +596,9 @@ components:
       enabled: true
       callbackUrls:
         - https://booklore.apps.home/oauth2/callback
+        # Native booklore Spring OIDC client uses /oauth2-callback (one word).
+        # Kept alongside the oauth2-proxy /oauth2/callback so both paths work.
+        - https://booklore.apps.home/oauth2-callback
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [apps_users, administrators]
