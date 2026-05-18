@@ -83,6 +83,44 @@ controllers:
     # dir at a time. Recreate avoids old/new pod racing on /app/data during
     # rollouts (same posture as calibre-web).
     strategy: Recreate
+    # ─── home-ca trust bootstrap (2026-05-18) ─────────────────────────────────
+    # Booklore's Spring/Java OIDC client (configured manually in UI Settings)
+    # needs to fetch pocket-id's discovery doc from https://id.infra.home over
+    # TLS. The home-ca-bundle PEM (mounted into many other apps) is NOT
+    # readable by the JVM directly — Java's TLS stack only consumes a JKS/
+    # PKCS12 truststore. This init container copies the temurin default
+    # `cacerts` to an emptyDir, imports the home-ca root via keytool, and the
+    # main container points at it via JAVA_TOOL_OPTIONS (set in env: below).
+    # Pattern mirrors readarr's ca-bundle init (concat PEM) but for JKS.
+    # Image matches the booklore final stage (temurin:25-jre-alpine) so
+    # `keytool` is present and the default cacerts path is identical.
+    initContainers:
+      home-ca-truststore:
+        image:
+          repository: docker.io/library/eclipse-temurin
+          tag: "25-jre-alpine"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            cp /opt/java/openjdk/lib/security/cacerts /work/cacerts
+            chmod 644 /work/cacerts
+            keytool -importcert -trustcacerts -noprompt \
+              -alias home-ca \
+              -file /ca/ca.crt \
+              -keystore /work/cacerts \
+              -storepass changeit
+            echo "[home-ca-truststore] imported home-ca into /work/cacerts"
+        # NOT readOnlyRootFilesystem — keytool may write to $HOME or scratch
+        # paths in the JRE config tree. Tight-enough already with non-root +
+        # caps dropped.
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop: [ALL]
     containers:
       app:
         image:
@@ -96,6 +134,13 @@ controllers:
           GROUP_ID: "1000"
           TZ: "Europe/Amsterdam"
           BOOKLORE_PORT: "6060"
+          # JVM trust store override — picks up the home-ca-augmented cacerts
+          # built by the `home-ca-truststore` init container above. Lets the
+          # native OIDC client (configured via UI Settings) reach pocket-id at
+          # https://id.infra.home without a TLS error on discovery fetch.
+          # JAVA_TOOL_OPTIONS (not JAVA_OPTS) so the JVM picks it up
+          # universally without depending on booklore's entrypoint cooperating.
+          JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
           # NETWORK mode — disables file-write paths (metadata writing, file
           # renaming, file organization). The /books-j + /books-e mounts
           # are on the shared kadalu media-library subvol; other apps (ABS)
@@ -202,3 +247,29 @@ persistence:
             subPath: books-j
           - path: /books-e
             subPath: books-e
+  # home-ca trust-bundle, broadcast by trust-manager into every ns as the
+  # `home-ca-bundle` ConfigMap (key: ca.crt). Mounted on the init container
+  # ONLY — the main container reads the rendered JKS truststore via the
+  # `truststore` volume below, not the raw PEM.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        home-ca-truststore:
+          - path: /ca
+            readOnly: true
+  # Shared scratch volume for the home-ca-augmented JKS truststore. Init
+  # writes /work/cacerts, main reads /truststore/cacerts. emptyDir is fine —
+  # rebuilt on every pod start, no persistence semantics needed.
+  truststore:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        home-ca-truststore:
+          - path: /work
+        app:
+          - path: /truststore
+            readOnly: true
