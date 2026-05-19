@@ -1122,6 +1122,32 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* FORGEJO — namespace only                                                    */}}
+{{/* Hosts forgejo-postgres (phase 1) AND forgejo itself (phase 2). Block lives  */}}
+{{/* here so it's reusable across both apps in the same ns. Restricted PSS —    */}}
+{{/* both postgres (uid 999 + drop-all + RuntimeDefault) and forgejo (uid 1000  */}}
+{{/* default in the official forgejo image) are restricted-clean as configured  */}}
+{{/* in their respective values files. If kadalu's root-owned PVC behavior      */}}
+{{/* forces a chown init container at first boot (same gotcha that pushed       */}}
+{{/* immich + booklore-mariadb to baseline PSS), the trade is to flip these     */}}
+{{/* labels to baseline — but only after evidence of failure.                   */}}
+{{/* See kubernetes/manual/forgejo/PLAN.md for the multi-phase plan.            */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.forgejo }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: forgejo
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}
