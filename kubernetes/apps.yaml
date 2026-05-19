@@ -1003,10 +1003,12 @@ components:
   - name: forgejo
     namespace: forgejo
     chart:
-      # Chart-only repo on Codeberg's forgejo instance. Hosts the chart's
-      # raw helm-index at /forgejo-helm/forgejo-helm/raw — but the helm
-      # consumer URL is the registry (artifacthub-tracked).
-      repo: https://code.forgejo.org/forgejo-helm
+      # Forgejo distributes the helm chart as an OCI artifact (no
+      # `helm repo add`-able http index). ArgoCD's helm source accepts
+      # OCI when the repoURL is `oci://<registry>/<path-prefix>` and
+      # `chart:` is the chart name appended to that path. Together they
+      # resolve to oci://code.forgejo.org/forgejo-helm/forgejo:17.1.0.
+      repo: oci://code.forgejo.org/forgejo-helm
       name: forgejo
       version: 17.1.0
     syncWave: "3"  # after extras (ns) + cnpg Cluster reconcile (sync-wave 0)
