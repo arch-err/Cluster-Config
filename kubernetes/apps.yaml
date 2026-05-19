@@ -1049,6 +1049,23 @@ components:
         size: 20Gi
         storageClass: kadalu.replica2-retain
       instances: 1
+    # Phase 3.5 — first-admin + API-token bootstrap.
+    # Part A (admin user creation) is handled by the chart's gitea.admin
+    # existingSecret knob (values/apps/forgejo.yaml → forgejo-admin-bootstrap
+    # carrying chart-expected `username`/`password`/`email` keys alongside
+    # the legacy `ADMIN_PASSWORD`). Chart's configure-gitea init runs
+    # `forgejo admin user create` on first pod boot.
+    # Part B (API-token mint) is THIS block — platform template renders a
+    # hashed-name Job that basic-auths as cluster-bootstrap, mints a token
+    # named `crossplane` (scope: all), and writes Secret forgejo-admin-token
+    # into crossplane-system ns for phase 4's provider-gitea ProviderConfig.
+    forgejoAdmin:
+      enabled: true
+      username: cluster-bootstrap
+      email: cluster-bootstrap@apps.home
+      passwordSecret: forgejo-admin-bootstrap
+      tokenSecretName: forgejo-admin-token
+      tokenSecretNamespace: crossplane-system
 
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec

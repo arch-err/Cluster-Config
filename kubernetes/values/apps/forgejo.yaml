@@ -194,6 +194,23 @@ extraInitVolumeMounts:
 
 # ─── gitea config ─────────────────────────────────────────────────────────────
 gitea:
+  # ─── Admin user auto-create (chart's gitea.admin block) ───────────────────
+  # The chart's configure-gitea init container runs `forgejo admin user create`
+  # on every pod start when GITEA_ADMIN_USERNAME / _PASSWORD are set. We point
+  # at the SOPS-encrypted `forgejo-admin-bootstrap` Secret (kubernetes/secrets/
+  # apps/forgejo-admin-bootstrap.yaml) which carries `username`/`password`/
+  # `email` (chart-expected key names) alongside the legacy `ADMIN_PASSWORD`
+  # key consumed by the phase-3.5 token-mint Job.
+  # passwordMode `keepUpdated` re-syncs the password on every reconcile —
+  # rotating the SOPS secret then re-syncing forgejo propagates cleanly.
+  admin:
+    existingSecret: forgejo-admin-bootstrap
+    # Chart's create_args hardcodes --email from gitea.admin.email (NOT
+    # from the secret's email key). Set explicitly so cluster-bootstrap
+    # gets a sensible address — chart default is gitea@local.domain.
+    email: cluster-bootstrap@apps.home
+    passwordMode: keepUpdated
+
   # additionalConfigFromEnvs: env-to-ini pump. Forgejo's image translates
   # FORGEJO__SECTION__KEY (and legacy GITEA__SECTION__KEY) env vars into the
   # corresponding app.ini entry at startup. This is the canonical chart path
