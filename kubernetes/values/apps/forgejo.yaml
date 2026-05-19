@@ -1,0 +1,285 @@
+# forgejo — chart: forgejo-helm/forgejo v17.1.0 (appVersion 15.0.2)
+# https://code.forgejo.org/forgejo-helm  •  registry URL listed in apps.yaml
+#
+# Phase 3 of the forgejo deployment plan (kubernetes/manual/forgejo/PLAN.md).
+# Self-hosted git platform at git.apps.home — repos + LFS + built-in OCI
+# registry + Actions API.
+#
+# ─── BYODB / BYOCache ─────────────────────────────────────────────────────────
+# v17.x of this chart does NOT bundle postgresql or redis subcharts at all
+# (Chart.yaml dependency is `common` only). Database is provided by the
+# cnpg-managed Cluster `forgejo-db` rendered by the platform chart's `db:`
+# block on the forgejo component (see kubernetes/apps.yaml + platform README).
+# cnpg auto-mints the `forgejo-db-app` Secret in this ns with keys:
+#   username / password / host / port / dbname / uri / jdbc-uri / pgpass
+# We wire DB creds via `gitea.additionalConfigFromEnvs` (canonical chart path)
+# pulling per-key from the secret — NOT bulk envFrom (uri/jdbc-uri/pgpass
+# would pollute forgejo's env). The cnpg primary Service is named
+# `forgejo-db-rw` (ClusterIP) on port 5432 — hardcoded as HOST below since
+# the name is contractually stable from the platform `db:` template.
+# Redis is left disabled; built-in memory cache + leveldb queue is plenty for
+# v1 single-replica. Revisit when perf demands it.
+#
+# ─── OIDC (pocket-id) ─────────────────────────────────────────────────────────
+# The platform `oidc:` block on the forgejo component (apps.yaml) bootstraps
+# a pocket-id client with id `forgejo`, callback
+# `https://git.apps.home/user/oauth2/pocket-id/callback`, and renders the
+# `forgejo-oidc-client` Secret in this ns with keys client_id / client_secret /
+# issuer_url. The chart's `gitea.oauth[]` helper expects an existingSecret
+# with keys literally named `key` and `secret` — so we don't use existingSecret.
+# Instead we inject GITEA_OAUTH_KEY_0 / GITEA_OAUTH_SECRET_0 via deployment.env
+# valueFrom secretKeyRef on the platform secret's client_id / client_secret
+# keys, and let the chart's _helpers.tpl substitute those placeholders into
+# the `forgejo admin auth add-oauth` invocation (the helper does this exact
+# substitution when `key` / `secret` are absent from the entry — verified
+# against templates/_helpers.tpl @ v17.1.0).
+# autoDiscoverUrl is hard-coded to https://auth.apps.home/.well-known/openid-
+# configuration — that's the only place we couple to pocket-id's hostname.
+#
+# ─── home-CA trust ────────────────────────────────────────────────────────────
+# pocket-id's TLS cert is issued by the home CA. The forgejo image is alpine
+# (Go binary), so we mount the trust-manager-broadcast `home-ca-bundle`
+# ConfigMap at /etc/ssl/home-ca and set SSL_CERT_DIR (Go honors colon-
+# separated dirs) to extend the system root pool. Avoids the
+# update-ca-certificates rootful path that wouldn't work as uid 1000.
+#
+# ─── SSH future-proofing ──────────────────────────────────────────────────────
+# Built-in Go SSH server is enabled (START_SSH_SERVER=true). The Service
+# exposes :22 → targetPort :2222 (chart-wired since rootless: true).
+# SSH_DOMAIN + SSH_PORT=22 so clone URLs advertised in the UI read
+# git@git.apps.home:org/repo.git from day 1 — those URLs become reachable
+# the moment the post-v1 Gateway flip lands (TCP listener :22 + TCPRoute ->
+# forgejo:22). NO Gateway listener, NO TCPRoute, NO NodePort here — pure
+# ClusterIP for now.
+# Host keys live on the persistent volume (/data/ssh/) — chart default, no
+# emptyDir churn across pod restarts.
+#
+# ─── Built-in features ────────────────────────────────────────────────────────
+# - OCI registry (gitea.config.packages.ENABLED=true) — users push to
+#   git.apps.home/<owner>/<image>; no separate hostname needed
+# - Actions API (gitea.config.actions.ENABLED=true) — runners installed in
+#   phase 6, not here
+# - Registration disabled, sign-in required for any view — single-tenant
+#   homelab posture
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Restricted-PSS clean. Rootless image runs uid 1000, drops all caps,
+# RuntimeDefault seccomp. readOnlyRootFilesystem left at chart default
+# (false) — forgejo writes temp dirs the chart manages already.
+
+image:
+  registry: code.forgejo.org
+  repository: forgejo/forgejo
+  # Pin to the chart's appVersion (15.0.2). Bump deliberately alongside the
+  # chart version pin in apps.yaml.
+  tag: "15.0.2"
+  pullPolicy: IfNotPresent
+  rootless: true
+
+# Single replica for v1. The chart's HA assertions still need replicaCount
+# honored (sqlite path is irrelevant — we're on cnpg postgres).
+replicaCount: 1
+
+strategy:
+  type: Recreate   # avoid two pods racing on the kadalu RWO PVC during rollout
+
+# ─── Service ──────────────────────────────────────────────────────────────────
+service:
+  http:
+    type: ClusterIP
+    port: 3000
+  ssh:
+    type: ClusterIP
+    # Advertised + service-side port 22. Pod-side listener is :2222 (set via
+    # gitea.config.server.SSH_LISTEN_PORT below) — the chart wires that as the
+    # targetPort automatically when rootless: true.
+    port: 22
+
+# Platform chart owns routing — kill the chart's built-in ingress/routes.
+ingress:
+  enabled: false
+httpRoute:
+  enabled: false
+tcpRoute:
+  enabled: false
+route:
+  enabled: false
+
+# ─── Persistence ──────────────────────────────────────────────────────────────
+persistence:
+  enabled: true
+  create: true
+  mount: true
+  # Default chart claim name is `gitea-shared-storage`; override to a stable
+  # forgejo-named PVC so an eventual rebind is unambiguous.
+  claimName: forgejo-data
+  size: 100Gi
+  # CRITICAL data (repos + LFS + OCI registry blobs + SSH host keys). Retain
+  # is mandatory; default kadalu.replica2 is Delete reclaim.
+  storageClass: kadalu.replica2-retain
+  accessModes:
+    - ReadWriteOnce
+  # Keep the chart's resource-policy annotation — protects the PVC from a
+  # `helm uninstall` blast.
+  annotations:
+    helm.sh/resource-policy: keep
+
+# ─── Resources ────────────────────────────────────────────────────────────────
+# Modest floor for v1 — single user, no runners yet. Revisit after first
+# real workload (heavy CI, large LFS pushes).
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+# ─── PSS / security ───────────────────────────────────────────────────────────
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+
+# ─── deployment.env (propagated to init AND main containers) ─────────────────
+# Used ONLY for env vars consumed inside the configure-gitea init container
+# by chart helpers — i.e. the GITEA_OAUTH_KEY_* / _SECRET_* placeholders the
+# `gitea.oauth_settings` helper substitutes into `forgejo admin auth add-oauth`
+# flags when key/secret are absent from the inline entry.
+#
+# Plus SSL_CERT_DIR so Go (forgejo) extends its system root pool with the
+# home CA — needed for OIDC discovery against https://auth.apps.home.
+deployment:
+  env:
+    - name: SSL_CERT_DIR
+      value: "/etc/ssl/certs:/etc/ssl/home-ca"
+    - name: GITEA_OAUTH_KEY_0
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-oidc-client
+          key: client_id
+    - name: GITEA_OAUTH_SECRET_0
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-oidc-client
+          key: client_secret
+
+# ─── home-CA bundle mount ─────────────────────────────────────────────────────
+# trust-manager broadcasts the `home-ca-bundle` ConfigMap (key `ca.crt`) into
+# every ns. Mount it at /etc/ssl/home-ca; SSL_CERT_DIR above teaches Go to
+# load it alongside the system pool. Required for OIDC discovery against
+# https://auth.apps.home (configure-gitea init needs it too — `add-oauth`
+# fetches the autoDiscoverUrl to confirm endpoints).
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraContainerVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+extraInitVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+# ─── gitea config ─────────────────────────────────────────────────────────────
+gitea:
+  # additionalConfigFromEnvs: env-to-ini pump. Forgejo's image translates
+  # FORGEJO__SECTION__KEY (and legacy GITEA__SECTION__KEY) env vars into the
+  # corresponding app.ini entry at startup. This is the canonical chart path
+  # for sourcing config from secrets without bulk envFrom.
+  #
+  # DB creds: per-key from cnpg-minted `forgejo-db-app`. We don't need HOST
+  # from the secret — the cnpg primary Service name is contractually
+  # `<cluster>-db-rw` (i.e. `forgejo-db-rw`) on port 5432, set inline in
+  # gitea.config.database.HOST below.
+  additionalConfigFromEnvs:
+    - name: FORGEJO__DATABASE__NAME
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-app
+          key: dbname
+    - name: FORGEJO__DATABASE__USER
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-app
+          key: username
+    - name: FORGEJO__DATABASE__PASSWD
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-app
+          key: password
+
+  config:
+    database:
+      DB_TYPE: postgres
+      # cnpg-rendered primary write Service in this ns (forgejo-db-rw:5432).
+      # NAME / USER / PASSWD come from forgejo-db-app via env-to-ini above.
+      HOST: forgejo-db-rw:5432
+      SSL_MODE: require  # cnpg primary speaks TLS by default
+
+    server:
+      ROOT_URL: https://git.apps.home
+      DOMAIN: git.apps.home
+      HTTP_PORT: "3000"
+      PROTOCOL: http
+      LFS_START_SERVER: "true"
+      # SSH future-proofing — see header comment.
+      START_SSH_SERVER: "true"
+      SSH_DOMAIN: git.apps.home
+      SSH_PORT: 22          # advertised in clone URLs
+      SSH_LISTEN_PORT: 2222 # pod-side unprivileged listener
+
+    service:
+      DISABLE_REGISTRATION: true
+      REQUIRE_SIGNIN_VIEW: true
+      SHOW_REGISTRATION_BUTTON: false
+
+    # Built-in OCI registry. Users push to git.apps.home/<owner>/<image>.
+    packages:
+      ENABLED: true
+
+    # Actions API (runners come in phase 6).
+    actions:
+      ENABLED: true
+
+    # OIDC client behavior — auto-create gitea accounts on first OIDC login.
+    oauth2_client:
+      ENABLE_AUTO_REGISTRATION: true
+      USERNAME: nickname
+      UPDATE_AVATAR: true
+      ACCOUNT_LINKING: auto
+
+    repository:
+      DEFAULT_BRANCH: main
+      ENABLE_PUSH_CREATE_USER: false
+      ENABLE_PUSH_CREATE_ORG: false
+
+  # ─── OIDC auth source: `pocket-id` ───────────────────────────────────────
+  # Declarative registration of the pocket-id auth source. The chart's
+  # configure_oauth() function in scripts/configure_gitea.sh.tpl runs
+  # `gitea admin auth add-oauth` (or update-oauth if it already exists) on
+  # every container start — idempotent.
+  #
+  # Helper substitutes ${GITEA_OAUTH_KEY_0} / ${GITEA_OAUTH_SECRET_0} for
+  # --key / --secret when those fields are absent here. Those env vars are
+  # supplied above via deployment.env valueFrom on forgejo-oidc-client.
+  #
+  # The auth source's `name` becomes the URL segment in the callback:
+  #   https://git.apps.home/user/oauth2/<name>/callback
+  # `name: pocket-id` MUST stay in lockstep with the callbackUrls field
+  # under the oidc: block on the forgejo component in apps.yaml.
+  oauth:
+    - name: pocket-id
+      provider: openidConnect
+      autoDiscoverUrl: https://auth.apps.home/.well-known/openid-configuration

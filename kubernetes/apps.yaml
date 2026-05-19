@@ -985,6 +985,68 @@ components:
     # Consumes `podsync-oidc-client` Secret rendered by the podsync
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # FORGEJO — self-hosted git platform (phase 3 of kubernetes/manual/forgejo/
+  # PLAN.md). Repos + LFS + built-in OCI registry + Actions API at
+  # git.apps.home. cnpg-backed postgres via the platform `db:` block (cluster
+  # name `forgejo-db`, app creds in auto-minted secret `forgejo-db-app`).
+  # OIDC via pocket-id (callback path = /user/oauth2/<source-name>/callback;
+  # source name `pocket-id` is mirrored in values/apps/forgejo.yaml gitea.oauth).
+  # SSH future-proofed at the pod/service level (port 22 → targetPort 2222,
+  # ClusterIP) but NO Gateway listener / TCPRoute yet — those land in the
+  # post-v1 manual flip per PLAN's "post-v1: enabling SSH on :22" section.
+  # First-admin (cluster-bootstrap) is a MANUAL install-wizard step using
+  # the password from SopsSecret `forgejo-admin-bootstrap` (kubernetes/
+  # secrets/apps/forgejo-admin-bootstrap.yaml). Phase 3.5 agent automates
+  # the subsequent API-token mint into crossplane-system; out of scope here.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: forgejo
+    namespace: forgejo
+    chart:
+      # Chart-only repo on Codeberg's forgejo instance. Hosts the chart's
+      # raw helm-index at /forgejo-helm/forgejo-helm/raw — but the helm
+      # consumer URL is the registry (artifacthub-tracked).
+      repo: https://code.forgejo.org/forgejo-helm
+      name: forgejo
+      version: 17.1.0
+    syncWave: "3"  # after extras (ns) + cnpg Cluster reconcile (sync-wave 0)
+    route:
+      hostname: git.apps.home
+      gateway: apps
+      service: forgejo-http
+      port: 3000
+      timeout: 30m  # LFS pushes + large registry blob uploads
+      dashboard:
+        group: Code
+        icon: forgejo.svg
+        description: Self-hosted git platform
+        app: forgejo
+    # Per-app OIDC client (pocket-id id=`forgejo`). Secret rendered into the
+    # `forgejo` ns as `forgejo-oidc-client`; consumed by the chart's
+    # configure_oauth() init script. callbackUrl path = /user/oauth2/<name>/
+    # callback where <name> matches the gitea.oauth[0].name in the values
+    # file (`pocket-id`). apps_users + administrators allowed at the IDP
+    # level; first-user-as-admin is handled by the manual wizard step.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://git.apps.home/user/oauth2/pocket-id/callback
+      scopes: [openid, profile, email, groups]
+      secretName: forgejo-oidc-client
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+    # cnpg-managed postgres via platform db: block. Cluster name auto-derives
+    # to `forgejo-db` (forgejo ns); auto-minted Secret `forgejo-db-app` is
+    # wired into the chart via additionalConfigFromEnvs (see values file).
+    # 20Gi is the v1 floor — kadalu PVCs are expandable; bump in-place later.
+    db:
+      enabled: true
+      version: "16"
+      storage:
+        size: 20Gi
+        storageClass: kadalu.replica2-retain
+      instances: 1
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
