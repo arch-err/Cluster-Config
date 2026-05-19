@@ -1004,11 +1004,12 @@ components:
     namespace: forgejo
     chart:
       # Forgejo distributes the helm chart as an OCI artifact (no
-      # `helm repo add`-able http index). ArgoCD's helm source accepts
-      # OCI when the repoURL is `oci://<registry>/<path-prefix>` and
-      # `chart:` is the chart name appended to that path. Together they
-      # resolve to oci://code.forgejo.org/forgejo-helm/forgejo:17.1.0.
-      repo: oci://code.forgejo.org/forgejo-helm
+      # `helm repo add`-able http index). ArgoCD detects OCI from the
+      # repoURL shape (registry/path with NO scheme — explicitly NOT
+      # `oci://...` per argo-cd.readthedocs.io/en/stable/user-guide/helm/).
+      # Together with `chart: forgejo` + `version: 17.1.0` this resolves
+      # to oci://code.forgejo.org/forgejo-helm/forgejo:17.1.0.
+      repo: code.forgejo.org/forgejo-helm
       name: forgejo
       version: 17.1.0
     syncWave: "3"  # after extras (ns) + cnpg Cluster reconcile (sync-wave 0)
