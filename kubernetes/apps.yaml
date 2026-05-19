@@ -985,23 +985,6 @@ components:
     # Consumes `podsync-oidc-client` Secret rendered by the podsync
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # FORGEJO-POSTGRES — phase 1 of the forgejo platform (see
-  # kubernetes/manual/forgejo/PLAN.md). BYODB postgres 16 wrapped by bjw-s
-  # app-template, restricted-PSS clean (uid 999 + dropall caps + RuntimeDefault
-  # seccomp). 20Gi PVC on kadalu.replica2-retain (CRITICAL — git metadata +
-  # actions DB). Internal-only: no route, no oidc, no dashboard card. The
-  # `forgejo` ns is rendered by extras.forgejo and will host both this
-  # postgres and forgejo itself (phase 2).
-  # ──────────────────────────────────────────────────────────────────────────
-  - name: forgejo-postgres
-    namespace: forgejo
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    syncWave: "3"  # after extras (ns) settle
-
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -1100,7 +1083,8 @@ extras:
   # never writes (no risk to files written by other apps as different uids).
   navidrome:
     librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
-  # forgejo: namespace only (restricted PSS). Hosts forgejo-postgres (phase 1)
-  # and the forgejo app itself (phase 2). See kubernetes/manual/forgejo/PLAN.md.
+  # forgejo: namespace only (restricted PSS). Hosts the forgejo app + its
+  # cnpg-managed postgres Cluster (rendered by the platform `db:` block on
+  # the forgejo component in phase 3). See kubernetes/manual/forgejo/PLAN.md.
   forgejo:
     enabled: true
