@@ -125,6 +125,79 @@ Verified against pocket-id source @ v2.6.2:
 
 Auth header: `X-API-Key: <token>` (NOT `Authorization: Bearer`).
 
+## Forgejo admin-token bootstrap (`forgejoAdmin:` block)
+
+> **Pre-req:** forgejo is deployed (phase 3) and the SOPS-encrypted secret
+> `kubernetes/secrets/apps/forgejo-admin-bootstrap.yaml` carries `username`,
+> `password`, `email`, and `ADMIN_PASSWORD` keys. The codeberg/forgejo
+> chart's `gitea.admin.existingSecret` (set in `values/apps/forgejo.yaml`)
+> consumes the first three to auto-create the `cluster-bootstrap` admin on
+> first pod boot. The `ADMIN_PASSWORD` key is consumed by the bootstrap
+> Job below.
+
+Add a `forgejoAdmin:` block to the forgejo component in `apps.yaml`:
+
+```yaml
+- name: forgejo
+  namespace: forgejo
+  chart: { ... }
+  route: { ... }
+  db: { ... }
+  forgejoAdmin:
+    enabled: true
+    username: cluster-bootstrap                    # default `cluster-bootstrap`
+    email: cluster-bootstrap@apps.home             # default `<user>@apps.home`
+    passwordSecret: forgejo-admin-bootstrap        # default `forgejo-admin-bootstrap`
+    tokenSecretName: forgejo-admin-token           # default `forgejo-admin-token`
+    tokenSecretNamespace: crossplane-system        # default `crossplane-system`
+    # Optional: override forgejo URL (default http://forgejo-http.<ns>.svc:3000)
+    # forgejoUrl: http://forgejo-http.forgejo.svc:3000
+    # Optional: token name on forgejo's side (default `crossplane`)
+    # tokenName: crossplane
+```
+
+What gets rendered (only when `enabled: true`):
+
+| Resource         | Namespace        | Purpose                                                    |
+|------------------|------------------|------------------------------------------------------------|
+| ServiceAccount   | forgejo ns       | Identity the bootstrap Job runs under                      |
+| ConfigMap        | forgejo ns       | The bootstrap script (`bootstrap.sh`)                      |
+| Job (hashed name)| forgejo ns       | Basic-auths to forgejo's REST API, mints API token, writes Secret |
+| Role             | tokenNs          | `secrets` `get/update/patch` on the one named Secret + `create` |
+| RoleBinding      | tokenNs          | Binds the forgejo-ns SA into tokenNs                       |
+
+What ends up in the rendered Secret (`tokenSecretNamespace/tokenSecretName`):
+
+```yaml
+data:
+  token:       <forgejo-issued-token>   # ~40-char hex sha1
+  username:    cluster-bootstrap
+  forgejo-url: https://git.apps.home
+```
+
+Idempotence:
+
+- Both forgejo-side token + k8s-side Secret present → exit 0, no-op
+- forgejo-side token missing → mint fresh, write Secret
+- forgejo-side token present but Secret missing/empty → delete forgejo-side
+  token (plaintext is unreadable post-create), re-mint, write Secret
+- Job name embeds a sha256-truncated hash of the inputs; ArgoCD recreates
+  on spec changes, `ttlSecondsAfterFinished: 600` auto-cleans
+
+## Forgejo REST endpoints used
+
+Verified against forgejo swagger @ v15.0.2:
+
+| Method | Path                                        | Purpose                          |
+|--------|---------------------------------------------|----------------------------------|
+| GET    | `/api/v1/version`                           | Readiness probe                  |
+| GET    | `/api/v1/user`                              | Admin auth check                 |
+| GET    | `/api/v1/users/{user}/tokens`               | List tokens                      |
+| POST   | `/api/v1/users/{user}/tokens`               | Mint token (returns plaintext once) |
+| DELETE | `/api/v1/users/{user}/tokens/{name}`        | Delete token by name             |
+
+Auth: HTTP Basic with `cluster-bootstrap:$ADMIN_PASSWORD`.
+
 ## Postgres database (`db:` block)
 
 > **Pre-req:** the `cnpg` infra component is deployed (CloudNativePG operator
