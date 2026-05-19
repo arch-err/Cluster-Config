@@ -255,6 +255,33 @@ components:
     syncWave: "2"  # before crossview, which depends on crossplane CRDs existing
                    # (crossview's RBAC binds to apiextensions.crossplane.io/*)
 
+  # provider-gitea — Crossplane provider for managing the in-cluster forgejo
+  # (git.apps.home) declaratively. Wraps three Crossplane CRs (Provider +
+  # DeploymentRuntimeConfig + ProviderConfig) inside bjw-s app-template's
+  # rawResources surface — no upstream Helm chart exists for the provider,
+  # and the platform chart's `components:` block expects a Helm-shaped source.
+  # Same wrap pattern as crossview. Image pinned to `v0.6.0-final` (last
+  # release with working controllers wired into Setup() — v0.7+ are
+  # framework-only stubs). Full rationale + bump criteria + resource-kind
+  # list in values/infra/provider-gitea.yaml header.
+  #
+  # TLS trust: home-ca-bundle ConfigMap (trust-manager Bundle with
+  # namespaceSelector: {} → present in crossplane-system) is mounted into
+  # the provider Pod via DeploymentRuntimeConfig, replacing the alpine
+  # ca-certificates bundle. SSL_CERT_FILE env var set as belt-and-suspenders.
+  # ProviderConfig stays `insecure: false`.
+  #
+  # Credentials: admin API token from Secret crossplane-system/forgejo-admin-token
+  # (key: token), minted by phase 3.5's forgejo-admin-bootstrap Job.
+  - name: provider-gitea
+    namespace: crossplane-system
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after crossplane core (wave 2) so the pkg.crossplane.io
+                   # CRDs exist before we apply Provider / DeploymentRuntimeConfig.
+
   # Crossview — Crossplane UI dashboard. WRAPPED VIA bjw-s app-template v4.6.2
   # (NOT the upstream crossplane-contrib/crossview chart) because the upstream
   # chart only exposes app.extraEnv — no extraVolumes / extraInitContainers
