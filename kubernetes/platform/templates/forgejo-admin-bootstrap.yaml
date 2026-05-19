@@ -152,10 +152,11 @@ data:
       curl "${args[@]}" "${FORGEJO_URL}${path}"
     }
 
-    # 1. Wait for forgejo /api/v1/version → 200 (≤120s).
+    # 1. Wait for forgejo /api/v1/version → 200 (≤120s). Authenticated probe
+    #    because REQUIRE_SIGNIN_VIEW=true blocks anonymous /api/v1/* with 403.
     echo "[forgejo-admin-bootstrap] waiting for forgejo to be ready..."
     for i in $(seq 1 60); do
-      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' "${FORGEJO_URL}/api/v1/version" || echo "000")
+      code=$(api GET "/api/v1/version" || echo "000")
       if [ "$code" = "200" ]; then
         echo "[forgejo-admin-bootstrap] forgejo ready (version: $(jq -r .version < /tmp/resp.json))"
         break
@@ -164,7 +165,8 @@ data:
       sleep 2
     done
     if [ "$code" != "200" ]; then
-      echo "[forgejo-admin-bootstrap] forgejo never became ready" >&2
+      echo "[forgejo-admin-bootstrap] forgejo never became ready (last code ${code})" >&2
+      cat /tmp/resp.json >&2 || true
       exit 1
     fi
 
