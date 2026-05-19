@@ -226,7 +226,15 @@ gitea:
       # cnpg-rendered primary write Service in this ns (forgejo-db-rw:5432).
       # NAME / USER / PASSWD come from forgejo-db-app via env-to-ini above.
       HOST: forgejo-db-rw:5432
-      SSL_MODE: require  # cnpg primary speaks TLS by default
+      # cnpg primary speaks TLS but signs with its own per-cluster CA
+      # (`forgejo-db-ca`), which gitea's Go binary doesn't trust without
+      # extra mount wiring. pg_hba.conf permits non-TLS scram-sha-256 for
+      # all app users on the host network (line `host all all all
+      # scram-sha-256` — verified 2026-05-19). Traffic stays inside the
+      # cluster pod network so the plaintext exposure is bounded. If/when
+      # cnpg's CA is wired into the cluster trust bundle, flip back to
+      # `verify-ca` for proper mutual cert validation.
+      SSL_MODE: disable
 
     server:
       ROOT_URL: https://git.apps.home
