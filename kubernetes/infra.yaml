@@ -49,6 +49,19 @@ components:
       version: v0.22.x
     syncWave: "1"  # after cert-manager (default wave 0) is up
 
+  # CloudNativePG — cluster-wide postgres operator. Owns the Cluster /
+  # Backup / ScheduledBackup / Pooler CRDs. Future stateful apps get their DB
+  # via a cnpg Cluster CR rendered by the platform chart's `db:` block
+  # (follow-up phase — operator only at this layer). Chart creates its own
+  # `cnpg-system` ns. Restricted-PSS clean by default (verified in
+  # values/infra/cnpg.yaml header).
+  - name: cnpg
+    namespace: cnpg-system
+    chart:
+      repo: https://cloudnative-pg.github.io/charts
+      name: cloudnative-pg
+      version: 0.28.2
+
   - name: argocd
     namespace: argocd
     chart:

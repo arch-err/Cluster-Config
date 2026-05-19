@@ -1,0 +1,65 @@
+# cnpg — CloudNativePG postgres operator
+# chart: https://cloudnative-pg.github.io/charts (cloudnative-pg) v0.28.2
+# https://artifacthub.io/packages/helm/cloudnative-pg/cloudnative-pg
+# appVersion: 1.29.1
+#
+# Cluster-wide postgres operator. Every future stateful app gets its DB via a
+# cnpg Cluster CR rendered by the platform chart's `db:` block (added in a
+# follow-up phase). No Cluster CRs deployed yet — operator only.
+#
+# Chart defaults are restricted-PSS-clean out of the box:
+#   - podSecurityContext: runAsNonRoot=true, seccomp RuntimeDefault
+#   - containerSecurityContext: runAsUser/Group=10001, drop ALL caps,
+#     allowPrivilegeEscalation=false, readOnlyRootFilesystem=true,
+#     seccomp RuntimeDefault
+# We re-assert them below explicitly so any future chart-default drift can't
+# silently regress the posture.
+
+replicaCount: 1
+
+# CRDs installed by the chart (clusters / backups / scheduledbackups / poolers /
+# imagecatalogs / poolers / publications / subscriptions / databases). ArgoCD
+# manages them via ServerSideApply (set globally in platform/applications.yaml).
+crds:
+  create: true
+
+config:
+  create: true
+  # Operator watches every namespace — needed so app namespaces (forgejo,
+  # immich, etc.) can host their own Cluster CRs.
+  clusterWide: true
+
+# Modest floor matching cert-manager / trust-manager. Operator is a controller
+# loop — mostly idle until reconciling.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+# Explicit restricted-PSS posture. Mirrors chart defaults; pinned here so chart
+# upgrades that loosen defaults don't bite us.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+      - ALL
+
+# Prometheus integration — disabled for now; flip podMonitorEnabled when the
+# monitoring stack is wired to scrape this ns (matches other infra defaults).
+monitoring:
+  podMonitorEnabled: false
+  grafanaDashboard:
+    create: false
