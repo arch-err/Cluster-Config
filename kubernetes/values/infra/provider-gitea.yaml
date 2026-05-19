@@ -118,8 +118,30 @@ rawResources:
             selector: {}
             template:
               spec:
+                # crossplane-system ns runs at restricted PSS (cluster default).
+                # Provider image already runs as uid 65532 (see Dockerfile),
+                # but the chart-default pod spec leaves capabilities + seccomp
+                # unset → admission rejects with "unrestricted capabilities"
+                # and "seccompProfile not set". Same pattern as the crossplane
+                # core chart's securityContextCrossplane block. Applied here
+                # because DRC overrides the default package-manager-rendered
+                # Pod spec wholesale for fields we touch.
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
                 containers:
                   - name: package-runtime
+                    securityContext:
+                      runAsNonRoot: true
+                      runAsUser: 65532
+                      runAsGroup: 65532
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
+                      seccompProfile:
+                        type: RuntimeDefault
                     env:
                       # Go crypto/x509 reads this first if set, before the
                       # platform default certificate file list.
