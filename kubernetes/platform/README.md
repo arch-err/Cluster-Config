@@ -13,6 +13,8 @@ Templates:
   cert-issuers, ns labels for restricted-PSS exceptions, immich postgres, etc.)
 - `oidc-bootstrap.yaml` — declarative pocket-id OIDC client registration; see
   below
+- `db-postgres.yaml`    — declarative CloudNativePG `Cluster` CR rendering; see
+  below
 
 ## OIDC client auto-registration (`oidc:` block)
 
@@ -123,7 +125,128 @@ Verified against pocket-id source @ v2.6.2:
 
 Auth header: `X-API-Key: <token>` (NOT `Authorization: Bearer`).
 
+## Postgres database (`db:` block)
+
+> **Pre-req:** the `cnpg` infra component is deployed (CloudNativePG operator
+> in `cnpg-system`, watching cluster-wide). The operator's CRDs
+> (`clusters.postgresql.cnpg.io` et al.) must be registered before any
+> `db.enabled: true` component syncs.
+
+Add a `db:` block to any component in `apps.yaml`:
+
+```yaml
+- name: forgejo
+  namespace: forgejo
+  chart: { ... }
+  route: { ... }
+  db:
+    enabled: true
+    version: "16"                              # major (default "16")
+    storage:
+      size: 20Gi                               # required
+      storageClass: kadalu.replica2-retain     # default kadalu.replica2-retain
+    instances: 1                               # default 1; bump for HA later
+    # Optional override; baked-in floor is 200m/512Mi req, 1000m/1Gi limit
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits:   { memory: 1Gi }
+```
+
+Postgres-only for v1 — no `db.type:` knob (left as design space for future
+engines without a refactor).
+
+What gets rendered (only when `enabled: true`):
+
+| Resource              | Namespace      | Purpose                                                     |
+|-----------------------|----------------|-------------------------------------------------------------|
+| Cluster (cnpg)        | app namespace  | Drives postgres StatefulSet + Services + auto-minted Secrets |
+
+Cluster name is `<component>-db`. The cnpg operator then mints these
+resources in the same namespace:
+
+- StatefulSet `<component>-db-N` (postgres pods)
+- Secrets:
+  - `<component>-db-app`        — per-app credentials (the one apps consume)
+  - `<component>-db-superuser`  — postgres superuser credentials
+  - `<component>-db-ca` / `-server` / `-replication` — TLS material
+- Services:
+  - `<component>-db-rw`         — primary (writes)
+  - `<component>-db-ro`         — read-only replicas (none with `instances: 1`)
+  - `<component>-db-r`          — any-instance reads (incl. primary)
+
+The DB itself is bootstrapped via cnpg's `initdb` block:
+- `database` = `<component>` (e.g. `forgejo`)
+- `owner`    = `<component>` (role owning that DB; password in the `-app` secret)
+
+## What ends up in the app's Secret
+
+The `<component>-db-app` Secret (cnpg-minted, NOT SOPS) contains:
+
+```yaml
+data:
+  username: <app-role>           # = component name
+  password: <random>
+  host:     <component>-db-rw    # cluster-internal primary Service
+  port:     "5432"
+  dbname:   <app-role>           # = component name
+  uri:      postgresql://user:pass@host:5432/dbname
+  jdbc-uri: jdbc:postgresql://...
+  pgpass:   ...
+```
+
+Reference these keys in your app's helm values, e.g.:
+
+```yaml
+# values/apps/forgejo.yaml
+gitea:
+  config:
+    database:
+      DB_TYPE: postgres
+envFrom:
+  - secretRef:
+      name: forgejo-db-app
+# …or wire individual keys via `secretKeyRef:` if the chart needs specific env names.
+```
+
+## Idempotence + failure modes
+
+- **Cluster CR is declarative.** ArgoCD applies it; cnpg reconciles. Changes
+  to `instances` / `resources` / `storage.size` are handled by the operator
+  (storage size only grows). `storage.storageClass` is immutable post-create.
+- **Secret rotation:** cnpg owns the `<cluster>-app` Secret. To rotate the
+  app password, delete it; cnpg re-creates with a fresh value on next reconcile.
+- **PVC reclaim:** PVCs created from the Cluster's storage template inherit
+  the SC's reclaim policy. `kadalu.replica2-retain` is Retain → safe default
+  for CRITICAL data.
+- **Operator briefly down:** the Cluster CR persists; the operator catches up
+  on next start. App pods consuming `<cluster>-app` Secret will CrashLoop
+  while the operator is bootstrapping (secret not yet minted) — use sync
+  waves / startup probes so the app retries.
+- **Bad image version:** the template's `imageByVersion` map fails fast at
+  `helm template` time with a clear message — bump the map when adding
+  support for a new postgres major.
+
+## Image pinning
+
+Postgres images are pinned per-major in `templates/db-postgres.yaml`'s
+`imageByVersion` dict, sourced from cnpg's official
+`ClusterImageCatalog-bookworm.yaml`. Upgrade by editing those strings.
+
 ## Render-test
+
+```bash
+# baseline: no db-enabled apps → zero cnpg Cluster CRs
+helm template platform-test kubernetes/platform -f kubernetes/apps.yaml \
+  | grep -c 'kind: Cluster$'   # → 0
+
+# with overlay enabling db on a synthetic app:
+helm template platform-test kubernetes/platform \
+  -f kubernetes/apps.yaml -f /tmp/db-test-overlay.yaml \
+  --show-only templates/db-postgres.yaml \
+  | kubectl apply --dry-run=server -f -
+```
+
+## Render-test (OIDC)
 
 ```bash
 # baseline: no oidc-enabled apps → zero oidc resources

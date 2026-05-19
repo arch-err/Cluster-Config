@@ -1,0 +1,112 @@
+{{- /*
+══════════════════════════════════════════════════════════════════════════════
+DB POSTGRES — declarative cnpg Cluster CR rendering
+══════════════════════════════════════════════════════════════════════════════
+
+For every component with `db.enabled: true`, this template renders a single
+CloudNativePG `Cluster` CR in the app's own namespace. The cnpg operator
+(infra component `cnpg`, deployed in `cnpg-system` ns and watching cluster-wide)
+reconciles the CR into:
+
+  - A StatefulSet of postgres pods (`<cluster-name>-N`) in the app's ns
+  - Three auto-minted Secrets in the same ns:
+      * `<cluster-name>-superuser` (postgres superuser creds)
+      * `<cluster-name>-app`       (per-app db creds — the one apps consume)
+      * `<cluster-name>-ca` / `<cluster-name>-server` / `<cluster-name>-replication` (TLS)
+  - Services `<cluster-name>-rw` (writes), `<cluster-name>-ro` / `-r` (reads)
+
+Schema (under any component in apps.yaml / infra.yaml):
+
+  db:
+    enabled: true
+    version: "16"                              # major (default "16")
+    storage:
+      size: 20Gi                               # required when enabled
+      storageClass: kadalu.replica2-retain     # default kadalu.replica2-retain
+    instances: 1                               # default 1
+    resources:                                 # optional override
+      requests: { cpu: 200m, memory: 512Mi }
+      limits:   { memory: 1Gi }
+
+Cluster name is `<component>-db` (so the app-creds Secret is
+`<component>-db-app`). Database name + owner are both `<component>` — i.e. the
+forgejo component gets a `forgejo` DB owned by user `forgejo` whose creds live
+in `forgejo-db-app`.
+
+No `type:` knob on the block — postgres-only for v1. Future engines can branch
+on a `db.type:` field without breaking existing entries.
+
+The `<cluster-name>-app` Secret contains:
+  username, password, host, port, dbname, uri, jdbc-uri, pgpass
+
+…ready to wire into the app via `envFrom: secretRef:` or per-key
+`secretKeyRef:`.
+
+══════════════════════════════════════════════════════════════════════════════
+*/}}
+{{- range $component := .Values.components }}
+{{- if and $component.db $component.db.enabled }}
+{{- $app := $component.name }}
+{{- $appNs := $component.namespace | default $component.name }}
+{{- $clusterName := printf "%s-db" $app }}
+{{- $version := default "16" $component.db.version }}
+{{- $instances := default 1 $component.db.instances }}
+{{- if not $component.db.storage }}
+{{- fail (printf "component %s: db.enabled=true requires db.storage" $app) }}
+{{- end }}
+{{- if not $component.db.storage.size }}
+{{- fail (printf "component %s: db.enabled=true requires db.storage.size" $app) }}
+{{- end }}
+{{- $storageSize := $component.db.storage.size }}
+{{- $storageClass := default "kadalu.replica2-retain" $component.db.storage.storageClass }}
+{{- /* Image pin — current cnpg-recommended postgres image catalog entries by
+       major version. Pinned by digest-less tag for readability; upgrade by
+       bumping these strings (verify against cnpg's ClusterImageCatalog). */}}
+{{- $imageByVersion := dict
+    "13" "ghcr.io/cloudnative-pg/postgresql:13.22-202511100817-system-bookworm"
+    "14" "ghcr.io/cloudnative-pg/postgresql:14.23-202605180814-system-bookworm"
+    "15" "ghcr.io/cloudnative-pg/postgresql:15.18-202605180839-system-bookworm"
+    "16" "ghcr.io/cloudnative-pg/postgresql:16.14-202605180814-system-bookworm"
+    "17" "ghcr.io/cloudnative-pg/postgresql:17.10-202605180839-system-bookworm"
+    "18" "ghcr.io/cloudnative-pg/postgresql:18.4-202605180839-system-bookworm"
+}}
+{{- $imageName := index $imageByVersion ($version | toString) }}
+{{- if not $imageName }}
+{{- fail (printf "component %s: db.version %q has no pinned image — update db-postgres.yaml imageByVersion map" $app $version) }}
+{{- end }}
+{{- /* Default resource floor — overrideable via $component.db.resources. */}}
+{{- $defaultResources := dict
+    "requests" (dict "cpu" "200m" "memory" "512Mi")
+    "limits"   (dict "cpu" "1000m" "memory" "1Gi")
+}}
+{{- $resources := default $defaultResources $component.db.resources }}
+---
+# ─────────── cnpg Cluster (in app ns) ───────────
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $clusterName }}
+  namespace: {{ $appNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: db-postgres
+    db-postgres/app: {{ $app | quote }}
+spec:
+  instances: {{ $instances }}
+  imageName: {{ $imageName | quote }}
+  # Bootstrap an empty DB named after the app, owned by an app-named role.
+  # cnpg auto-mints two Secrets — `<cluster>-superuser` (postgres) and
+  # `<cluster>-app` (the role below) — both in this ns.
+  bootstrap:
+    initdb:
+      database: {{ $app | quote }}
+      owner: {{ $app | quote }}
+  storage:
+    size: {{ $storageSize | quote }}
+    storageClass: {{ $storageClass | quote }}
+  resources:
+    {{- toYaml $resources | nindent 4 }}
+{{- end }}
+{{- end }}
