@@ -1151,13 +1151,17 @@ metadata:
 {{/* FORGEJO-RUNNER — namespace only                                             */}}
 {{/* Phase 6 of kubernetes/manual/forgejo/PLAN.md. Hosts a single forgejo-runner */}}
 {{/* pod with a rootless podman sidecar (no privileged, no SYS_ADMIN, no anyuid- */}}
-{{/* equivalent). Restricted PSS — both the runner image (code.forgejo.org/     */}}
-{{/* forgejo/runner, uid 1000) and the podman sidecar (quay.io/podman/stable,   */}}
-{{/* uid 1000 / podman user w/ subuid+subgid baked in) are restricted-clean as  */}}
-{{/* configured in values/apps/forgejo-runner.yaml. The bootstrap Job lives in   */}}
-{{/* this ns and writes Secret forgejo-runner-token consumed by the runner pod   */}}
-{{/* at register time. Separate ns from `forgejo` keeps the runner blast radius  */}}
-{{/* small + PSS posture narrow. See PLAN phase 6 + forgejo-runners-ocp-pitch.   */}}
+{{/* equivalent). PSS = baseline on enforce, restricted on audit+warn.           */}}
+{{/* WHY baseline not restricted: rootless podman's unshare(CLONE_NEWUSER) is    */}}
+{{/* filtered by containerd's RuntimeDefault seccomp profile when caps=[] (no   */}}
+{{/* CAP_SYS_ADMIN). Even with talos kernel sysctl user.max_user_namespaces=    */}}
+{{/* 15000 enabled (talconfig.yaml commit 45a30e9), the seccomp gate blocks     */}}
+{{/* the syscall with EPERM. Restricted PSS forbids overriding to `Unconfined`  */}}
+{{/* on the podman sidecar — baseline PSS allows it. Every other hardening      */}}
+{{/* stays: no privileged, no SYS_ADMIN, no anyuid, drop ALL caps, non-root     */}}
+{{/* uid 1000, readOnlyRootFs. OCP-equivalent: dedicated SCC permitting custom  */}}
+{{/* seccomp — common pattern for builder workloads, not strict restricted-v2.  */}}
+{{/* The runner image keeps RuntimeDefault — only podman sidecar is Unconfined. */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.forgejoRunner }}
 ---
@@ -1166,7 +1170,7 @@ kind: Namespace
 metadata:
   name: forgejo-runner
   labels:
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
   annotations:

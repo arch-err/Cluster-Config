@@ -213,8 +213,17 @@ controllers:
           readOnlyRootFilesystem: true
           capabilities:
             drop: [ALL]
+          # Unconfined seccomp: containerd's RuntimeDefault filters
+          # clone(CLONE_NEWUSER) when caps=[] (no CAP_SYS_ADMIN) — that's what
+          # rootless podman calls on startup to set up its own userns. Talos
+          # kernel sysctl user.max_user_namespaces=15000 is set (commit 45a30e9),
+          # but the seccomp gate is independent and still blocks. Unconfined
+          # only on THIS container (the runner container 2 lines above keeps
+          # RuntimeDefault). Requires the ns to be PSS=baseline (see
+          # platform/templates/extras.yaml forgejo-runner block for full
+          # rationale + OCP-portability notes).
           seccompProfile:
-            type: RuntimeDefault
+            type: Unconfined
 
 defaultPodOptions:
   securityContext:
