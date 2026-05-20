@@ -29,11 +29,15 @@
 #   - forgejo/runner v12.10.1 — latest stable on code.forgejo.org as of
 #     2026-05-20. Restricted-PSS clean (binary runs as uid 1000 in upstream
 #     image). Release: https://code.forgejo.org/forgejo/runner/releases/tag/v12.10.1
-#   - quay.io/podman/stable v5.8.2 — official Red Hat-maintained image.
-#     Ships with /etc/subuid + /etc/subgid for uid `podman` (1000) covering
-#     a 65536-uid range — verified by reading the image's upstream
-#     containers/image_build/podman/Containerfile. Runs as uid 1000 (user
-#     `podman`) when invoked rootless. Restricted-PSS clean.
+#   - mgoltzsche/podman:5.6.1-minimal — community-maintained podman image
+#     SPECIFICALLY built for rootless k8s use. Ships BOTH slirp4netns +
+#     pasta as rootless network backends (the official quay.io/podman/
+#     stable dropped slirp4netns when it switched default to pasta in
+#     v5.x; pasta needs /dev/net/tun + CAP_NET_ADMIN which we'd rather
+#     not grant). /etc/subuid + /etc/subgid baked for uid 1000 covering
+#     a 65536-uid range. Runs as uid 1000 (user `podman`) when rootless.
+#     OCP-equivalent: use the same image OR pin to a podman/stable tag
+#     that still has slirp4netns + accept the maintenance lag.
 #
 # ─── known concerns surfaced for the OCP port ───────────────────────────────
 #   1. SELinux relabel on shared sockets — not enforced on Talos, would
@@ -173,9 +177,9 @@ controllers:
         # without that DaemonSet present — would block the phase, surface
         # to user before reaching for SYS_ADMIN).
         image:
-          repository: quay.io/podman/stable
-          tag: "v5.8.2"
-        command: ["/usr/bin/podman"]
+          repository: mgoltzsche/podman
+          tag: "5.6.1-minimal"
+        command: ["/usr/local/bin/podman"]
         args:
           - "system"
           - "service"
