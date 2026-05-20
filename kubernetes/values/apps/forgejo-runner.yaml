@@ -332,7 +332,11 @@ persistence:
     advancedMounts:
       main:
         podman:
-          - path: /podman/.config/containers/containers.conf
+          # Mount at system-wide config path (root-owned, expected by
+          # podman). User-level $HOME/.config path triggers "not owned by
+          # current user" check because k8s creates the parent dir as
+          # root.
+          - path: /etc/containers/containers.conf
             subPath: containers.conf
             readOnly: true
   # Writable /tmp + /data home for runner (rootfs readOnly + register
