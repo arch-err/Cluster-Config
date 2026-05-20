@@ -221,6 +221,15 @@ controllers:
           readOnlyRootFilesystem: true
           capabilities:
             drop: [ALL]
+            # newuidmap/newgidmap (SUID-root binaries called by podman to
+            # populate /proc/<pid>/uid_map+gid_map after unshare) need
+            # CAP_SETUID + CAP_SETGID in the bounding set to call
+            # setresuid/setresgid. Without them, the SUID-elevated process
+            # gets root euid but no capability to actually change uids.
+            # These two caps are in baseline-PSS's allowed-add list (would
+            # work even at baseline if seccomp weren't the blocker — see
+            # extras.yaml forgejo-runner block for why we're at privileged).
+            add: [SETUID, SETGID]
           # Unconfined seccomp: containerd's RuntimeDefault filters
           # clone(CLONE_NEWUSER) when caps=[] (no CAP_SYS_ADMIN) — that's what
           # rootless podman calls on startup to set up its own userns. Talos
