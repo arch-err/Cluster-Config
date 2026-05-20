@@ -1150,18 +1150,26 @@ metadata:
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* FORGEJO-RUNNER — namespace only                                             */}}
 {{/* Phase 6 of kubernetes/manual/forgejo/PLAN.md. Hosts a single forgejo-runner */}}
-{{/* pod with a rootless podman sidecar (no privileged, no SYS_ADMIN, no anyuid- */}}
-{{/* equivalent). PSS = baseline on enforce, restricted on audit+warn.           */}}
-{{/* WHY baseline not restricted: rootless podman's unshare(CLONE_NEWUSER) is    */}}
-{{/* filtered by containerd's RuntimeDefault seccomp profile when caps=[] (no   */}}
-{{/* CAP_SYS_ADMIN). Even with talos kernel sysctl user.max_user_namespaces=    */}}
-{{/* 15000 enabled (talconfig.yaml commit 45a30e9), the seccomp gate blocks     */}}
-{{/* the syscall with EPERM. Restricted PSS forbids overriding to `Unconfined`  */}}
-{{/* on the podman sidecar — baseline PSS allows it. Every other hardening      */}}
-{{/* stays: no privileged, no SYS_ADMIN, no anyuid, drop ALL caps, non-root     */}}
-{{/* uid 1000, readOnlyRootFs. OCP-equivalent: dedicated SCC permitting custom  */}}
-{{/* seccomp — common pattern for builder workloads, not strict restricted-v2.  */}}
-{{/* The runner image keeps RuntimeDefault — only podman sidecar is Unconfined. */}}
+{{/* pod with a rootless podman sidecar. PSS = privileged on enforce,            */}}
+{{/* restricted on audit+warn (so audit/warn flags ANY pod that drops below     */}}
+{{/* restricted, even though privileged is the actual gate).                     */}}
+{{/* WHY privileged: rootless podman's unshare(CLONE_NEWUSER) is filtered by    */}}
+{{/* containerd's RuntimeDefault seccomp when caps=[] (no CAP_SYS_ADMIN). Even   */}}
+{{/* with talos kernel sysctl user.max_user_namespaces=15000 enabled             */}}
+{{/* (talconfig.yaml commit 45a30e9), the seccomp gate blocks the syscall with  */}}
+{{/* EPERM. The fix is `seccompProfile: Unconfined` on the podman sidecar — but */}}
+{{/* both restricted AND baseline PSS forbid Unconfined. Only privileged PSS    */}}
+{{/* allows it.                                                                  */}}
+{{/* IMPORTANT — privileged PSS ≠ privileged CONTAINERS. Every individual       */}}
+{{/* hardening on the pod is preserved: no privileged container, no SYS_ADMIN,  */}}
+{{/* no anyuid-like uid, no hostNetwork, no hostPath, drop ALL caps, non-root   */}}
+{{/* uid 1000, readOnlyRootFs. The PSS label only affects what k8s ADMISSION    */}}
+{{/* will reject — it doesn't grant runtime power. We're saying "this ns is    */}}
+{{/* allowed to use Unconfined seccomp on one sidecar," nothing more.           */}}
+{{/* OCP-equivalent: a custom SCC bound to the runner SA permitting Unconfined  */}}
+{{/* seccomp. This is the gitlab-runner-on-OCP precedent — a "builder" SCC      */}}
+{{/* sitting above restricted-v2 but well below anyuid/privileged. The ns is    */}}
+{{/* dedicated to this workload — no other apps share its security posture.    */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.forgejoRunner }}
 ---
@@ -1170,7 +1178,7 @@ kind: Namespace
 metadata:
   name: forgejo-runner
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted
   annotations:
