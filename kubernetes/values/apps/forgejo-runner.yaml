@@ -186,6 +186,11 @@ controllers:
           - "--time=0"
           - "unix:///run/podman/podman.sock"
         env:
+          # mgoltzsche/podman defaults HOME=/podman; rootfs is readOnly so
+          # podman can't create /podman/.config there. Point HOME at the
+          # writable /tmp emptyDir instead. Podman will create its config
+          # dir + state there on first run.
+          HOME: /tmp/podman
           # crun runtime (cgroups v2, RH default, lighter than runc).
           # `podman system service` honors $CONTAINERS_CONF or per-flag
           # config — easiest is to point at the per-user config that
@@ -195,10 +200,9 @@ controllers:
           OCI_RUNTIME: crun
           STORAGE_DRIVER: overlay
           CONTAINERS_STORAGE_DRIVER: overlay
-          # Containers state lives in /podman/.local/share/containers
-          # by default (baked into the image). We mount an emptyDir there
-          # for the storage tree (see persistence.podman-storage). The
-          # runroot goes on a tmpfs (see persistence.podman-runroot).
+          # Containers state lives in $HOME/.local/share/containers
+          # by default. We mount an emptyDir at the appropriate path
+          # (see persistence.podman-storage). The runroot goes on tmpfs.
           XDG_RUNTIME_DIR: /tmp/runtime
           # Make sure podman's tmpfiles end up in writable paths since
           # the container's rootfs is readOnly.
@@ -303,7 +307,7 @@ persistence:
     advancedMounts:
       main:
         podman:
-          - path: /podman/.local/share/containers
+          - path: /tmp/podman/.local/share/containers
   # Runtime root — needs to be on tmpfs per podman recommendation; small.
   podman-runroot:
     type: emptyDir
