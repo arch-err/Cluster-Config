@@ -100,6 +100,11 @@ components:
         - https://argocd.infra.home/auth/callback
         # CLI PKCE redirect — argocd-cli uses /pkce/verify.
         - https://argocd.infra.home/pkce/verify
+        # argocd CLI SSO login (`argocd login --sso`) opens a local browser
+        # callback handler on :8085. Pocket-id rejects with "invalid callback
+        # URL" without this. Port 8085 is argocd-cli's default; override via
+        # `--sso-port <N>` requires a matching entry here.
+        - http://localhost:8085/auth/callback
       scopes: [openid, profile, email, groups]
       # secretName defaults to "argocd-oidc-client" — see values/infra/argocd.yaml
       # for the labeler Job (extraObjects) that adds app.kubernetes.io/part-of=argocd
