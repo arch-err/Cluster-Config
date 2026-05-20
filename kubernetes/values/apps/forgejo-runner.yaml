@@ -209,7 +209,15 @@ controllers:
           runAsNonRoot: true
           runAsUser: 1000   # match the `podman` user baked in the image
           runAsGroup: 1000
-          allowPrivilegeEscalation: false
+          # Rootless podman calls SUID-root `newuidmap`/`newgidmap` to
+          # populate /proc/<pid>/uid_map after unshare(CLONE_NEWUSER). With
+          # allowPrivilegeEscalation=false (no_new_privs=1 set on the
+          # container), SUID bits are inert → newuidmap fails with EPERM.
+          # Must be true here. NOT a privileged container — just lets the
+          # ONE SUID binary in the image elevate to set up the uid map.
+          # OCP-equivalent: custom SCC allows AllowPrivilegeEscalation
+          # (gitlab-runner-builder SCC does this).
+          allowPrivilegeEscalation: true
           readOnlyRootFilesystem: true
           capabilities:
             drop: [ALL]
