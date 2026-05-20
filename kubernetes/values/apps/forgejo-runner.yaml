@@ -314,6 +314,23 @@ persistence:
       main:
         podman:
           - path: /tmp
+
+  # Podman containers.conf — forces slirp4netns instead of pasta for
+  # rootless networking. Pasta needs /dev/net/tun + CAP_NET_ADMIN to set
+  # up tap devices; slirp4netns runs entirely in userspace, no kernel
+  # device needed, no caps needed. Standard k8s-rootless-podman fix.
+  # ConfigMap rendered inline via `configMaps:` block below (cross-ref
+  # by `identifier`, mirroring the home-assistant seed pattern).
+  podman-config:
+    enabled: true
+    type: configMap
+    identifier: podman-conf
+    advancedMounts:
+      main:
+        podman:
+          - path: /home/podman/.config/containers/containers.conf
+            subPath: containers.conf
+            readOnly: true
   # Writable /tmp + /data home for runner (rootfs readOnly + register
   # init also writes there).
   runner-tmp:
@@ -340,3 +357,16 @@ persistence:
           - path: /etc/ssl/certs/home-ca.crt
             subPath: ca.crt
             readOnly: true
+
+# Inline ConfigMap holding podman's containers.conf override. Forces
+# slirp4netns rootless networking instead of pasta (default in modern
+# podman, but pasta needs /dev/net/tun + CAP_NET_ADMIN which we can't
+# grant without further loosening the sec ctx). slirp4netns is pure
+# userspace TCP/IP — works in any rootless k8s pod.
+configMaps:
+  podman-conf:
+    enabled: true
+    data:
+      containers.conf: |
+        [network]
+        default_rootless_network_cmd = "slirp4netns"
