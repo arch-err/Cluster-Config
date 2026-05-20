@@ -186,11 +186,6 @@ controllers:
           - "--time=0"
           - "unix:///run/podman/podman.sock"
         env:
-          # mgoltzsche/podman defaults HOME=/podman; rootfs is readOnly so
-          # podman can't create /podman/.config there. Point HOME at the
-          # writable /tmp emptyDir instead. Podman will create its config
-          # dir + state there on first run.
-          HOME: /tmp/podman
           # crun runtime (cgroups v2, RH default, lighter than runc).
           # `podman system service` honors $CONTAINERS_CONF or per-flag
           # config — easiest is to point at the per-user config that
@@ -226,7 +221,15 @@ controllers:
           # OCP-equivalent: custom SCC allows AllowPrivilegeEscalation
           # (gitlab-runner-builder SCC does this).
           allowPrivilegeEscalation: true
-          readOnlyRootFilesystem: true
+          # mgoltzsche/podman is designed assuming /podman ($HOME) is
+          # writable — readOnly rootfs breaks the image's startup checks
+          # ("stat /podman/.config: no such file or directory"). Flip
+          # readOnlyRootFilesystem off for THIS container. The runner
+          # container above keeps readOnly. Minor hardening loss on a
+          # container that already has Unconfined seccomp +
+          # allowPrivilegeEscalation:true — readOnly was already a
+          # belt-and-suspenders for those.
+          readOnlyRootFilesystem: false
           capabilities:
             drop: [ALL]
             # newuidmap/newgidmap (SUID-root binaries called by podman to
@@ -307,7 +310,7 @@ persistence:
     advancedMounts:
       main:
         podman:
-          - path: /tmp/podman/.local/share/containers
+          - path: /podman/.local/share/containers
   # Runtime root — needs to be on tmpfs per podman recommendation; small.
   podman-runroot:
     type: emptyDir
