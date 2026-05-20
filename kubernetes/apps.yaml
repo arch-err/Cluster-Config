@@ -1067,6 +1067,37 @@ components:
       tokenSecretName: forgejo-admin-token
       tokenSecretNamespace: crossplane-system
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # FORGEJO-RUNNER — single rootless-podman-sidecar runner (phase 6 of
+  # kubernetes/manual/forgejo/PLAN.md). Picks up Actions jobs from the live
+  # forgejo at git.apps.home via in-cluster service. Pod shape: runner
+  # container (forgejo/runner) + podman sidecar (quay.io/podman/stable)
+  # sharing /run/podman over emptyDir. NO privileged, NO SYS_ADMIN — restricted
+  # PSS clean. Reference implementation for a parallel OCP pitch at $work
+  # (see ~/.agents/cluster-builder/notes/forgejo-runners-ocp-pitch.md). The
+  # `forgejoRunner:` block below gates the registration-token bootstrap Job
+  # (mirrors forgejoAdmin pattern from phase 3.5).
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: forgejo-runner
+    namespace: forgejo-runner
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after forgejo + admin-token bootstrap (wave 3 + 11)
+    # NO route — runner has no public surface (egress-only to forgejo API).
+    # NO oidc, NO db, NO route.
+    forgejoRunner:
+      enabled: true
+      tokenSecretName: forgejo-runner-token
+      adminTokenRef:
+        namespace: crossplane-system
+        name: forgejo-admin-token
+        key: token
+      # In-cluster address — avoid the public hostname for the bootstrap
+      # Job's API call (skips home-ca trust + the gateway hop).
+      forgejoURL: http://forgejo-http.forgejo.svc:3000
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -1169,4 +1200,11 @@ extras:
   # cnpg-managed postgres Cluster (rendered by the platform `db:` block on
   # the forgejo component in phase 3). See kubernetes/manual/forgejo/PLAN.md.
   forgejo:
+    enabled: true
+  # forgejo-runner: namespace only (restricted PSS). Hosts a single forgejo
+  # actions runner + rootless podman sidecar (phase 6, kubernetes/manual/
+  # forgejo/PLAN.md). The bootstrap Job (renders into this ns from
+  # platform/templates/forgejo-runner-bootstrap.yaml) writes Secret
+  # `forgejo-runner-token` consumed at register time.
+  forgejoRunner:
     enabled: true

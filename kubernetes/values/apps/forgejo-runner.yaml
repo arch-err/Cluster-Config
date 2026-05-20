@@ -1,0 +1,316 @@
+# forgejo-runner — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Phase 6 of kubernetes/manual/forgejo/PLAN.md.
+#
+# ─── chart decision: bjw-s app-template (NOT codeberg/wrenix forgejo-runner) ──
+# The wrenix forgejo-runner chart at oci://codeberg.org/wrenix/helm-charts/
+# forgejo-runner defaults to `securityContext.privileged: true` with a dind
+# (docker-in-docker) sidecar, and exposes no clean knob for a podman sidecar
+# (no extraContainers slot — just the baked-in dind container). The chart's
+# own maintainer notes upstream: "Me, wrenix, switch to woodpecker and maybe
+# does not test every change." Falling back to bjw-s wrap is cleaner, gives
+# us full control over the two-container shape, and matches the existing
+# repo convention for non-charted apps (vaultwarden, calibre-web, etc.).
+#
+# ─── OCP-portability constraints (per ~/.agents/cluster-builder/notes/        ──
+# forgejo-runners-ocp-pitch.md) — the homelab pod shape is the reference
+# implementation for a parallel pitch on enterprise OCP. Locked in:
+#   - NO privileged: true ANYWHERE
+#   - NO SYS_ADMIN cap, NO anyuid-equivalent
+#   - rootless podman serving docker API via `podman system service`
+#   - storage driver: overlay (kernel native) — try first; fuse-overlayfs
+#     via the kubernetes-fuse-device-plugin if kernel rejects (would need
+#     /dev/fuse exposed; surface as blocker rather than reach for SYS_ADMIN)
+#   - NEVER `vfs` — explicitly the line we don't cross (tanks performance
+#     + tanks the OCP pitch story)
+#   - OCI runtime: crun (RH default, cgroups v2, lighter than runc)
+#   - runAsNonRoot, drop ALL caps, RuntimeDefault seccomp on both containers
+#
+# ─── image pins ────────────────────────────────────────────────────────────
+#   - forgejo/runner v12.10.1 — latest stable on code.forgejo.org as of
+#     2026-05-20. Restricted-PSS clean (binary runs as uid 1000 in upstream
+#     image). Release: https://code.forgejo.org/forgejo/runner/releases/tag/v12.10.1
+#   - quay.io/podman/stable v5.8.2 — official Red Hat-maintained image.
+#     Ships with /etc/subuid + /etc/subgid for uid `podman` (1000) covering
+#     a 65536-uid range — verified by reading the image's upstream
+#     containers/image_build/podman/Containerfile. Runs as uid 1000 (user
+#     `podman`) when invoked rootless. Restricted-PSS clean.
+#
+# ─── known concerns surfaced for the OCP port ───────────────────────────────
+#   1. SELinux relabel on shared sockets — not enforced on Talos, would
+#      be enforced on OCP. Mitigation when porting: `:z` volume mount
+#      annotations or matched SELinux options on the pod.
+#   2. Random injected UID — on Talos we can pick fsGroup=1000, but on OCP
+#      the SCC injects a random UID. Pod-level `runAsUser` is INTENTIONALLY
+#      not set here — let scc/PSS pick. fsGroup IS set (1000) because the
+#      podman-stable image's /home/podman dir is owned 1000:1000 baked-in;
+#      on OCP the fsGroup would also be scc-injected and would override.
+#   3. /dev/fuse access — not exposed here. If `overlay` driver fails in
+#      the rootless podman context, the proper fallback is fuse-overlayfs
+#      with the kubernetes-fuse-device-plugin DaemonSet (NOT a SYS_ADMIN
+#      cap). The homelab cluster doesn't currently have that DaemonSet —
+#      will surface as a blocker rather than reach for the privileged cap.
+#   4. Runner state — minimal: the registration `.runner` file + the
+#      generated config.yml. A 2Gi PVC on kadalu.replica2-retain holds them.
+#      The podman storage tree is on emptyDir (cache-only; OK to lose).
+
+controllers:
+  main:
+    type: deployment
+    replicas: 1
+    strategy: Recreate  # podman socket is single-writer; avoid two pods racing
+    annotations:
+      reloader.stakater.com/auto: "true"
+    initContainers:
+      register:
+        # Mirrors the forgejo upstream k8s example
+        # (code.forgejo.org/forgejo/runner/examples/kubernetes/dind-docker.yaml)
+        # — register against forgejo using the bootstrap-minted token, then
+        # generate config.yml. Skipped on subsequent restarts if .runner
+        # already exists in /data.
+        image:
+          repository: code.forgejo.org/forgejo/runner
+          tag: "12.10.1"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            if [ -f /data/.runner ]; then
+              echo "[register] /data/.runner exists, skipping registration"
+            else
+              echo "[register] registering with $FORGEJO_INSTANCE_URL"
+              cd /data
+              forgejo-runner register --no-interactive \
+                --token "$RUNNER_TOKEN" \
+                --name "$RUNNER_NAME" \
+                --instance "$FORGEJO_INSTANCE_URL" \
+                --labels "docker:docker://node:20-bookworm,ubuntu-latest:docker://node:20-bookworm,alpine:docker://node:20-alpine"
+            fi
+            # (re)generate config.yml each boot so changes to runner.envs /
+            # container options take effect without manually wiping /data.
+            cd /data
+            forgejo-runner generate-config > /data/config.yml
+            # Point at the podman sidecar's docker-compat socket.
+            sed -i 's|^  docker_host: .*|  docker_host: unix:///run/podman/podman.sock|' /data/config.yml
+            # Volumes allowed to be mounted into job containers — empty in
+            # forgejo-runner default; widen to '**' for v1 (single-tenant
+            # homelab). Tighten when multi-tenancy actually arrives.
+            sed -i 's|^  valid_volumes: \[\]$|  valid_volumes:\n    - "**"|' /data/config.yml || true
+            echo "[register] config:"; grep -v -E '^\s*#' /data/config.yml | sed '/^\s*$/d'
+        env:
+          - name: RUNNER_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: FORGEJO_INSTANCE_URL
+            # In-cluster forgejo service is plain HTTP on :3000. Avoid the
+            # public hostname to skip the home-ca trust + extra hop.
+            value: "http://forgejo-http.forgejo.svc:3000"
+          - name: RUNNER_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: forgejo-runner-token
+                key: token
+        # NOTE: leave runAsUser unset to stay OCP-portable (scc injects).
+        # On Talos w/ restricted PSS, the pod-level fsGroup + non-root works.
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+    containers:
+      runner:
+        image:
+          repository: code.forgejo.org/forgejo/runner
+          tag: "12.10.1"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            # Wait for the podman sidecar socket to appear.
+            for i in $(seq 1 60); do
+              if [ -S /run/podman/podman.sock ]; then
+                echo "[runner] podman socket ready"
+                break
+              fi
+              echo "[runner] waiting for /run/podman/podman.sock ($i/60)..."
+              sleep 2
+            done
+            cd /data
+            exec forgejo-runner --config /data/config.yml daemon
+        env:
+          DOCKER_HOST: unix:///run/podman/podman.sock
+        probes:
+          liveness:
+            enabled: false
+          readiness:
+            enabled: false
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+      podman:
+        # Rootless podman serving the docker API over a UNIX socket. NO
+        # privileged, NO SYS_ADMIN. Storage driver `overlay` (kernel native
+        # — try first). If kernel rejects under restricted PSS without
+        # privilege, the documented fallback is fuse-overlayfs via the
+        # kubernetes-fuse-device-plugin (NOT this values file's concern
+        # without that DaemonSet present — would block the phase, surface
+        # to user before reaching for SYS_ADMIN).
+        image:
+          repository: quay.io/podman/stable
+          tag: "v5.8.2"
+        command: ["/usr/bin/podman"]
+        args:
+          - "system"
+          - "service"
+          - "--time=0"
+          - "unix:///run/podman/podman.sock"
+        env:
+          # crun runtime (cgroups v2, RH default, lighter than runc).
+          # `podman system service` honors $CONTAINERS_CONF or per-flag
+          # config — easiest is to point at the per-user config that
+          # quay.io/podman/stable ships, but the simplest knob is the
+          # OCI_RUNTIME env var picked up by some podman versions and as
+          # a fallback, the storage.conf override below.
+          OCI_RUNTIME: crun
+          STORAGE_DRIVER: overlay
+          CONTAINERS_STORAGE_DRIVER: overlay
+          # Containers state lives in /home/podman/.local/share/containers
+          # by default (baked into the image). We mount an emptyDir there
+          # for the storage tree (see persistence.podman-storage). The
+          # runroot goes on a tmpfs (see persistence.podman-runroot).
+          XDG_RUNTIME_DIR: /tmp/runtime
+          # Make sure podman's tmpfiles end up in writable paths since
+          # the container's rootfs is readOnly.
+          TMPDIR: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000   # match the `podman` user baked in the image
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  # Increase termination grace so the runner finishes any in-flight job
+  # before SIGKILL. forgejo-runner handles SIGTERM by draining.
+  terminationGracePeriodSeconds: 60
+
+service:
+  # No service needed — runner pulls jobs from forgejo; nothing reaches in.
+  main:
+    enabled: false
+
+route:
+  main:
+    enabled: false
+
+# (no ingress block — bjw-s defaults to disabled; explicit `enabled: false`
+# fails the chart's schema since it expects ingress.* to be a map)
+
+persistence:
+  # Runner state — the .runner registration file + generated config.yml.
+  # Tiny (KB), but holds the registration token + runner UUID, so on
+  # kadalu.replica2-retain to survive pod recreates without re-registering.
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    storageClass: kadalu.replica2-retain
+    advancedMounts:
+      main:
+        register:
+          - path: /data
+        runner:
+          - path: /data
+  # Shared docker/podman socket between the two containers. emptyDir is
+  # exactly right here: ephemeral, no persistence concerns, owned by
+  # fsGroup=1000 so both containers can read+write.
+  podman-sock:
+    type: emptyDir
+    advancedMounts:
+      main:
+        runner:
+          - path: /run/podman
+        podman:
+          - path: /run/podman
+  # Container storage tree — image cache, layers, overlay store. Sized
+  # generously since smoke-test buildah workflows pull base images. Memory-
+  # backed emptyDir would be fastest but caps the layer cache at node RAM
+  # — disk-backed (default) is the right v1 trade.
+  podman-storage:
+    type: emptyDir
+    advancedMounts:
+      main:
+        podman:
+          - path: /home/podman/.local/share/containers
+  # Runtime root — needs to be on tmpfs per podman recommendation; small.
+  podman-runroot:
+    type: emptyDir
+    advancedMounts:
+      main:
+        podman:
+          - path: /tmp/runtime
+  # Writable /tmp for podman (rootfs is readOnly).
+  podman-tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        podman:
+          - path: /tmp
+  # Writable /tmp + /data home for runner (rootfs readOnly + register
+  # init also writes there).
+  runner-tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        runner:
+          - path: /tmp
+        register:
+          - path: /tmp
+  # home-ca-bundle propagated by trust-manager so the runner trusts the
+  # internal forgejo + the public *.apps.home wildcard chain when calling
+  # back into the cluster.
+  home-ca:
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        runner:
+          - path: /etc/ssl/certs/home-ca.crt
+            subPath: ca.crt
+            readOnly: true
+        register:
+          - path: /etc/ssl/certs/home-ca.crt
+            subPath: ca.crt
+            readOnly: true

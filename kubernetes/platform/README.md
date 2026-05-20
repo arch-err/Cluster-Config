@@ -198,6 +198,94 @@ Verified against forgejo swagger @ v15.0.2:
 
 Auth: HTTP Basic with `cluster-bootstrap:$ADMIN_PASSWORD`.
 
+## Forgejo runner-token bootstrap (`forgejoRunner:` block)
+
+> **Pre-req:** forgejo is deployed (phase 3) AND its admin API token has been
+> minted into `crossplane-system/forgejo-admin-token` by the
+> `forgejoAdmin:` bootstrap Job (phase 3.5). The runner ns `forgejo-runner`
+> is rendered by `extras.forgejoRunner: true` in `apps.yaml`.
+
+Add a `forgejoRunner:` block to a component in `apps.yaml`:
+
+```yaml
+- name: forgejo-runner
+  namespace: forgejo-runner
+  chart: { ... bjw-s app-template ... }
+  forgejoRunner:
+    enabled: true
+    tokenSecretName: forgejo-runner-token       # default `forgejo-runner-token`
+    adminTokenRef:
+      namespace: crossplane-system              # default `crossplane-system`
+      name: forgejo-admin-token                 # default `forgejo-admin-token`
+      key: token                                # default `token`
+    # Optional override; default http://forgejo-http.forgejo.svc:3000
+    forgejoURL: http://forgejo-http.forgejo.svc:3000
+```
+
+What gets rendered (only when `enabled: true`):
+
+| Resource         | Namespace        | Purpose                                                   |
+|------------------|------------------|-----------------------------------------------------------|
+| ServiceAccount   | runner ns        | Identity the bootstrap Job runs under                     |
+| ConfigMap        | runner ns        | The bootstrap script (`bootstrap.sh`)                     |
+| Role             | runner ns        | `secrets` get/update/patch + create (target Secret)       |
+| RoleBinding      | runner ns        | Binds the SA above                                        |
+| Role             | adminTokenRef ns | `secrets` `get` on the one admin-token Secret             |
+| RoleBinding      | adminTokenRef ns | Lets the runner-ns SA read the admin token cross-ns       |
+| Job (hashed name)| runner ns        | Calls forgejo admin API, writes target Secret             |
+
+The Job calls `GET /api/v1/admin/runners/registration-token` (token-auth via
+the admin API token) and writes the response's `token` field into the
+target Secret.
+
+Idempotence:
+
+- Target Secret already has a non-empty `token` → exit 0, no-op
+- Target Secret missing/empty → mint and write
+- The forgejo registration-token endpoint is a **global** token (not
+  consumed-on-use), but re-minting on every sync would churn the Secret
+  needlessly — the short-circuit above prevents that. To force a re-mint,
+  delete the Secret in the runner ns and let ArgoCD re-create.
+
+## Runner architecture decision (podman sidecar, NOT dind)
+
+The runner pod (rendered by `values/apps/forgejo-runner.yaml`) is a
+two-container shape:
+
+- `runner` — `code.forgejo.org/forgejo/runner:12.10.1`, the actual
+  forgejo-runner daemon. Uses `DOCKER_HOST=unix:///run/podman/podman.sock`
+  to talk to the sidecar.
+- `podman` — `quay.io/podman/stable:v5.8.2`, runs `podman system service`
+  to serve the docker API over a UNIX socket. Rootless (uid 1000), drops
+  ALL caps, RuntimeDefault seccomp, `readOnlyRootFilesystem: true`.
+
+**NO `privileged: true`, NO `SYS_ADMIN` cap, NO `anyuid`-equivalent.**
+Restricted-PSS clean.
+
+Why podman sidecar instead of `docker:dind`?
+
+1. `docker:dind` requires `privileged: true` to mount overlayfs — instantly
+   rejects on enterprise OCP under `restricted-v2` SCC.
+2. Rootless podman serves the same docker-API surface that forgejo-runner's
+   underlying `act` runtime expects, but does it without privileged or
+   `SYS_ADMIN`. Storage driver `overlay` works natively on modern kernels
+   (Talos here, RHEL/OCP at $work); fuse-overlayfs via the
+   `kubernetes-fuse-device-plugin` is the OCP fallback (NOT `SYS_ADMIN`).
+3. We never fall back to `vfs` — it works without any caps but tanks
+   performance and would tank the OCP pitch story.
+
+The homelab build doubles as the reference implementation for a parallel
+pitch at $work — see `~/.agents/cluster-builder/notes/forgejo-runners-ocp-pitch.md`
+for the OCP-portability constraints + the buildah-as-step "image builds
+only" off-ramp.
+
+Chart choice: the existing wrenix `forgejo-runner` chart at
+`oci://codeberg.org/wrenix/helm-charts/forgejo-runner` defaults to
+`securityContext.privileged: true` with a baked-in dind sidecar and has no
+clean knob for a podman alternative — so we wrap with `bjw-s/app-template`
+v4.6.2 (the cluster's standard non-charted-app pattern) and explicitly
+declare both containers + the shared `/run/podman` emptyDir volume.
+
 ## Postgres database (`db:` block)
 
 > **Pre-req:** the `cnpg` infra component is deployed (CloudNativePG operator
