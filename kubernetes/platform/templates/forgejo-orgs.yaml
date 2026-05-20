@@ -1,0 +1,228 @@
+{{- /*
+══════════════════════════════════════════════════════════════════════════════
+FORGEJO ORGS-AS-CODE — declarative MR rendering
+══════════════════════════════════════════════════════════════════════════════
+
+Walks `.Values.organizations` (sourced from kubernetes/values/forgejo-orgs.yaml,
+layered onto the apps Application via helm.valueFiles) and emits one
+Crossplane managed-resource per item using provider-gitea
+(v0.6.0-final, see kubernetes/values/infra/provider-gitea.yaml):
+
+  - Organization                 (organization.gitea.crossplane.io/v1alpha1, Namespaced)
+  - Repository                   (repository.gitea.crossplane.io/v1alpha1,    Namespaced)
+  - Webhook                      (webhook.gitea.crossplane.io/v1alpha1,        Cluster-scoped)
+  - RepositoryCollaborator       (repositorycollaborator.gitea.crossplane.io/v1alpha1, Cluster-scoped)
+
+All MRs reference `providerConfigRef.name: default` (the ProviderConfig
+rendered by the provider-gitea infra component, pointed at
+https://git.apps.home with creds from `crossplane-system/forgejo-admin-token`).
+
+SCOPE: namespaced MRs (Organization, Repository) land in `crossplane-system`
+to keep all gitea provider state co-located with the provider deployment.
+Cluster-scoped MRs (Webhook, RepositoryCollaborator) carry no namespace.
+
+KNOWN LIMITATIONS (see values/forgejo-orgs.yaml header for full notes):
+
+  1. Mirror config is a NO-OP at v0.6.0-final — schema slot reserved.
+  2. Webhook secret is plaintext-only on the CR; left commented in template.
+  3. RepositoryCollaborator requires the target user to exist in forgejo
+     beforehand (OIDC first-login, manual admin UI, etc.) — MR will sit in
+     ReconcileError until then.
+  4. Repository.spec.forProvider.owner is the org `name` (= username on the
+     Organization MR's forProvider). The provider resolves this against
+     forgejo's API at reconcile time; no k8s-side dependsOn is needed but
+     ArgoCD sync-waves keep org-before-repo ordering tidy.
+
+═══════════════════════════════════════════════════════════════════════════════
+*/}}
+{{- range $org := .Values.organizations }}
+{{- if not $org.name }}
+{{- fail "forgejo-orgs: every organization entry must have a `name`" }}
+{{- end }}
+{{- $orgName := $org.name }}
+{{- $orgVisibility := default "private" $org.visibility }}
+---
+# ─────────── Organization: {{ $orgName }} ───────────
+apiVersion: organization.gitea.crossplane.io/v1alpha1
+kind: Organization
+metadata:
+  name: {{ $orgName | quote }}
+  namespace: crossplane-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: forgejo-orgs
+    forgejo-orgs/org: {{ $orgName | quote }}
+spec:
+  providerConfigRef:
+    name: default
+  forProvider:
+    username: {{ $orgName | quote }}
+    visibility: {{ $orgVisibility | quote }}
+    {{- if $org.description }}
+    description: {{ $org.description | quote }}
+    {{- end }}
+    {{- if $org.website }}
+    website: {{ $org.website | quote }}
+    {{- end }}
+    {{- if $org.fullName }}
+    fullName: {{ $org.fullName | quote }}
+    {{- end }}
+    {{- if $org.location }}
+    location: {{ $org.location | quote }}
+    {{- end }}
+    {{- if hasKey $org "repoAdminChangeTeamAccess" }}
+    repoAdminChangeTeamAccess: {{ $org.repoAdminChangeTeamAccess }}
+    {{- end }}
+
+{{- range $repo := default (list) $org.repositories }}
+{{- if not $repo.name }}
+{{- fail (printf "forgejo-orgs: org %q has a repo entry without `name`" $orgName) }}
+{{- end }}
+{{- $repoName := $repo.name }}
+{{- $crName := printf "%s-%s" $orgName $repoName }}
+---
+# ─────────── Repository: {{ $orgName }}/{{ $repoName }} ───────────
+apiVersion: repository.gitea.crossplane.io/v1alpha1
+kind: Repository
+metadata:
+  name: {{ $crName | quote }}
+  namespace: crossplane-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: forgejo-orgs
+    forgejo-orgs/org: {{ $orgName | quote }}
+    forgejo-orgs/repo: {{ $repoName | quote }}
+spec:
+  providerConfigRef:
+    name: default
+  forProvider:
+    name: {{ $repoName | quote }}
+    owner: {{ $orgName | quote }}
+    private: {{ if hasKey $repo "private" }}{{ $repo.private }}{{ else }}true{{ end }}
+    autoInit: {{ if hasKey $repo "autoInit" }}{{ $repo.autoInit }}{{ else }}true{{ end }}
+    defaultBranch: {{ default "main" $repo.defaultBranch | quote }}
+    {{- if $repo.description }}
+    description: {{ $repo.description | quote }}
+    {{- end }}
+    {{- if $repo.website }}
+    website: {{ $repo.website | quote }}
+    {{- end }}
+    hasIssues: {{ if hasKey $repo "hasIssues" }}{{ $repo.hasIssues }}{{ else }}true{{ end }}
+    hasWiki: {{ if hasKey $repo "hasWiki" }}{{ $repo.hasWiki }}{{ else }}false{{ end }}
+    hasPullRequests: {{ if hasKey $repo "hasPullRequests" }}{{ $repo.hasPullRequests }}{{ else }}true{{ end }}
+    hasActions: {{ if hasKey $repo "hasActions" }}{{ $repo.hasActions }}{{ else }}true{{ end }}
+    hasPackages: {{ if hasKey $repo "hasPackages" }}{{ $repo.hasPackages }}{{ else }}true{{ end }}
+    hasProjects: {{ if hasKey $repo "hasProjects" }}{{ $repo.hasProjects }}{{ else }}false{{ end }}
+    hasReleases: {{ if hasKey $repo "hasReleases" }}{{ $repo.hasReleases }}{{ else }}true{{ end }}
+    allowMergeCommits: {{ if hasKey $repo "allowMergeCommits" }}{{ $repo.allowMergeCommits }}{{ else }}true{{ end }}
+    allowSquashMerge: {{ if hasKey $repo "allowSquashMerge" }}{{ $repo.allowSquashMerge }}{{ else }}true{{ end }}
+    allowRebase: {{ if hasKey $repo "allowRebase" }}{{ $repo.allowRebase }}{{ else }}true{{ end }}
+    allowRebaseExplicit: {{ if hasKey $repo "allowRebaseExplicit" }}{{ $repo.allowRebaseExplicit }}{{ else }}true{{ end }}
+    allowRebaseUpdate: {{ if hasKey $repo "allowRebaseUpdate" }}{{ $repo.allowRebaseUpdate }}{{ else }}true{{ end }}
+    defaultDeleteBranchAfterMerge: {{ if hasKey $repo "defaultDeleteBranchAfterMerge" }}{{ $repo.defaultDeleteBranchAfterMerge }}{{ else }}true{{ end }}
+    defaultMergeStyle: {{ default "merge" $repo.defaultMergeStyle | quote }}
+    archived: {{ if hasKey $repo "archived" }}{{ $repo.archived }}{{ else }}false{{ end }}
+    template: {{ if hasKey $repo "template" }}{{ $repo.template }}{{ else }}false{{ end }}
+    trustModel: {{ default "default" $repo.trustModel | quote }}
+    {{- if $repo.gitignores }}
+    gitignores: {{ $repo.gitignores | quote }}
+    {{- end }}
+    {{- if $repo.license }}
+    license: {{ $repo.license | quote }}
+    {{- end }}
+    {{- if $repo.readme }}
+    readme: {{ $repo.readme | quote }}
+    {{- end }}
+    {{- if $repo.issueLabels }}
+    issueLabels: {{ $repo.issueLabels | quote }}
+    {{- end }}
+{{- /*
+Mirror config — RESERVED SLOT, NO-OP at v0.6.0-final.
+provider-gitea v0.6.0-final's Repository.spec.forProvider has no mirror/
+cloneAddr/pullMirror fields. The values-file `mirror:` block is silently
+ignored here. When upstream lands mirror reconciliation, re-add the
+appropriate fields under forProvider AND extend the values-file schema.
+See KNOWN LIMITATIONS #1 in values/forgejo-orgs.yaml.
+*/}}
+
+{{- range $i, $wh := default (list) $repo.webhooks }}
+{{- if not $wh.url }}
+{{- fail (printf "forgejo-orgs: repo %s/%s webhook[%d] missing `url`" $orgName $repoName $i) }}
+{{- end }}
+{{- /* Stable, RFC1123-safe MR name. URL can be arbitrary; sha-truncate it. */}}
+{{- $whHash := substr 0 8 (sha256sum $wh.url) }}
+{{- $whName := printf "%s-%s-wh-%s" $orgName $repoName $whHash }}
+---
+# ─────────── Webhook: {{ $orgName }}/{{ $repoName }} → {{ $wh.url }} ───────────
+apiVersion: webhook.gitea.crossplane.io/v1alpha1
+kind: Webhook
+metadata:
+  name: {{ $whName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: forgejo-orgs
+    forgejo-orgs/org: {{ $orgName | quote }}
+    forgejo-orgs/repo: {{ $repoName | quote }}
+spec:
+  providerConfigRef:
+    name: default
+  forProvider:
+    owner: {{ $orgName | quote }}
+    repository: {{ $repoName | quote }}
+    url: {{ $wh.url | quote }}
+    type: {{ default "gitea" $wh.type | quote }}
+    contentType: {{ default "json" $wh.contentType | quote }}
+    active: {{ if hasKey $wh "active" }}{{ $wh.active }}{{ else }}true{{ end }}
+    sslVerification: {{ if hasKey $wh "sslVerification" }}{{ $wh.sslVerification }}{{ else }}true{{ end }}
+    events:
+      {{- range default (list "push") $wh.events }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- if $wh.branchFilter }}
+    branchFilter: {{ $wh.branchFilter | quote }}
+    {{- end }}
+    {{- /*
+    secret: <plaintext-only> — see KNOWN LIMITATIONS #2. Leave commented;
+    set via UI/API post-apply if a signing secret is required.
+    */}}
+{{- end }}{{/* webhooks */}}
+
+{{- range $i, $c := default (list) $repo.collaborators }}
+{{- if not $c.user }}
+{{- fail (printf "forgejo-orgs: repo %s/%s collaborator[%d] missing `user`" $orgName $repoName $i) }}
+{{- end }}
+{{- if not $c.permission }}
+{{- fail (printf "forgejo-orgs: repo %s/%s collaborator[%d] missing `permission`" $orgName $repoName $i) }}
+{{- end }}
+{{- $cName := printf "%s-%s-collab-%s" $orgName $repoName $c.user }}
+---
+# ─────────── RepositoryCollaborator: {{ $orgName }}/{{ $repoName }} ← {{ $c.user }}/{{ $c.permission }} ───────────
+apiVersion: repositorycollaborator.gitea.crossplane.io/v1alpha1
+kind: RepositoryCollaborator
+metadata:
+  name: {{ $cName | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: forgejo-orgs
+    forgejo-orgs/org: {{ $orgName | quote }}
+    forgejo-orgs/repo: {{ $repoName | quote }}
+    forgejo-orgs/collaborator: {{ $c.user | quote }}
+spec:
+  providerConfigRef:
+    name: default
+  forProvider:
+    repository: {{ printf "%s/%s" $orgName $repoName | quote }}
+    username: {{ $c.user | quote }}
+    permission: {{ $c.permission | quote }}
+{{- end }}{{/* collaborators */}}
+
+{{- end }}{{/* repositories */}}
+{{- end }}{{/* organizations */}}
