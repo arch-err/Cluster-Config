@@ -46,7 +46,7 @@
 #   2. Random injected UID — on Talos we can pick fsGroup=1000, but on OCP
 #      the SCC injects a random UID. Pod-level `runAsUser` is INTENTIONALLY
 #      not set here — let scc/PSS pick. fsGroup IS set (1000) because the
-#      podman-stable image's /home/podman dir is owned 1000:1000 baked-in;
+#      podman-stable image's /podman dir is owned 1000:1000 baked-in;
 #      on OCP the fsGroup would also be scc-injected and would override.
 #   3. /dev/fuse access — not exposed here. If `overlay` driver fails in
 #      the rootless podman context, the proper fallback is fuse-overlayfs
@@ -195,7 +195,7 @@ controllers:
           OCI_RUNTIME: crun
           STORAGE_DRIVER: overlay
           CONTAINERS_STORAGE_DRIVER: overlay
-          # Containers state lives in /home/podman/.local/share/containers
+          # Containers state lives in /podman/.local/share/containers
           # by default (baked into the image). We mount an emptyDir there
           # for the storage tree (see persistence.podman-storage). The
           # runroot goes on a tmpfs (see persistence.podman-runroot).
@@ -303,7 +303,7 @@ persistence:
     advancedMounts:
       main:
         podman:
-          - path: /home/podman/.local/share/containers
+          - path: /podman/.local/share/containers
   # Runtime root — needs to be on tmpfs per podman recommendation; small.
   podman-runroot:
     type: emptyDir
@@ -332,7 +332,7 @@ persistence:
     advancedMounts:
       main:
         podman:
-          - path: /home/podman/.config/containers/containers.conf
+          - path: /podman/.config/containers/containers.conf
             subPath: containers.conf
             readOnly: true
   # Writable /tmp + /data home for runner (rootfs readOnly + register
