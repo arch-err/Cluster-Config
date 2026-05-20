@@ -178,7 +178,7 @@ controllers:
         # to user before reaching for SYS_ADMIN).
         image:
           repository: mgoltzsche/podman
-          tag: "5.6.1-minimal"
+          tag: "5.6.1"
         command: ["/usr/local/bin/podman"]
         args:
           - "system"
