@@ -274,16 +274,12 @@ controllers:
             type: Unconfined
 
 defaultPodOptions:
-  # Pod-level user namespace (k8s UserNamespacesSupport, GA in 1.33).
-  # Gives the pod its OWN userns that OWNS its netns + pid ns. Lets
-  # nested rootless podman in the sidecar mount procfs against
-  # netns-owned-by-its-own-userns instead of the host's, and lets
-  # netavark write per-netns sysctls because /proc/sys inside the pod
-  # is now associated with the pod's userns. Without this, restricted
-  # PSS + rootless podman + bridge networking is mutually impossible
-  # (see git log: 2df0689..8b9b1ed for the dead-end exploration).
-  # Requires: kernel ≥5.19, containerd ≥2.0, kubelet feature gate on.
-  hostUsers: false
+  # NOTE: hostUsers: false was tried (commit 1cd7c58, reverted in next).
+  # Userns IS available cluster-wide (Talos k8s 1.34 + containerd 2.1 +
+  # kernel 6.18) but kubelet tried to apply MOUNT_ATTR_IDMAP to the data
+  # PVC and failed — kadalu/glusterfs-fuse doesn't support idmapped
+  # mounts. Re-enable once either (a) the data PVC moves to a localpath
+  # SC or to a Secret/emptyDir, or (b) kadalu/fuse gains idmap support.
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
