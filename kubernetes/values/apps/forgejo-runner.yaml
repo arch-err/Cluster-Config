@@ -99,15 +99,22 @@ controllers:
             # forgejo-runner default; widen to '**' for v1 (single-tenant
             # homelab). Tighten when multi-tenancy actually arrives.
             sed -i 's|^  valid_volumes: \[\]$|  valid_volumes:\n    - "**"|' /data/config.yml || true
-            # Force host networking for job containers. Default ("") tells
-            # act to create a per-job bridge network, which invokes netavark
-            # → netavark needs to write sysctls on the bridge iface
-            # (/proc/sys/net/ipv4/conf/podmanN/route_localnet) → fails on
-            # k8s read-only /proc/sys with "IO error: Read-only file system".
-            # `host` skips network creation entirely; jobs share the podman
-            # sidecar's netns. Acceptable for single-tenant; revisit if
-            # multi-tenancy is added.
-            sed -i 's|^  network: .*$|  network: host|' /data/config.yml || true
+            # Networking for job containers — three failure modes mapped:
+            #   1. Default ("") makes act create a per-job bridge → invokes
+            #      netavark → tries to write /proc/sys/net/ipv4/conf/podmanN/
+            #      route_localnet → fails on k8s read-only /proc/sys.
+            #   2. `host` shares the pod's netns (owned by the outer/host
+            #      userns) → rootless crun in the podman sidecar's userns
+            #      can't mount procfs against an outer-owned netns → fails
+            #      with "crun: mount proc: Operation not permitted".
+            #   3. `--network=pasta` per-job: podman creates a private netns
+            #      owned by its own (rootless) userns, routed via pasta
+            #      userspace → no netavark, no /proc/sys writes, no userns
+            #      ownership mismatch. This is the working path.
+            # Leave config.yml's network: empty and pass --network=pasta
+            # through container.options so it's appended to every job's
+            # docker run (translated by podman's docker-compat shim).
+            sed -i 's|^  options: .*$|  options: "--network=pasta"|' /data/config.yml || true
             echo "[register] config:"; grep -v -E '^\s*#' /data/config.yml | sed '/^\s*$/d'
         env:
           - name: RUNNER_NAME
