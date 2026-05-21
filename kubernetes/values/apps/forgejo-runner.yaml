@@ -99,6 +99,15 @@ controllers:
             # forgejo-runner default; widen to '**' for v1 (single-tenant
             # homelab). Tighten when multi-tenancy actually arrives.
             sed -i 's|^  valid_volumes: \[\]$|  valid_volumes:\n    - "**"|' /data/config.yml || true
+            # Force host networking for job containers. Default ("") tells
+            # act to create a per-job bridge network, which invokes netavark
+            # → netavark needs to write sysctls on the bridge iface
+            # (/proc/sys/net/ipv4/conf/podmanN/route_localnet) → fails on
+            # k8s read-only /proc/sys with "IO error: Read-only file system".
+            # `host` skips network creation entirely; jobs share the podman
+            # sidecar's netns. Acceptable for single-tenant; revisit if
+            # multi-tenancy is added.
+            sed -i 's|^  network: .*$|  network: host|' /data/config.yml || true
             echo "[register] config:"; grep -v -E '^\s*#' /data/config.yml | sed '/^\s*$/d'
         env:
           - name: RUNNER_NAME
