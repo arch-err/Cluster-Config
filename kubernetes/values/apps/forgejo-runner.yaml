@@ -394,19 +394,17 @@ persistence:
             subPath: ca.crt
             readOnly: true
 
-# Inline ConfigMap holding podman's containers.conf override. Forces
-# slirp4netns rootless networking instead of pasta (default in modern
-# podman, but pasta needs /dev/net/tun + CAP_NET_ADMIN which we can't
-# grant without further loosening the sec ctx). slirp4netns is pure
-# userspace TCP/IP — works in any rootless k8s pod.
+# Inline ConfigMap with podman's containers.conf override. Sets
+# `userns = "host"` so podman does NOT nest a new userns when creating
+# job containers — they reuse the pod's own userns (which we get from
+# the k8s `hostUsers: false` setting). This is the key to making host
+# networking + mount(proc) work: with hostUsers:false the pod owns its
+# netns, and with userns=host the job container's mounter is in that
+# same userns, so the kernel allows mounting procfs against it.
 configMaps:
   podman-conf:
     enabled: true
     data:
-      # Explicit pasta backend. mgoltzsche/podman 5.6+ no longer ships
-      # slirp4netns (community migrated to pasta). Pasta needs /dev/net/tun
-      # + CAP_NET_ADMIN — both granted via the hostPath device mount and
-      # the capabilities.add block on the podman container.
       containers.conf: |
-        [network]
-        default_rootless_network_cmd = "pasta"
+        [containers]
+        userns = "host"
