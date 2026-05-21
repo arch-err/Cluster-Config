@@ -229,18 +229,19 @@ controllers:
           limits:
             memory: 2Gi
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000   # match the `podman` user baked in the image
-          runAsGroup: 1000
-          # Rootless podman calls SUID-root `newuidmap`/`newgidmap` to
-          # populate /proc/<pid>/uid_map after unshare(CLONE_NEWUSER). With
-          # allowPrivilegeEscalation=false (no_new_privs=1 set on the
-          # container), SUID bits are inert → newuidmap fails with EPERM.
-          # Must be true here. NOT a privileged container — just lets the
-          # ONE SUID binary in the image elevate to set up the uid map.
-          # OCP-equivalent: custom SCC allows AllowPrivilegeEscalation
-          # (gitlab-runner-builder SCC does this).
-          allowPrivilegeEscalation: true
+          # uid 0 INSIDE the pod's userns (which is mapped to a non-root
+          # uid on the host because hostUsers:false). Being root-in-userns
+          # gives podman all caps within its own userns → no need to
+          # CLONE_NEWUSER → no nested userns → job containers inherit the
+          # pod's userns directly → mount(proc) works because mounter and
+          # netns owner are the same userns. PSS allows runAsUser:0 when
+          # hostUsers:false (k8s ≥1.30 PSS-userns relaxation).
+          runAsNonRoot: false
+          runAsUser: 0
+          runAsGroup: 0
+          # No more SUID newuidmap dance — we're already root-in-userns,
+          # so no CLONE_NEWUSER, no map population, no SUID escalation.
+          allowPrivilegeEscalation: false
           # mgoltzsche/podman is designed assuming /podman ($HOME) is
           # writable — readOnly rootfs breaks the image's startup checks
           # ("stat /podman/.config: no such file or directory"). Flip
@@ -260,12 +261,9 @@ controllers:
             # These two caps are in baseline-PSS's allowed-add list (would
             # work even at baseline if seccomp weren't the blocker — see
             # extras.yaml forgejo-runner block for why we're at privileged).
-            # Job containers share the runner pod's netns (host networking)
-            # since hostUsers:false gives the pod's userns ownership over
-            # the netns — no pasta/slirp4netns/netavark needed, so no
-            # NET_ADMIN. SETUID/SETGID still needed for rootless podman's
-            # newuidmap/newgidmap.
-            add: [SETUID, SETGID]
+            # No add caps — podman runs as uid 0 within the pod's userns,
+            # already has all caps inside that userns. No SUID newuidmap
+            # dance, no NET_ADMIN (host net via pod userns).
           # Unconfined seccomp: containerd's RuntimeDefault filters
           # clone(CLONE_NEWUSER) when caps=[] (no CAP_SYS_ADMIN) — that's what
           # rootless podman calls on startup to set up its own userns. Talos
