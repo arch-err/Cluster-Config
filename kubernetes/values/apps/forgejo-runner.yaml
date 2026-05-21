@@ -274,6 +274,16 @@ controllers:
             type: Unconfined
 
 defaultPodOptions:
+  # Pod-level user namespace (k8s UserNamespacesSupport, GA in 1.33).
+  # Gives the pod its OWN userns that OWNS its netns + pid ns. Lets
+  # nested rootless podman in the sidecar mount procfs against
+  # netns-owned-by-its-own-userns instead of the host's, and lets
+  # netavark write per-netns sysctls because /proc/sys inside the pod
+  # is now associated with the pod's userns. Without this, restricted
+  # PSS + rootless podman + bridge networking is mutually impossible
+  # (see git log: 2df0689..8b9b1ed for the dead-end exploration).
+  # Requires: kernel ≥5.19, containerd ≥2.0, kubelet feature gate on.
+  hostUsers: false
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
