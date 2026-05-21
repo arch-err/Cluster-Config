@@ -99,23 +99,17 @@ controllers:
             # forgejo-runner default; widen to '**' for v1 (single-tenant
             # homelab). Tighten when multi-tenancy actually arrives.
             sed -i 's|^  valid_volumes: \[\]$|  valid_volumes:\n    - "**"|' /data/config.yml || true
-            # Networking for job containers — three failure modes mapped:
-            #   1. Default ("") makes act create a per-job bridge → invokes
-            #      netavark → tries to write /proc/sys/net/ipv4/conf/podmanN/
-            #      route_localnet → fails on k8s read-only /proc/sys.
-            #   2. `host` shares the pod's netns (owned by the outer/host
-            #      userns) → rootless crun in the podman sidecar's userns
-            #      can't mount procfs against an outer-owned netns → fails
-            #      with "crun: mount proc: Operation not permitted".
-            #   3. `--network=pasta` per-job: podman creates a private netns
-            #      owned by its own (rootless) userns, routed via pasta
-            #      userspace → no netavark, no /proc/sys writes, no userns
-            #      ownership mismatch. This is the working path.
-            # act sets HostConfig.NetworkMode from container.network — any
-            # --network in container.options is overridden. Set network
-            # directly to "pasta"; podman's docker-compat shim maps it to
-            # the pasta backend (private rootless netns, no netavark).
-            sed -i 's|^  network: .*$|  network: pasta|' /data/config.yml || true
+            # Job containers share the runner pod's netns (host mode within
+            # the pod's userns). With hostUsers:false on the pod, the pod
+            # owns its own netns, so rootless crun in the podman sidecar
+            # can mount procfs against it — the failure mode that blocks
+            # host networking under a host-owned netns goes away. Bridge
+            # mode still fails (netavark writes per-netns sysctls into a
+            # kubelet-mounted RO /proc/sys), so host is the working path.
+            # Single-tenant trade: capacity:1 per pod, parallelism via
+            # replica count (one pod per concurrent job, no port conflicts
+            # across pods). KEDA scales replicas to queue depth — later.
+            sed -i 's|^  network: .*$|  network: host|' /data/config.yml || true
             echo "[register] config:"; grep -v -E '^\s*#' /data/config.yml | sed '/^\s*$/d'
         env:
           - name: RUNNER_NAME
@@ -274,12 +268,16 @@ controllers:
             type: Unconfined
 
 defaultPodOptions:
-  # NOTE: hostUsers: false was tried (commit 1cd7c58, reverted in next).
-  # Userns IS available cluster-wide (Talos k8s 1.34 + containerd 2.1 +
-  # kernel 6.18) but kubelet tried to apply MOUNT_ATTR_IDMAP to the data
-  # PVC and failed — kadalu/glusterfs-fuse doesn't support idmapped
-  # mounts. Re-enable once either (a) the data PVC moves to a localpath
-  # SC or to a Secret/emptyDir, or (b) kadalu/fuse gains idmap support.
+  # Pod-level user namespace (k8s UserNamespacesSupport, GA in 1.33).
+  # The pod gets its own userns that owns its netns + pid ns, which lets
+  # the rootless podman sidecar mount /proc against a netns it controls
+  # (otherwise host networking inside the pod blows up with "crun: mount
+  # proc: Operation not permitted"). Cluster prereqs verified: Talos
+  # k8s 1.34, containerd 2.1.6, kernel 6.18 — all support idmap mounts.
+  # The runner data volume must be a non-PVC type (configMap/emptyDir/
+  # secret) — fuse-based CSI (kadalu/gluster) doesn't support idmapped
+  # mounts. See persistence.data below: switched from PVC → emptyDir.
+  hostUsers: false
   securityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
@@ -302,14 +300,17 @@ route:
 # fails the chart's schema since it expects ingress.* to be a map)
 
 persistence:
-  # Runner state — the .runner registration file + generated config.yml.
-  # Tiny (KB), but holds the registration token + runner UUID, so on
-  # kadalu.replica2-retain to survive pod recreates without re-registering.
+  # Runner state — .runner registration file + generated config.yml.
+  # emptyDir (not a PVC) because hostUsers:false requires every pod
+  # volume to support MOUNT_ATTR_IDMAP. fuse-based CSI volumes (kadalu)
+  # don't support that; emptyDir is special-cased by kubelet and works.
+  # Cost: each pod restart re-registers a fresh runner record in
+  # forgejo. Forgejo auto-prunes runners on missed heartbeats, so
+  # orphans self-clean. If pod restarts get noisy, move to a Secret
+  # written by the bootstrap Job (configMap/secret volumes also work
+  # with userns).
   data:
-    enabled: true
-    accessMode: ReadWriteOnce
-    size: 2Gi
-    storageClass: kadalu.replica2-retain
+    type: emptyDir
     advancedMounts:
       main:
         register:
