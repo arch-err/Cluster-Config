@@ -99,6 +99,15 @@ controllers:
             # forgejo-runner default; widen to '**' for v1 (single-tenant
             # homelab). Tighten when multi-tenancy actually arrives.
             sed -i 's|^  valid_volumes: \[\]$|  valid_volumes:\n    - "**"|' /data/config.yml || true
+            # Pass --userns=host per-job container so podman's docker-compat
+            # shim sets HostConfig.UsernsMode="host" → job container reuses
+            # the pod's userns (no nested userns) → mount(proc) succeeds
+            # because the mounter is in the same userns that owns netns.
+            # containers.conf [containers] userns = "host" is ignored by
+            # the docker-shim path; only the per-create HostConfig field
+            # is honored. act DOES forward container.options to docker
+            # run, unlike --network which it overrides via NetworkMode.
+            sed -i 's|^  options:.*$|  options: "--userns=host"|' /data/config.yml || true
             # Job containers share the runner pod's netns (host mode within
             # the pod's userns). With hostUsers:false on the pod, the pod
             # owns its own netns, so rootless crun in the podman sidecar
