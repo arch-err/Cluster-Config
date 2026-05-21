@@ -114,7 +114,7 @@ controllers:
             # Leave config.yml's network: empty and pass --network=pasta
             # through container.options so it's appended to every job's
             # docker run (translated by podman's docker-compat shim).
-            sed -i 's|^  options: .*$|  options: "--network=pasta"|' /data/config.yml || true
+            sed -i 's|^  options:.*$|  options: "--network=pasta"|' /data/config.yml || true
             echo "[register] config:"; grep -v -E '^\s*#' /data/config.yml | sed '/^\s*$/d'
         env:
           - name: RUNNER_NAME
