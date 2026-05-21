@@ -251,10 +251,12 @@ controllers:
             # These two caps are in baseline-PSS's allowed-add list (would
             # work even at baseline if seccomp weren't the blocker — see
             # extras.yaml forgejo-runner block for why we're at privileged).
-            # NET_ADMIN added for pasta's TUNSETIFF ioctl on /dev/net/tun
-            # (pasta is podman 5.6+'s rootless network backend, replaces
-            # slirp4netns which is no longer shipped in upstream images).
-            add: [SETUID, SETGID, NET_ADMIN]
+            # Job containers share the runner pod's netns (host networking)
+            # since hostUsers:false gives the pod's userns ownership over
+            # the netns — no pasta/slirp4netns/netavark needed, so no
+            # NET_ADMIN. SETUID/SETGID still needed for rootless podman's
+            # newuidmap/newgidmap.
+            add: [SETUID, SETGID]
           # Unconfined seccomp: containerd's RuntimeDefault filters
           # clone(CLONE_NEWUSER) when caps=[] (no CAP_SYS_ADMIN) — that's what
           # rootless podman calls on startup to set up its own userns. Talos
@@ -365,19 +367,6 @@ persistence:
             subPath: containers.conf
             readOnly: true
 
-  # /dev/net/tun device — pasta opens this to create the rootless
-  # container's tap device. hostPath of the chardev (not a directory
-  # mount, just the device node). Combined with CAP_NET_ADMIN above,
-  # pasta can do TUNSETIFF ioctl.
-  tun-device:
-    enabled: true
-    type: hostPath
-    hostPath: /dev/net/tun
-    hostPathType: CharDevice
-    advancedMounts:
-      main:
-        podman:
-          - path: /dev/net/tun
   # Writable /tmp + /data home for runner (rootfs readOnly + register
   # init also writes there).
   runner-tmp:
