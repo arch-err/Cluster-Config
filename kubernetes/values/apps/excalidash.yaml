@@ -47,7 +47,17 @@ controllers:
           # OIDC-only: native email/password login + /auth/register are disabled.
           # Pocket-id is the sole entry. hybrid would keep local login alongside.
           AUTH_MODE: oidc_enforced
-          TRUST_PROXY: "true"   # behind cilium gateway
+          # Backend's allowed-origin allowlist — MUST equal the public URL or the
+          # backend rejects state-changing requests ("Origin not allowed") and the
+          # OIDC session never binds (user stays anonymous post-callback).
+          FRONTEND_URL: "https://excalidash.apps.home"
+          # Hop count, NOT a bool — exactly one trusted proxy hop (cilium gateway
+          # → frontend nginx → backend). Required for correct X-Forwarded-* + the
+          # Secure-cookie decision; "true" is not a valid hop count.
+          TRUST_PROXY: "1"
+          # Cilium gateway already terminates + enforces TLS; disable the backend's
+          # built-in http→https redirect to avoid loops if X-Forwarded-Proto drifts.
+          ENFORCE_HTTPS_REDIRECT: "false"
           # ── OIDC (pocket-id) ──────────────────────────────────────────────
           OIDC_PROVIDER_NAME: "Pocket ID"
           # Exact callback per upstream README: https://<host>/api/auth/oidc/callback
