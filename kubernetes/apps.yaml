@@ -204,6 +204,10 @@ components:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
       version: 4.6.2
+    # HTTPRoute points straight at the excalidash frontend service (NO oauth2-
+    # proxy sidecar): ExcaliDash speaks OIDC natively (AUTH_MODE=oidc_enforced),
+    # so pocket-id is the only sign-in path with no double login. Mirrors the
+    # papra native-OIDC shape. See values/apps/excalidash.yaml for the OIDC_* env.
     route:
       hostname: excalidash.apps.home
       gateway: apps
@@ -214,6 +218,20 @@ components:
         icon: excalidraw.svg
         description: Excalidraw dashboard + collab
         app: excalidash
+    # Per-app OIDC client (pocket-id id=`excalidash`). The bootstrap Job renders
+    # Secret `excalidash-oidc-client` into the excalidash ns with keys
+    # client_id / client_secret / issuer_url; the backend consumes them directly
+    # via OIDC_CLIENT_ID/SECRET + OIDC_ISSUER_URL env (values file). Callback is
+    # the upstream-fixed /api/auth/oidc/callback. apps_users + administrators
+    # allowed at the IDP level (administrators additionally map to the ExcaliDash
+    # ADMIN role via OIDC_ADMIN_GROUPS in the values file).
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://excalidash.apps.home/api/auth/oidc/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
 
   - name: it-tools
     namespace: it-tools

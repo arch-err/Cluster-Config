@@ -7,8 +7,30 @@
 #   - backend  : zimengxiong/excalidash-backend:0.5.0   listens on :8000, owns SQLite at /app/prisma
 #   - frontend : zimengxiong/excalidash-frontend:0.5.0  nginx on :80, proxies to BACKEND_URL
 #
-# Single user, internal — no OIDC, JWT/CSRF auto-generated and persisted in the
-# backend PVC on first start (per upstream README).
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# NATIVE OIDC via pocket-id (AUTH_MODE=oidc_enforced) — no oauth2-proxy sidecar.
+# ExcaliDash speaks OIDC itself on the BACKEND container (all OIDC_* env vars
+# live there; the callback is /api/auth/oidc/callback, served by the backend
+# and reverse-proxied by the frontend nginx). oidc_enforced disables native
+# email/password registration+login entirely → pocket-id is the ONLY way in,
+# single sign-on, no double login. Mirrors the papra native-OIDC shape.
+# Upstream AUTH_MODE values: local | hybrid | oidc_enforced (per README).
+#
+# Per-app pocket-id client is minted by the `oidc:` block on the excalidash
+# Application in apps.yaml; the bootstrap Job writes Secret `excalidash-oidc-
+# client` into this ns with keys client_id / client_secret / issuer_url
+# (issuer_url = https://auth.apps.home). Group restriction (apps_users +
+# administrators) is enforced IDP-side via that block; OIDC_GROUPS_CLAIM +
+# OIDC_ADMIN_GROUPS map the `administrators` group to the ExcaliDash ADMIN role.
+#
+# home-ca trust: the backend is Alpine/musl + Node 20. Two cluster quirks bite
+# OIDC discovery against https://auth.apps.home and are worked around exactly
+# like audiobookshelf-v2 (same image profile):
+#   1. NODE_EXTRA_CA_CERTS=/etc/ssl/home-ca/ca.crt + the home-ca-bundle
+#      configMap mount → Node trusts the home CA for the discovery TLS handshake.
+#   2. hostAliases auth.apps.home→10.10.10.200 (apps gateway VIP) → sidesteps
+#      the CoreDNS-template + musl-getaddrinfo NXDOMAIN quirk that otherwise
+#      makes Node fetch() return ENOTFOUND on a musl base.
 
 controllers:
   main:
@@ -22,8 +44,42 @@ controllers:
           DATABASE_URL: "file:/app/prisma/dev.db"
           PORT: "8000"
           NODE_ENV: production
-          AUTH_MODE: local
+          # OIDC-only: native email/password login + /auth/register are disabled.
+          # Pocket-id is the sole entry. hybrid would keep local login alongside.
+          AUTH_MODE: oidc_enforced
           TRUST_PROXY: "true"   # behind cilium gateway
+          # ── OIDC (pocket-id) ──────────────────────────────────────────────
+          OIDC_PROVIDER_NAME: "Pocket ID"
+          # Exact callback per upstream README: https://<host>/api/auth/oidc/callback
+          OIDC_REDIRECT_URI: "https://excalidash.apps.home/api/auth/oidc/callback"
+          OIDC_SCOPES: "openid profile email groups"
+          # Path to the groups claim in the ID token (pocket-id emits `groups`).
+          OIDC_GROUPS_CLAIM: "groups"
+          # Members of pocket-id's `administrators` group are reconciled to the
+          # ExcaliDash ADMIN role on each request; everyone else is a USER.
+          OIDC_ADMIN_GROUPS: "administrators"
+          # Trust the home CA so the Node backend's OIDC discovery + token
+          # requests against https://auth.apps.home pass TLS verification.
+          NODE_EXTRA_CA_CERTS: "/etc/ssl/home-ca/ca.crt"
+          # client_id / client_secret / issuer_url come from the platform-
+          # rendered Secret `excalidash-oidc-client` (oidc:* block in apps.yaml).
+          # issuer_url = https://auth.apps.home (browser-routable; backend
+          # reaches it via the hostAliases entry + home-ca trust above).
+          OIDC_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: excalidash-oidc-client
+                key: client_id
+          OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: excalidash-oidc-client
+                key: client_secret
+          OIDC_ISSUER_URL:
+            valueFrom:
+              secretKeyRef:
+                name: excalidash-oidc-client
+                key: issuer_url
         probes:
           liveness:
             enabled: true
@@ -105,6 +161,16 @@ controllers:
     # labeled to allow runAsUser=0; per-container drop-ALL+narrow-add caps
     # bound the blast radius. allowPrivilegeEscalation=false on each.
     pod:
+      # hostAliases — Alpine/musl getaddrinfo + CoreDNS quirk workaround (same
+      # as audiobookshelf-v2). CoreDNS synthesizes auth.apps.home→10.10.10.200
+      # via its template but fallthrough emits a trailing NXDOMAIN that musl's
+      # resolver honours, so Node fetch() to https://auth.apps.home returns
+      # ENOTFOUND and OIDC discovery fails. Pinning /etc/hosts sidesteps the
+      # resolver. 10.10.10.200 = apps gateway VIP (what CoreDNS would return).
+      hostAliases:
+        - ip: 10.10.10.200
+          hostnames:
+            - auth.apps.home
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -131,3 +197,16 @@ persistence:
       main:
         backend:
           - path: /app/prisma
+  # home-ca trust bundle, broadcast by trust-manager into every ns as the
+  # `home-ca-bundle` ConfigMap (key: ca.crt). Mounted read-only on the BACKEND
+  # container; NODE_EXTRA_CA_CERTS points at ca.crt so Node trusts the home CA
+  # for OIDC discovery against https://auth.apps.home.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        backend:
+          - path: /etc/ssl/home-ca
+            readOnly: true
