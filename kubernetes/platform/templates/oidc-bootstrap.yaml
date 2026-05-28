@@ -54,7 +54,13 @@ Pocket-id authenticates that token via the `X-API-Key` request header.
 {{- $callbackUrls := $component.oidc.callbackUrls | default (list) }}
 {{- $scopes := $component.oidc.scopes | default (list "openid" "profile" "email") }}
 {{- $isPublic := $component.oidc.public | default false }}
-{{- $pkceEnabled := $component.oidc.pkceEnabled | default true }}
+{{- /* `default true x` returns true when x is bool false (Sprig zero-value
+       gotcha), so explicit `pkceEnabled: false` would silently flip back to
+       true. Use hasKey so a present-but-false value is honoured. */}}
+{{- $pkceEnabled := true }}
+{{- if hasKey $component.oidc "pkceEnabled" }}
+{{- $pkceEnabled = $component.oidc.pkceEnabled }}
+{{- end }}
 {{- $logoutCallbackUrls := $component.oidc.logoutCallbackUrls | default (list) }}
 {{- /*
   Group-restriction (optional). Two shapes accepted:
