@@ -1,17 +1,22 @@
 # samba — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
-# SMB share for the NAS PVC — single user (J), single share (`data`).
+# Standalone NAS-style SMB share. Single share (`data`), single user (`j`).
 # Upstream image: ghcr.io/crazy-max/samba — declarative YAML config at
 # /data/config.yml, supports per-user uid/gid, runs without --privileged.
 # Pinned to 4.22.8 (current stable; ghcr publishes no -r1 suffix).
 #
-# Lives in the `filebrowser` namespace alongside the FileBrowser Quantum
-# release; both pods mount the same `filebrowser-data` PVC so the share
-# the web UI exposes and the SMB share point at the same backing data.
+# This is the post-Quantum standalone deploy (2026-05-28). The earlier
+# combo with filebrowser-Quantum (shared `filebrowser` ns + shared
+# `filebrowser-data` PVC) was dropped; Quantum removed entirely, samba
+# given its own ns and its own dynamically-provisioned PVC.
 #
-# Auth: SMB password for `j` user comes from SopsSecret `samba-users`
-# (kubernetes/secrets/apps/samba-users.yaml). The container's config.yml
-# is rendered as a Secret at deploy-time (mounted at /data/config.yml)
-# so the password isn't visible in the ConfigMap.
+# Storage: mounts `samba-data` PVC (100Gi RWX kadalu.replica2-retain,
+# rendered by extras.samba — ns + PVC) at /share. CRITICAL-tier — Retain
+# reclaim via SC.
+#
+# Auth: SMB password for `j` user comes from SopsSecret `samba-config`
+# (kubernetes/secrets/apps/samba-config.yaml, ns `samba`). The container's
+# config.yml is rendered as a Secret at deploy-time (mounted at
+# /data/config.yml) so the password isn't visible in a ConfigMap.
 #
 # EXPOSURE: SMB exposed on 10.10.10.205:445 via cilium L2 (LoadBalancer
 # Service drawing from the default CiliumLoadBalancerIPPool, 10.10.10.200
@@ -66,7 +71,7 @@ controllers:
         # Samba/smbd needs to bind :445 + chown share dirs at startup.
         # crazy-max's image entrypoint can drop privs to per-share uid 1000
         # but the master smbd process must start as root. NS is labeled
-        # baseline for that (see extras.filebrowser); restricted is rejected.
+        # baseline for that (see extras.samba); restricted is rejected.
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false   # smbd writes to /var/lib/samba state
@@ -105,18 +110,18 @@ service:
         protocol: TCP
 
 persistence:
-  # The shared NAS volume — same PVC as filebrowser-quantum. Pre-rendered by
-  # extras.filebrowser. 100Gi RWX kadalu.replica2-retain.
+  # The SMB share backing volume — pre-rendered by extras.samba.
+  # 100Gi RWX kadalu.replica2-retain.
   data:
     enabled: true
     type: persistentVolumeClaim
-    existingClaim: filebrowser-data
+    existingClaim: samba-data
     advancedMounts:
       main:
         app:
           - path: /share
-  # SMB config (rendered by extras.filebrowser as a Secret carrying users +
-  # passwords + share def). Mounted at the default CONFIG_FILE path.
+  # SMB config (SopsSecret carrying users + passwords + share def).
+  # Mounted at the default CONFIG_FILE path.
   config:
     enabled: true
     type: secret
