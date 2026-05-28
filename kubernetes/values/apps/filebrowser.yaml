@@ -1,0 +1,187 @@
+# filebrowser — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# FileBrowser QUANTUM (gtsteffaniak fork) — self-hosted file manager web UI.
+# Upstream: https://github.com/gtsteffaniak/filebrowser
+# Image: docker.io/gtstef/filebrowser — runs as uid 1000 (`filebrowser`).
+#
+# Hostname: https://files.apps.home
+# OIDC client_id: filebrowser (Secret: filebrowser-oidc-client)
+# Both J and E are end users — gated at pocket-id by the `apps_users` group
+# restriction on the OIDC client (administrators always allowed).
+#
+# Storage: mounts the shared `filebrowser-data` PVC (created by
+# extras.filebrowser — 100Gi RWX kadalu.replica2-retain) at /srv. The Samba
+# release in this same ns binds the SAME PVC and exposes it over SMB.
+# Quantum's app state (config.yaml, sqlite db, share index) lives in a
+# separate small `filebrowser-state` PVC at /home/filebrowser/data so a
+# data-PVC restore doesn't clobber app settings (and vice versa).
+#
+# Config bootstrap:
+# - First-boot config.yaml comes from a ConfigMap mounted at
+#   /home/filebrowser/data/config.yaml (read-only). FILEBROWSER_OIDC_CLIENT_ID
+#   + FILEBROWSER_OIDC_CLIENT_SECRET env vars override the secret values from
+#   the SOPS-rendered filebrowser-oidc-client Secret (per upstream
+#   config.go: env vars take precedence over config.yaml stanzas).
+# - FILEBROWSER_ADMIN_PASSWORD env (from SopsSecret filebrowser-admin) seeds
+#   the local `admin` account on first boot. After OIDC is verified working,
+#   the admin account can be disabled in the UI or left as break-glass.
+#
+# home-ca trust: Quantum's backend is Go (no Node) so no NODE_EXTRA_CA_CERTS
+# dance — the `home-ca-bundle` ConfigMap is mounted into /etc/ssl/certs as a
+# trust anchor + SSL_CERT_DIR points there so Go's crypto/x509 picks it up
+# for the OIDC discovery handshake against https://auth.apps.home.
+
+controllers:
+  main:
+    # sqlite-on-RWO + RWX-on-data → Recreate to avoid old/new pod racing.
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/gtstef/filebrowser
+          tag: "1.3.3-stable"
+        env:
+          # Container default: /home/filebrowser/data/config.yaml + database.db
+          # set via Dockerfile ENV. Override path NOT needed — we mount config.yaml
+          # at the default location.
+          # Tell Go's TLS stack where to find the home CA bundle. Trust-manager
+          # broadcasts `home-ca-bundle` ConfigMap into every ns (key ca.crt).
+          SSL_CERT_FILE: /etc/ssl/home-ca/ca.crt
+          # OIDC client credentials from the SOPS-rendered Secret
+          # (created by the platform's oidc-bootstrap Job, see apps.yaml).
+          FILEBROWSER_OIDC_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: filebrowser-oidc-client
+                key: client_id
+          FILEBROWSER_OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: filebrowser-oidc-client
+                key: client_secret
+          # Local-admin seed (break-glass + first-boot bootstrap).
+          FILEBROWSER_ADMIN_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: filebrowser-admin
+                key: admin_password
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /health
+                port: 80
+              initialDelaySeconds: 30
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /health
+                port: 80
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        # Restricted-PSS clean. Image USERs filebrowser (uid 1000).
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  # Same musl/getaddrinfo workaround as audiobookshelf-v2/excalidash for
+  # auth.apps.home — Go's net dialer also honours /etc/hosts and this skips
+  # the CoreDNS-template + fallthrough quirk that bites Alpine-based images.
+  # gtstef/filebrowser builds on alpine.
+  hostAliases:
+    - ip: 10.10.10.200
+      hostnames:
+        - auth.apps.home
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 80
+
+# All PVCs in this app are pre-rendered by extras.filebrowser (platform
+# chart) so `storageClassName: kadalu.replica2-retain` can be set explicitly
+# (bjw-s app-template v4.6.2's persistence schema rejects storageClassName
+# at the top level — same workaround as booklore-data).
+persistence:
+  # Quantum's own state — config.yaml, sqlite (database.db), JWT secret,
+  # share index. CRITICAL-tier (loses admin account + share metadata if
+  # nuked). Bound to PVC `filebrowser-state` from extras.
+  state:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: filebrowser-state
+    advancedMounts:
+      main:
+        app:
+          - path: /home/filebrowser/data
+            # config.yaml lives in this dir per Dockerfile ENV. We mount the
+            # PVC here so database.db, jwt secret, and the auto-generated
+            # config.yaml fragments survive restart.
+  # The actual file share — what the user reads/writes via the web UI.
+  # Same PVC the Samba release in this ns mounts at /share. 100Gi RWX
+  # kadalu.replica2-retain (Retain reclaim — see extras header).
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: filebrowser-data
+    advancedMounts:
+      main:
+        app:
+          - path: /srv
+  # Bootstrap config.yaml (ConfigMap rendered by extras.filebrowser).
+  # NOTE: Quantum writes config back to disk on UI changes — if the PVC
+  # already has a config.yaml from a prior run, that wins. The ConfigMap is
+  # the first-boot seed only.
+  config-seed:
+    enabled: true
+    type: configMap
+    name: filebrowser-config-seed
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/filebrowser-seed/config.yaml
+            subPath: config.yaml
+            readOnly: true
+  # readOnlyRootFilesystem=true → need a writable /tmp for uploads + scratch.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
+  # home-ca trust bundle (trust-manager broadcasts into every ns).
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true

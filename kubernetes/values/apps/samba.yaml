@@ -1,0 +1,129 @@
+# samba — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# SMB share for the NAS PVC — single user (J), single share (`data`).
+# Upstream image: ghcr.io/crazy-max/samba — declarative YAML config at
+# /data/config.yml, supports per-user uid/gid, runs without --privileged.
+# Pinned to 4.22.8-r1 (current stable at draft time).
+#
+# Lives in the `filebrowser` namespace alongside the FileBrowser Quantum
+# release; both pods mount the same `filebrowser-data` PVC so the share
+# the web UI exposes and the SMB share point at the same backing data.
+#
+# Auth: SMB password for `j` user comes from SopsSecret `samba-users`
+# (kubernetes/secrets/apps/samba-users.yaml). The container's config.yml
+# is rendered as a Secret at deploy-time (mounted at /data/config.yml)
+# so the password isn't visible in the ConfigMap.
+#
+# EXPOSURE: SMB exposed on 10.10.10.205:445 via cilium L2 (LoadBalancer
+# Service drawing from the default CiliumLoadBalancerIPPool, 10.10.10.200
+# -10.10.10.220). Reachable from LAN only; UniFi FW rule scopes to user's
+# laptop. Decided 2026-05-28.
+
+controllers:
+  main:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: ghcr.io/crazy-max/samba
+          tag: "4.22.8-r1"
+        env:
+          # Default config path inside the image.
+          CONFIG_FILE: /data/config.yml
+          TZ: UTC
+          # Skip Avahi/WSDD broadcast — they need NET_RAW/host networking
+          # and we have no use for SMB discovery inside a cluster ns.
+          AVAHI_ENABLE: "false"
+          WSDD2_ENABLE: "false"
+        ports:
+          - name: smb
+            containerPort: 445
+            protocol: TCP
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 445
+              initialDelaySeconds: 20
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 445
+              initialDelaySeconds: 5
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        # Samba/smbd needs to bind :445 + chown share dirs at startup.
+        # crazy-max's image entrypoint can drop privs to per-share uid 1000
+        # but the master smbd process must start as root. NS is labeled
+        # baseline for that (see extras.filebrowser); restricted is rejected.
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # smbd writes to /var/lib/samba state
+          capabilities:
+            drop: [ALL]
+            # NET_BIND_SERVICE: smbd binds :445 (<1024).
+            # SETUID/SETGID/CHOWN/FOWNER/DAC_OVERRIDE: per-connection
+            # impersonation to the per-share uid (uid 1000 for `j`).
+            add: [NET_BIND_SERVICE, CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+
+    pod:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+
+# SMB exposed via Cilium L2 LoadBalancer on dedicated VIP 10.10.10.205.
+# Pool defined in extras.yaml (CiliumLoadBalancerIPPool default-pool,
+# range 10.10.10.200-220); 10.10.10.205 is free. `loadBalancerIP` field
+# pins the assignment; Cilium honours this for IPAM. UniFi FW restricts
+# inbound 10.10.10.205:445 to the user's laptop only.
+service:
+  main:
+    controller: main
+    type: LoadBalancer
+    loadBalancerIP: 10.10.10.205
+    annotations:
+      lbipam.cilium.io/ips: "10.10.10.205"
+    ports:
+      smb:
+        port: 445
+        targetPort: 445
+        protocol: TCP
+
+persistence:
+  # The shared NAS volume — same PVC as filebrowser-quantum. Pre-rendered by
+  # extras.filebrowser. 100Gi RWX kadalu.replica2-retain.
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: filebrowser-data
+    advancedMounts:
+      main:
+        app:
+          - path: /share
+  # SMB config (rendered by extras.filebrowser as a Secret carrying users +
+  # passwords + share def). Mounted at the default CONFIG_FILE path.
+  config:
+    enabled: true
+    type: secret
+    name: samba-config
+    advancedMounts:
+      main:
+        app:
+          - path: /data/config.yml
+            subPath: config.yml
+            readOnly: true

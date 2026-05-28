@@ -1186,6 +1186,129 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* FILEBROWSER (Quantum) + SAMBA — shared NAS-style storage                   */}}
+{{/* Renders:                                                                    */}}
+{{/*   - filebrowser namespace, BASELINE PSS                                     */}}
+{{/*     (smbd binds :445 + drops privs per-connection — restricted rejects     */}}
+{{/*      runAsUser=0 even with NET_BIND_SERVICE cap; baseline lets the smbd    */}}
+{{/*      master process start as root and impersonate per-share uid 1000)      */}}
+{{/*   - filebrowser-data PVC (100Gi RWX kadalu.replica2-retain) — the actual  */}}
+{{/*     NAS volume mounted by BOTH the Quantum web UI release (at /srv) and   */}}
+{{/*     the Samba release (at /share) in the same ns. CRITICAL DATA: the SC   */}}
+{{/*     `kadalu.replica2-retain` gives the dynamically-provisioned PV a       */}}
+{{/*     Retain reclaim by default — NO post-install patch needed (per         */}}
+{{/*     docs/pvc-reclaim-policy.md "Pattern A → kadalu.replica2-retain").     */}}
+{{/*   - filebrowser-state PVC (5Gi RWO kadalu.replica2-retain) — Quantum's   */}}
+{{/*     sqlite database.db + config.yaml + JWT secret + share index.          */}}
+{{/*   - filebrowser-config-seed ConfigMap — first-boot config.yaml stub      */}}
+{{/*     telling Quantum where the database/source are + which auth methods   */}}
+{{/*     are enabled. Quantum WRITES this file back on UI changes — the seed  */}}
+{{/*     wins only on a never-touched state PVC. OIDC client_id/secret come   */}}
+{{/*     from env (filebrowser-oidc-client Secret) which TAKES PRECEDENCE     */}}
+{{/*     over config.yaml per upstream config.go.                              */}}
+{{/* NOTE: Samba's config.yml (carries J's SMB password) is NOT rendered      */}}
+{{/* here — it lives as a SopsSecret at kubernetes/secrets/apps/samba-       */}}
+{{/* config.yaml so the password stays encrypted. The Samba release mounts   */}}
+{{/* that Secret at /data/config.yml.                                         */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.filebrowser }}
+{{- $fb := .Values.extras.filebrowser }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: filebrowser
+  labels:
+    # baseline — samba needs runAsUser=0 + cap NET_BIND_SERVICE for smbd's
+    # :445 listener; restricted PSS rejects that combination. Quantum
+    # itself is restricted-clean (uid 1000) — labels don't stop it from
+    # running with a tighter pod securityContext.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Shared NAS data PVC — mounted by both Quantum (at /srv) and Samba (at
+# /share). RWX is required because the two releases land on different
+# pods that may schedule on different nodes. Retain SC so an ArgoCD prune
+# (component-removed-from-apps.yaml) does NOT wipe the underlying brick.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filebrowser-data
+  namespace: filebrowser
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ $fb.dataSize | default "100Gi" }}
+---
+# Quantum's own state — sqlite (database.db), config.yaml, JWT secret,
+# share index. CRITICAL-tier: losing this loses local users, share links,
+# and any per-user upload state. Retain SC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: filebrowser-state
+  namespace: filebrowser
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ $fb.stateSize | default "5Gi" }}
+---
+# First-boot config.yaml for Quantum. Container reads it from
+# /home/filebrowser/data/config.yaml (Dockerfile ENV FILEBROWSER_CONFIG).
+# Quantum writes settings changes back to disk on UI edits so this stub
+# only seeds the never-touched state PVC. OIDC client_id/secret come via
+# env from the filebrowser-oidc-client Secret (env > yaml precedence).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebrowser-config-seed
+  namespace: filebrowser
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  config.yaml: |
+    server:
+      port: 80
+      baseURL: "/"
+      sources:
+        - path: "/srv"
+          name: "data"
+    auth:
+      loginMethod: oidc
+      methods:
+        password:
+          enabled: true       # break-glass local-admin
+          minLength: 12
+          signup: false
+        oidc:
+          enabled: true
+          # ClientID / ClientSecret come from env (see values file).
+          issuerUrl: "https://auth.apps.home"
+          scopes: "openid profile email groups"
+          # `preferred_username` is the pocket-id default; matches what
+          # audiobookshelf / excalidash / papra all match users on.
+          userIdentifier: "preferred_username"
+          # Sync admin role from pocket-id `administrators` group.
+          adminGroup: "administrators"
+          # End-user gate is at pocket-id (groupRestriction in apps.yaml)
+          # — leaving userGroups empty here so the IDP is the single
+          # authority on who can log in.
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}
