@@ -2,7 +2,7 @@
 # SMB share for the NAS PVC — single user (J), single share (`data`).
 # Upstream image: ghcr.io/crazy-max/samba — declarative YAML config at
 # /data/config.yml, supports per-user uid/gid, runs without --privileged.
-# Pinned to 4.22.8-r1 (current stable at draft time).
+# Pinned to 4.22.8 (current stable; ghcr publishes no -r1 suffix).
 #
 # Lives in the `filebrowser` namespace alongside the FileBrowser Quantum
 # release; both pods mount the same `filebrowser-data` PVC so the share
@@ -25,7 +25,7 @@ controllers:
       app:
         image:
           repository: ghcr.io/crazy-max/samba
-          tag: "4.22.8-r1"
+          tag: "4.22.8"
         env:
           # Default config path inside the image.
           CONFIG_FILE: /data/config.yml

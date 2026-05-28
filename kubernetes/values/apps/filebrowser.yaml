@@ -40,9 +40,11 @@ controllers:
           repository: docker.io/gtstef/filebrowser
           tag: "1.3.3-stable"
         env:
-          # Container default: /home/filebrowser/data/config.yaml + database.db
-          # set via Dockerfile ENV. Override path NOT needed — we mount config.yaml
-          # at the default location.
+          # Point Quantum at the seed ConfigMap directly. cli.go reads
+          # FILEBROWSER_CONFIG when -c flag is unset (see backend/cmd/cli.go
+          # line 38). The state PVC at /home/filebrowser/data starts empty on
+          # fresh deploy, so without this Quantum FATALs on missing config.yaml.
+          FILEBROWSER_CONFIG: /etc/filebrowser-seed/config.yaml
           # Tell Go's TLS stack where to find the home CA bundle. Trust-manager
           # broadcasts `home-ca-bundle` ConfigMap into every ns (key ca.crt).
           SSL_CERT_FILE: /etc/ssl/home-ca/ca.crt
