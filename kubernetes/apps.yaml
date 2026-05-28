@@ -1169,6 +1169,11 @@ components:
       callbackUrls:
         - https://files.apps.home/api/auth/oidc/callback
       scopes: [openid, profile, email, groups]
+      # Quantum 1.3.3 does NOT generate a PKCE code_challenge in /authorize
+      # (backend/http/oidc.go: AuthCodeURL(state) only, no S256ChallengeOption)
+      # so pocket-id MUST NOT require PKCE on this client or token exchange
+      # fails with "Invalid code verifier". Revisit when Quantum adds PKCE.
+      pkceEnabled: false
       groupRestriction:
         allowedGroups: [apps_users, administrators]
 
