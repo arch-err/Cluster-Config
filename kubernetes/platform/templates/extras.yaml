@@ -1283,6 +1283,10 @@ data:
     server:
       port: 80
       baseURL: "/"
+      # readOnlyRootFilesystem=true on the pod — Quantum's default
+      # cache dir is a relative `tmp/` which fails. Point at the
+      # /tmp emptyDir mount (see structs.go: Server.CacheDir).
+      cacheDir: "/tmp/cache"
       sources:
         - path: "/srv"
           name: "data"
