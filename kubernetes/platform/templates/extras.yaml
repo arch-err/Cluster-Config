@@ -1287,7 +1287,6 @@ data:
         - path: "/srv"
           name: "data"
     auth:
-      loginMethod: oidc
       methods:
         password:
           enabled: true       # break-glass local-admin
@@ -1296,16 +1295,26 @@ data:
         oidc:
           enabled: true
           # ClientID / ClientSecret come from env (see values file).
+          # FILEBROWSER_OIDC_CLIENT_ID / _SECRET take precedence over
+          # any value here (see backend/common/settings/config.go).
           issuerUrl: "https://auth.apps.home"
           scopes: "openid profile email groups"
           # `preferred_username` is the pocket-id default; matches what
           # audiobookshelf / excalidash / papra all match users on.
           userIdentifier: "preferred_username"
           # Sync admin role from pocket-id `administrators` group.
+          # Matches the lowercase group name used across the cluster
+          # (booklore REMOTE_AUTH_ADMIN_GROUP, oauth2-proxy
+          # --allowed-group, etc).
           adminGroup: "administrators"
           # End-user gate is at pocket-id (groupRestriction in apps.yaml)
           # — leaving userGroups empty here so the IDP is the single
           # authority on who can log in.
+    # Default login method for the UI's first-load. Lives under
+    # userDefaults in Quantum 1.3.3 (not under auth) — see
+    # backend/common/settings/structs.go: UserDefaults.LoginMethod.
+    userDefaults:
+      loginMethod: oidc
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
