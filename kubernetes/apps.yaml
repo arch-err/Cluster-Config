@@ -789,67 +789,6 @@ components:
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
   # ──────────────────────────────────────────────────────────────────────────
-  # PODSYNC — YouTube → podcast RSS+mp3 bridge for audiobookshelf-v2. Runs as
-  # a single Go binary serving HTML index + per-feed RSS XML + mp3 enclosures
-  # on :8080. ABS-v2 subscribes to per-feed RSS via in-cluster Service DNS
-  # (http://podsync.podsync.svc.cluster.local:8080/<feed-id>/feed.xml) and
-  # downloads episodes into its podcasts library. The gateway-side
-  # `podsync.apps.home` is fronted by oauth2-proxy (admin UI for arch-err);
-  # the `/<feed-id>/` path tree is skip-auth-route'd so anyone with the URL
-  # can pull RSS without OIDC (mirrors navidrome's /rest/ bypass — same
-  # rationale: non-browser clients can't speak OIDC).
-  #
-  # No `extras:` block needed — ArgoCD CreateNamespace=true handles the ns;
-  # the data PVC is dedicated (NOT a media-library twin) since podsync owns
-  # episode cleanup via clean.keep_last and the long-term media volume
-  # shouldn't be entangled with that.
-  #
-  # See values/apps/podsync.yaml for the config.toml + cookies/secret wiring.
-  # ──────────────────────────────────────────────────────────────────────────
-  - name: podsync
-    namespace: podsync
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    # HTTPRoute points at oauth2-podsync Service (same ns), NOT directly at
-    # the podsync workload. `/<feed-id>/` paths are bypassed in the proxy
-    # so RSS + mp3 enclosures reach podsync without OIDC. ABS uses Service
-    # DNS in-cluster so it never traverses this gateway.
-    route:
-      hostname: podsync.apps.home
-      gateway: apps
-      service: oauth2-podsync
-      port: 80
-      timeout: 30m  # large mp3 enclosure downloads can take a while
-      dashboard:
-        name: Podsync
-        group: Media
-        icon: podcast.svg
-        description: YouTube → podcast RSS bridge (for ABS)
-        app: podsync
-    # Per-app OIDC client (pocket-id id=`podsync`). Secret rendered into the
-    # `podsync` ns as `podsync-oidc-client`; consumed by the podsync-oauth2
-    # release. apps_users + administrators allowed at the IDP level on top
-    # of oauth2-proxy --allowed-group (defense in depth).
-    oidc:
-      enabled: true
-      callbackUrls:
-        - https://podsync.apps.home/oauth2/callback
-      scopes: [openid, profile, email, groups]
-      groupRestriction:
-        allowedGroups: [apps_users, administrators]
-
-  - name: podsync-oauth2
-    namespace: podsync
-    chart:
-      repo: https://oauth2-proxy.github.io/manifests
-      name: oauth2-proxy
-      version: 10.4.3
-    # Consumes `podsync-oidc-client` Secret rendered by the podsync
-    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
-
-  # ──────────────────────────────────────────────────────────────────────────
   # FORGEJO — self-hosted git platform (phase 3 of kubernetes/manual/forgejo/
   # PLAN.md). Repos + LFS + built-in OCI registry + Actions API at
   # git.apps.home. cnpg-backed postgres via the platform `db:` block (cluster
