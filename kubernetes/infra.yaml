@@ -202,46 +202,6 @@ components:
       # secretName defaults to "grafana-oidc-client"
 
   # ════════════════════════════════════════════════════════════════════════════
-  # BOOKINFO — self-hosted readarr metadata mirror (replaces dead api.bookinfo.club)
-  # ════════════════════════════════════════════════════════════════════════════
-  # Image: docker.io/blampe/rreading-glasses (Goodreads variant). Two services
-  # in one pod: rreading-glasses on :8788 (HTTP) + nginx-tls sidecar on :8443
-  # presenting a home-ca-issued cert with SAN=api.bookinfo.club. CoreDNS
-  # rewrites that hostname to the in-cluster ClusterIP svc so readarr's
-  # hardcoded outbound URL Just Works without any UI configuration. The
-  # bookinfo.infra.home route below is for human use (homepage card + API
-  # debug); readarr's path is via the rewrite + home-ca trust, NOT this route.
-  # bookinfo — DISABLED 2026-05-13. Underlying postgres PV hit kadalu disk
-  # quota ("could not create lock file 'postmaster.pid': Disk quota exceeded").
-  # App-of-apps wave 3 was blocked indefinitely on bookinfo-postgres Deployment
-  # Progressing → wave 4 (crossview) couldn't get created. Disabling at the
-  # component layer; extras.bookinfo (ns + PV + cert + nginx CM) stays in
-  # place so data isn't lost. Re-enable after fixing kadalu subvol quota or
-  # provisioning a fresh PV. Refer to readarr metadata path: hostAliases via
-  # api.bookinfo.pro is still wired (see kubernetes/values/apps/readarr.yaml).
-  # - name: bookinfo
-  #   namespace: bookinfo
-  #   chart:
-  #     repo: https://bjw-s-labs.github.io/helm-charts
-  #     name: app-template
-  #     version: 4.6.2
-  #   syncWave: "3"  # after extras (ns + postgres + cert + nginx cm) settle
-  #   route:
-  #     hostname: bookinfo.infra.home
-  #     gateway: infra
-  #     # bjw-s/app-template suffixes service names when multiple service blocks
-  #     # exist (`bookinfo-main` for HTTP, `bookinfo-tls` for the api.bookinfo.club
-  #     # HTTPS ingress consumed via CoreDNS rewrite). HTTPRoute hits the HTTP one.
-  #     service: bookinfo-main
-  #     port: 80
-  #     dashboard:
-  #       name: BookInfo
-  #       group: Tools
-  #       icon: readarr.svg
-  #       description: readarr metadata mirror (rreading-glasses)
-  #       app: bookinfo
-
-  # ════════════════════════════════════════════════════════════════════════════
   # CROSSPLANE + CROSSVIEW — control-plane core + UI dashboard
   # ════════════════════════════════════════════════════════════════════════════
   # Crossplane core (CRDs + RBAC manager) in `crossplane-system` ns.
@@ -405,18 +365,6 @@ extras:
   kadalu: true
   monitoring: true
   hubbleAuth: true
-  # bookinfo — DISABLED 2026-05-13. The underlying postgres PVC hit a kadalu
-  # disk-quota wall ("could not create lock file 'postmaster.pid': Disk quota
-  # exceeded") and the postgres Deployment crashlooped for 5d+, which blocked
-  # the infra app-of-apps from progressing past wave 3. Setting to a falsy
-  # value short-circuits the extras render (postgres Deployment + Service +
-  # PVC + nginx CM + Certificate + ns all pruned by ArgoCD). Re-enable with
-  # a larger postgresSize once the kadalu subvol quota is fixed. Only the
-  # rreading-glasses cache is lost — rebuilds from the first readarr search.
-  # Until re-enabled, readarr still has the api.bookinfo.pro hostAliases path
-  # (see values/apps/readarr.yaml) so book metadata search still works.
-  # bookinfo:
-  #   postgresSize: 5Gi
   # crossview — restricted-PSS namespace only (no PVCs/postgres at this layer;
   # the chart's bundled postgres uses emptyDir in pilot mode — see
   # values/infra/crossview.yaml header for the trade-off).
