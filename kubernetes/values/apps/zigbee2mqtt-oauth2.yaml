@@ -7,8 +7,8 @@
 #
 # Consumes `zigbee2mqtt-oidc-client` (rendered by the zigbee2mqtt Application's
 # oidc:* block in apps.yaml; pocket-id client id=`zigbee2mqtt`, restricted to
-# apps_users + administrators at the IDP level on top of the --allowed-group
-# flags below).
+# infra_users + administrators at the IDP level on top of the --allowed-group
+# flags below — operator tooling, exposed on the INFRA gateway).
 #
 # COOKIE SECRET: sourced from SopsSecret `zigbee2mqtt-oauth2-cookie` in the
 # zigbee2mqtt ns (kubernetes/secrets/apps/zigbee2mqtt-oauth2-cookie.yaml).
@@ -38,11 +38,11 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   # Single upstream — the zigbee2mqtt frontend in-cluster service (:8080).
   - --upstream=http://zigbee2mqtt.zigbee2mqtt.svc.cluster.local:8080
-  - --cookie-domain=zigbee2mqtt.apps.home
+  - --cookie-domain=zigbee2mqtt.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
   - --cookie-name=_zigbee2mqtt_oauth2_proxy
-  - --allowed-group=apps_users
+  - --allowed-group=infra_users
   - --allowed-group=administrators
   # No skip-auth-route — gate EVERY path (the frontend API is the sensitive
   # surface). Z2M's frontend uses websockets for live updates; oauth2-proxy

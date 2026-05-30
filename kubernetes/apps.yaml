@@ -844,11 +844,12 @@ components:
     # at the Z2M workload — the frontend can permit-join / reset the mesh, so
     # it is never exposed ungated.
     route:
-      hostname: zigbee2mqtt.apps.home
-      gateway: apps
+      hostname: zigbee2mqtt.infra.home
+      gateway: infra
       service: oauth2-zigbee2mqtt
       port: 80
       dashboard:
+        enabled: true   # gateway:infra defaults to hidden; opt in explicitly
         name: Zigbee2MQTT
         group: Home
         icon: zigbee2mqtt.svg
@@ -856,15 +857,16 @@ components:
         app: zigbee2mqtt
     # Per-app OIDC client (pocket-id id=`zigbee2mqtt`). Secret rendered into the
     # `zigbee2mqtt` ns as `zigbee2mqtt-oidc-client`; consumed by the
-    # zigbee2mqtt-oauth2 release. apps_users + administrators allowed at the IDP
-    # level on top of oauth2-proxy --allowed-group.
+    # zigbee2mqtt-oauth2 release. infra_users + administrators allowed at the IDP
+    # level on top of oauth2-proxy --allowed-group — operator tooling lives on
+    # the infra tier (mirrors qbittorrent/grafana/argocd).
     oidc:
       enabled: true
       callbackUrls:
-        - https://zigbee2mqtt.apps.home/oauth2/callback
+        - https://zigbee2mqtt.infra.home/oauth2/callback
       scopes: [openid, profile, email, groups]
       groupRestriction:
-        allowedGroups: [apps_users, administrators]
+        allowedGroups: [infra_users, administrators]
 
   # oauth2-proxy fronting zigbee2mqtt's frontend. Same pattern as
   # calibre-web-oauth2. Lives in the zigbee2mqtt ns so the OIDC-client Secret +

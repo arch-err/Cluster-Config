@@ -41,8 +41,9 @@
 # ─── Frontend (GATED) ─────────────────────────────────────────────────────────
 # The frontend can permit-join, reset the network, and re-pair devices — it is
 # sensitive and is NEVER exposed ungated. It listens on :8080 (ClusterIP);
-# external access is via the oauth2-zigbee2mqtt proxy (pocket-id OIDC) only —
-# see values/apps/zigbee2mqtt-oauth2.yaml + the route in apps.yaml.
+# external access is via the oauth2-zigbee2mqtt proxy (pocket-id OIDC) only,
+# on the INFRA gateway (zigbee2mqtt.infra.home) — see
+# values/apps/zigbee2mqtt-oauth2.yaml + the route in apps.yaml.
 #
 # ─── Metrics ──────────────────────────────────────────────────────────────────
 # Z2M 2.x has NO built-in Prometheus endpoint (confirmed against the settings
