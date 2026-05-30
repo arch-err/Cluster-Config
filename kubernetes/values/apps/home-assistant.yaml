@@ -234,9 +234,34 @@ controllers:
             with open(path) as f:
                 store = json.load(f)
             entries = store.setdefault("data", {}).setdefault("entries", [])
-            if any(e.get("domain") == "mqtt" for e in entries):
-                print("[seed-mqtt] mqtt config entry already present; leaving alone")
+
+            # HA's loader (this version) reads entry["subentries"] +
+            # entry["discovery_keys"] directly (KeyError if absent — they were
+            # store-migrated in v1.4/v1.5). Every entry we write MUST carry both.
+            def ensure_required(e):
+                changed = False
+                if "subentries" not in e:
+                    e["subentries"] = []; changed = True
+                if "discovery_keys" not in e:
+                    e["discovery_keys"] = {}; changed = True
+                return changed
+
+            mqtt_entries = [e for e in entries if e.get("domain") == "mqtt"]
+            if mqtt_entries:
+                # Self-heal: an earlier seed (or a hand-made entry) may be missing
+                # the required keys. Repair in place, but never touch the user's
+                # broker/creds/options. Idempotent no-op once healthy.
+                fixed = sum(ensure_required(e) for e in mqtt_entries)
+                if fixed:
+                    tmp = path + ".tmp"
+                    with open(tmp, "w") as f:
+                        json.dump(store, f, indent=2)
+                    os.replace(tmp, path)
+                    print("[seed-mqtt] repaired %d existing mqtt entry(ies) missing subentries/discovery_keys" % fixed)
+                else:
+                    print("[seed-mqtt] mqtt config entry already present + valid; leaving alone")
                 sys.exit(0)
+
             now = datetime.datetime.now(datetime.timezone.utc).isoformat()
             entries.append({
                 "created_at": now,
@@ -249,6 +274,7 @@ controllers:
                 },
                 "disabled_by": None,
                 "discovery_keys": {},
+                "subentries": [],
                 "domain": "mqtt",
                 "entry_id": uuid.uuid4().hex,
                 "minor_version": 2,
