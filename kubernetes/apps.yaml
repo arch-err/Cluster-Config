@@ -789,119 +789,6 @@ components:
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
   # ──────────────────────────────────────────────────────────────────────────
-  # FORGEJO — self-hosted git platform (phase 3 of kubernetes/manual/forgejo/
-  # PLAN.md). Repos + LFS + built-in OCI registry + Actions API at
-  # git.apps.home. cnpg-backed postgres via the platform `db:` block (cluster
-  # name `forgejo-db`, app creds in auto-minted secret `forgejo-db-app`).
-  # OIDC via pocket-id (callback path = /user/oauth2/<source-name>/callback;
-  # source name `pocket-id` is mirrored in values/apps/forgejo.yaml gitea.oauth).
-  # SSH future-proofed at the pod/service level (port 22 → targetPort 2222,
-  # ClusterIP) but NO Gateway listener / TCPRoute yet — those land in the
-  # post-v1 manual flip per PLAN's "post-v1: enabling SSH on :22" section.
-  # First-admin (cluster-bootstrap) is a MANUAL install-wizard step using
-  # the password from SopsSecret `forgejo-admin-bootstrap` (kubernetes/
-  # secrets/apps/forgejo-admin-bootstrap.yaml). Phase 3.5 agent automates
-  # the subsequent API-token mint into crossplane-system; out of scope here.
-  # ──────────────────────────────────────────────────────────────────────────
-  - name: forgejo
-    namespace: forgejo
-    chart:
-      # Forgejo distributes the helm chart as an OCI artifact (no
-      # `helm repo add`-able http index). ArgoCD detects OCI from the
-      # repoURL shape (registry/path with NO scheme — explicitly NOT
-      # `oci://...` per argo-cd.readthedocs.io/en/stable/user-guide/helm/).
-      # Together with `chart: forgejo` + `version: 17.1.0` this resolves
-      # to oci://code.forgejo.org/forgejo-helm/forgejo:17.1.0.
-      repo: code.forgejo.org/forgejo-helm
-      name: forgejo
-      version: 17.1.0
-    syncWave: "3"  # after extras (ns) + cnpg Cluster reconcile (sync-wave 0)
-    route:
-      hostname: git.apps.home
-      gateway: apps
-      service: forgejo-http
-      port: 3000
-      timeout: 30m  # LFS pushes + large registry blob uploads
-      dashboard:
-        group: Code
-        icon: forgejo.svg
-        description: Self-hosted git platform
-        app: forgejo
-    # Per-app OIDC client (pocket-id id=`forgejo`). Secret rendered into the
-    # `forgejo` ns as `forgejo-oidc-client`; consumed by the chart's
-    # configure_oauth() init script. callbackUrl path = /user/oauth2/<name>/
-    # callback where <name> matches the gitea.oauth[0].name in the values
-    # file (`pocket-id`). apps_users + administrators allowed at the IDP
-    # level; first-user-as-admin is handled by the manual wizard step.
-    oidc:
-      enabled: true
-      callbackUrls:
-        - https://git.apps.home/user/oauth2/pocket-id/callback
-      scopes: [openid, profile, email, groups]
-      secretName: forgejo-oidc-client
-      groupRestriction:
-        allowedGroups: [apps_users, administrators]
-    # cnpg-managed postgres via platform db: block. Cluster name auto-derives
-    # to `forgejo-db` (forgejo ns); auto-minted Secret `forgejo-db-app` is
-    # wired into the chart via additionalConfigFromEnvs (see values file).
-    # 20Gi is the v1 floor — kadalu PVCs are expandable; bump in-place later.
-    db:
-      enabled: true
-      version: "16"
-      storage:
-        size: 20Gi
-        storageClass: kadalu.replica2-retain
-      instances: 1
-    # Phase 3.5 — first-admin + API-token bootstrap.
-    # Part A (admin user creation) is handled by the chart's gitea.admin
-    # existingSecret knob (values/apps/forgejo.yaml → forgejo-admin-bootstrap
-    # carrying chart-expected `username`/`password`/`email` keys alongside
-    # the legacy `ADMIN_PASSWORD`). Chart's configure-gitea init runs
-    # `forgejo admin user create` on first pod boot.
-    # Part B (API-token mint) is THIS block — platform template renders a
-    # hashed-name Job that basic-auths as cluster-bootstrap, mints a token
-    # named `crossplane` (scope: all), and writes Secret forgejo-admin-token
-    # into crossplane-system ns for phase 4's provider-gitea ProviderConfig.
-    forgejoAdmin:
-      enabled: true
-      username: cluster-bootstrap
-      email: cluster-bootstrap@apps.home
-      passwordSecret: forgejo-admin-bootstrap
-      tokenSecretName: forgejo-admin-token
-      tokenSecretNamespace: crossplane-system
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # FORGEJO-RUNNER — single rootless-podman-sidecar runner (phase 6 of
-  # kubernetes/manual/forgejo/PLAN.md). Picks up Actions jobs from the live
-  # forgejo at git.apps.home via in-cluster service. Pod shape: runner
-  # container (forgejo/runner) + podman sidecar (quay.io/podman/stable)
-  # sharing /run/podman over emptyDir. NO privileged, NO SYS_ADMIN — restricted
-  # PSS clean. Reference implementation for a parallel OCP pitch at $work
-  # (see ~/.agents/cluster-builder/notes/forgejo-runners-ocp-pitch.md). The
-  # `forgejoRunner:` block below gates the registration-token bootstrap Job
-  # (mirrors forgejoAdmin pattern from phase 3.5).
-  # ──────────────────────────────────────────────────────────────────────────
-  - name: forgejo-runner
-    namespace: forgejo-runner
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    syncWave: "4"  # after forgejo + admin-token bootstrap (wave 3 + 11)
-    # NO route — runner has no public surface (egress-only to forgejo API).
-    # NO oidc, NO db, NO route.
-    forgejoRunner:
-      enabled: true
-      tokenSecretName: forgejo-runner-token
-      adminTokenRef:
-        namespace: crossplane-system
-        name: forgejo-admin-token
-        key: token
-      # In-cluster address — avoid the public hostname for the bootstrap
-      # Job's API call (skips home-ca trust + the gateway hop).
-      forgejoURL: http://forgejo-http.forgejo.svc:3000
-
-  # ──────────────────────────────────────────────────────────────────────────
   # SAMBA — standalone NAS-style SMB share. crazy-max samba image, single
   # share `data`, single user `j`. Replaced the earlier filebrowser-Quantum
   # + samba combo on 2026-05-28 — user dropped Quantum entirely; samba now
@@ -1023,11 +910,6 @@ extras:
   # never writes (no risk to files written by other apps as different uids).
   navidrome:
     librarySize: 1500Gi  # mirror extras.arr.librarySize — same backing subvol
-  # forgejo: namespace only (restricted PSS). Hosts the forgejo app + its
-  # cnpg-managed postgres Cluster (rendered by the platform `db:` block on
-  # the forgejo component in phase 3). See kubernetes/manual/forgejo/PLAN.md.
-  forgejo:
-    enabled: true
   # samba — standalone NAS-style SMB share. Renders:
   #   - samba namespace (BASELINE PSS — smbd binds :445 + drops privs
   #     per-connection, needs runAsUser=0 + NET_BIND_SERVICE which
@@ -1038,10 +920,3 @@ extras:
   samba:
     enabled: true
     dataSize: 100Gi
-  # forgejo-runner: namespace only (restricted PSS). Hosts a single forgejo
-  # actions runner + rootless podman sidecar (phase 6, kubernetes/manual/
-  # forgejo/PLAN.md). The bootstrap Job (renders into this ns from
-  # platform/templates/forgejo-runner-bootstrap.yaml) writes Secret
-  # `forgejo-runner-token` consumed at register time.
-  forgejoRunner:
-    enabled: true

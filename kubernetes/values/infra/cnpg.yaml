@@ -25,8 +25,8 @@ crds:
 
 config:
   create: true
-  # Operator watches every namespace — needed so app namespaces (forgejo,
-  # immich, etc.) can host their own Cluster CRs.
+  # Operator watches every namespace — needed so app namespaces (immich,
+  # etc.) can host their own Cluster CRs.
   clusterWide: true
 
 # Modest floor matching cert-manager / trust-manager. Operator is a controller

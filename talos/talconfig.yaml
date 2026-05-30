@@ -28,12 +28,11 @@ patches:
         extraArgs:
           rotate-server-certificates: "true"
 
-  # User namespaces for rootless containers (forgejo runner podman sidecar).
-  # Talos defaults user.max_user_namespaces=0 (rootless container support off);
-  # setting >0 enables it. 15000 matches Ubuntu's default — plenty for our
-  # workloads. Required for the OCP-portable runner pattern (no privileged
-  # dind, no SYS_ADMIN). See kubernetes/manual/forgejo/PLAN.md phase 6 + the
-  # OCP-pitch note for the rationale.
+  # User namespaces for rootless containers. Talos defaults
+  # user.max_user_namespaces=0 (rootless container support off); setting >0
+  # enables it. 15000 matches Ubuntu's default — plenty for our workloads.
+  # Enables OCP-portable rootless-container patterns (no privileged dind,
+  # no SYS_ADMIN) should any future workload need them.
   - |-
     machine:
       sysctls:

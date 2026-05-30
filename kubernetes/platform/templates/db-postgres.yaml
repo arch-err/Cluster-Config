@@ -29,9 +29,9 @@ Schema (under any component in apps.yaml / infra.yaml):
       limits:   { memory: 1Gi }
 
 Cluster name is `<component>-db` (so the app-creds Secret is
-`<component>-db-app`). Database name + owner are both `<component>` — i.e. the
-forgejo component gets a `forgejo` DB owned by user `forgejo` whose creds live
-in `forgejo-db-app`.
+`<component>-db-app`). Database name + owner are both `<component>` — i.e. a
+`myapp` component gets a `myapp` DB owned by user `myapp` whose creds live
+in `myapp-db-app`.
 
 No `type:` knob on the block — postgres-only for v1. Future engines can branch
 on a `db.type:` field without breaking existing entries.
