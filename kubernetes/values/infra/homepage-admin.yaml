@@ -63,6 +63,15 @@ config:
   # app we run, bucketed into sensible-but-rough categories. Easy to regroup.
   # Grafana + ArgoCD keep their live widgets (creds via envFrom).
   services:
+    - Gateways:
+        - Apps Gateway:
+            href: https://homepage.apps.home
+            description: Apps dashboard (homepage)
+            icon: mdi-view-dashboard
+        - Infra Gateway:
+            href: https://homepage.infra.home
+            description: Infra dashboard (homepage)
+            icon: mdi-view-dashboard-variant
     - Observability:
         - Grafana:
             href: https://grafana.infra.home
@@ -87,53 +96,53 @@ config:
         - Jellyfin:
             href: https://jellyfin.apps.home
             description: Movies & TV streaming
-            icon: jellyfin.png
+            icon: jellyfin.svg
         - Navidrome:
             href: https://navidrome.apps.home
             description: Music streaming server
-            icon: navidrome.png
+            icon: navidrome.svg
         - Audiobookshelf:
             href: https://audiobookshelf.apps.home
             description: Audiobooks & podcasts
-            icon: audiobookshelf.png
+            icon: audiobookshelf.svg
         - Immich:
             href: https://immich.apps.home
             description: Photo & video library
-            icon: immich.png
+            icon: immich.svg
         - MeTube:
             href: https://metube.apps.home
             description: yt-dlp web downloader
-            icon: mdi-download-box
+            icon: metube.png
         - BookLore:
             href: https://booklore.apps.home
             description: Ebook library manager
-            icon: mdi-book-open-page-variant
+            icon: si-bookstack.svg
         - Calibre-Web:
             href: https://calibre.apps.home
             description: Ebook reader & catalogue
-            icon: calibre-web.png
+            icon: calibre-web.svg
 
     - Docs & Notes:
         - Papra:
             href: https://papra.apps.home
             description: Document management
-            icon: mdi-file-document-multiple
+            icon: papra.png
         - Stirling PDF:
             href: https://stirling-pdf.apps.home
             description: PDF toolkit
-            icon: mdi-file-pdf-box
+            icon: stirling-pdf.png
         - Excalidash:
             href: https://excalidash.apps.home
             description: Whiteboard / diagrams
-            icon: mdi-draw
+            icon: excalidraw.svg
         - Vaultwarden:
             href: https://vaultwarden.apps.home
             description: Password manager
-            icon: vaultwarden.png
+            icon: vaultwarden.svg
         - Agent Vault:
             href: https://agent-vault.apps.home
             description: Agent secrets store
-            icon: mdi-safe
+            icon: infisical.svg
 
     - Tools:
         - IT Tools:
@@ -143,21 +152,21 @@ config:
         - CyberChef:
             href: https://cyberchef.apps.home
             description: Data transform workbench
-            icon: mdi-chef-hat
+            icon: cyberchef.png
         - Syncthing:
             href: https://syncthing.apps.home
             description: File sync
-            icon: syncthing.png
+            icon: syncthing.svg
         - ntfy:
             href: https://ntfy.apps.home
             description: Push notifications
-            icon: ntfy.png
+            icon: ntfy.svg
 
     - Comms:
         - Matrix:
             href: https://matrix.apps.home
             description: Matrix homeserver
-            icon: matrix.png
+            icon: matrix.svg
         - Hookshot:
             href: https://hookshot.apps.home
             description: Matrix bridge / webhooks
@@ -167,7 +176,7 @@ config:
         - Home Assistant:
             href: https://ha.apps.home
             description: Home automation
-            icon: home-assistant.png
+            icon: home-assistant.svg
         - Zigbee2MQTT:
             href: https://zigbee2mqtt.infra.home
             description: Zigbee device gateway
@@ -185,20 +194,13 @@ config:
         - Pocket ID:
             href: https://auth.apps.home
             description: OIDC identity provider
-            icon: mdi-shield-key
+            icon: pocket-id.png
 
   bookmarks:
     - Observability:
         - Prometheus:
             - abbr: PR
               href: https://prometheus.infra.home
-    - Other dashboards:
-        - Apps Homepage:
-            - abbr: AH
-              href: https://homepage.apps.home
-        - Infra Homepage:
-            - abbr: IH
-              href: https://homepage.infra.home
 
   # Top-of-page info widgets. Order matters — rendered left-to-right.
   # See https://gethomepage.dev/widgets/info/ for the catalogue.
