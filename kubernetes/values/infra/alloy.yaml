@@ -24,6 +24,53 @@ alloy:
         role = "node"
       }
 
+      // Scrape any pod annotated prometheus.io/scrape=true. Honours
+      // prometheus.io/port (default 9000) + prometheus.io/path (default
+      // /metrics). This is the cluster's annotation-driven app-metrics path —
+      // e.g. the zigbee2mqtt mqtt-exporter sidecar (LQI/battery/availability).
+      discovery.relabel "annotated_pods" {
+        targets = discovery.kubernetes.pods.targets
+        // Keep only pods opting in via the scrape annotation.
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+          regex         = "true"
+          action        = "keep"
+        }
+        // Override the metrics path from the annotation (default /metrics).
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+          regex         = "(.+)"
+          target_label  = "__metrics_path__"
+          action        = "replace"
+        }
+        // Rewrite the scrape address to <pod-ip>:<annotation-port>.
+        rule {
+          source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+          regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+          replacement   = "$1:$2"
+          target_label  = "__address__"
+          action        = "replace"
+        }
+        // Surface namespace + pod as labels for Grafana.
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+          action        = "replace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+          action        = "replace"
+        }
+      }
+
+      prometheus.scrape "annotated_pods" {
+        job_name        = "annotated-pods"
+        targets         = discovery.relabel.annotated_pods.output
+        forward_to      = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval = "30s"
+      }
+
       // Scrape kube-state-metrics
       discovery.kubernetes "ksm" {
         role = "service"

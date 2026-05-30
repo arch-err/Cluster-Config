@@ -1125,6 +1125,156 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* MOSQUITTO (MQTT broker) — namespace only (restricted PSS)                   */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.mosquitto }}
+---
+# mqtt namespace — default restricted PSS. eclipse-mosquitto 2.x runs as
+# non-root uid 1883 and only writes to /mosquitto/data + /log (explicit
+# volumes), so restricted is clean (no baseline flip needed). Holds the
+# mosquitto broker + its mosquitto-auth Secret (password file).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mqtt
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* ZIGBEE2MQTT — namespace (baseline PSS) + Retain data PVC                    */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.zigbee2mqtt }}
+{{- $z2m := .Values.extras.zigbee2mqtt }}
+---
+# zigbee2mqtt namespace — baseline PSS. The koenkk/zigbee2mqtt image uses
+# s6-overlay; /init starts as root to set up /app/data perms before dropping
+# to the run user — restricted PSS rejects that init flow (same trade as
+# calibre-web / home-assistant). The pod is NON-privileged; the ConBee dongle
+# is injected by the generic-device-plugin via the devic.es/zigbee resource
+# request, NOT via a privileged securityContext.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zigbee2mqtt
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# zigbee2mqtt data PVC — holds the IRREPLACEABLE Zigbee network identity:
+# coordinator_backup.json, the pan_id + network key, and every device
+# pairing. Losing it = re-pair every device + re-key the mesh. CRITICAL-tier
+# → kadalu.replica2-retain SC so an ArgoCD prune (component removed from
+# apps.yaml) leaves the underlying brick intact (Retain reclaim).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zigbee2mqtt-data
+  namespace: zigbee2mqtt
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ $z2m.dataSize | default "1Gi" }}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* GENERIC-DEVICE-PLUGIN (squat) — USB Zigbee dongle passthrough              */}}
+{{/* Privileged DaemonSet pinned to node-1; advertises the ConBee II as the     */}}
+{{/* schedulable resource devic.es/zigbee so zigbee2mqtt can request the device */}}
+{{/* WITHOUT being privileged. Privilege confined to this one DS. Authorized.   */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.genericDevicePlugin }}
+{{- $gdp := .Values.extras.genericDevicePlugin }}
+---
+# squat/generic-device-plugin. Runs in kube-system (system ns — no PSS
+# enforcement, so a privileged pod is permitted without labeling a new ns).
+# nodeSelector pins it to the one node physically holding the ConBee dongle,
+# so only that node advertises devic.es/zigbee and the privileged surface is
+# a single pod on a single node. It scans /dev (privileged + hostPath) and
+# registers the matched device with the kubelet device-plugin socket.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: generic-device-plugin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: generic-device-plugin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: generic-device-plugin
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: generic-device-plugin
+    spec:
+      priorityClassName: system-node-critical
+      # Pin to the node with the dongle — only this node has the ConBee, so
+      # only this node should run the (privileged) plugin.
+      nodeSelector:
+        kubernetes.io/hostname: {{ $gdp.node | default "node-1" }}
+      tolerations:
+        - operator: "Exists"
+          effect: "NoExecute"
+        - operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: generic-device-plugin
+          image: {{ $gdp.image | default "ghcr.io/squat/generic-device-plugin:0.2.0" }}
+          args:
+            - --device
+            - |
+              name: zigbee
+              groups:
+                - paths:
+                    - path: {{ $gdp.deviceGlob | default "/dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00" }}
+                      mountPath: {{ $gdp.deviceGlob | default "/dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00" }}
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 10Mi
+            limits:
+              cpu: 50m
+              memory: 20Mi
+          # Privileged + /dev hostPath: needed to scan the host device tree and
+          # hand the char device to the kubelet. This is THE authorized
+          # privileged surface — confined to this DaemonSet on node-1 only.
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: dev
+              mountPath: /dev
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: dev
+          hostPath:
+            path: /dev
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* KADALU STORAGE                                                             */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.kadalu }}

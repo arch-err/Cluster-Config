@@ -263,6 +263,21 @@ extras:
   kadalu: true
   monitoring: true
   hubbleAuth: true
+  # generic-device-plugin (squat) — a privileged DaemonSet, pinned to node-1,
+  # that advertises the ConBee II Zigbee dongle as the schedulable resource
+  # `devic.es/zigbee`. Lets zigbee2mqtt request the device WITHOUT being
+  # privileged itself — privilege is confined to this one small auditable DS
+  # (mirrors the qbittorrent privileged precedent). Authorized 2026-05-30.
+  # Runs in kube-system (system ns, no PSS enforcement). See the
+  # genericDevicePlugin block in platform/templates/extras.yaml.
+  genericDevicePlugin:
+    enabled: true
+    image: ghcr.io/squat/generic-device-plugin:0.2.0
+    node: node-1
+    # The ConBee II stable by-id path on node-1 (driver cdc_acm, base kernel).
+    # Glob tolerates the hourly USB re-enumeration (the by-id symlink is
+    # stable; ttyACM0 underneath may renumber).
+    deviceGlob: "/dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00"
 
 # Gateway configuration
 gateway:
