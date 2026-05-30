@@ -82,6 +82,10 @@ config:
               url: https://grafana.infra.home
               username: "{{HOMEPAGE_VAR_GRAFANA_USERNAME}}"
               password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+        - Hubble:
+            href: https://hubble.infra.home
+            description: Cilium network observability
+            icon: cilium.png
     - GitOps:
         - ArgoCD:
             href: https://argocd.infra.home/auth/login
@@ -91,6 +95,20 @@ config:
               type: argocd
               url: https://argocd.infra.home
               key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+
+    - Security:
+        - Pocket ID:
+            href: https://auth.apps.home
+            description: OIDC identity provider
+            icon: pocket-id.png
+        - Vaultwarden:
+            href: https://vaultwarden.apps.home
+            description: Password manager
+            icon: vaultwarden.svg
+        - Agent Vault:
+            href: https://agent-vault.apps.home
+            description: Agent secrets store
+            icon: infisical.svg
 
     - Media:
         - Jellyfin:
@@ -121,28 +139,20 @@ config:
             href: https://calibre.apps.home
             description: Ebook reader & catalogue
             icon: calibre-web.svg
+        - qBittorrent:
+            href: https://qbittorrent.infra.home
+            description: Torrent client
+            icon: qbittorrent.png
 
     - Docs & Notes:
         - Papra:
             href: https://papra.apps.home
             description: Document management
             icon: papra.png
-        - Stirling PDF:
-            href: https://stirling-pdf.apps.home
-            description: PDF toolkit
-            icon: stirling-pdf.png
         - Excalidash:
             href: https://excalidash.apps.home
             description: Whiteboard / diagrams
             icon: excalidraw.svg
-        - Vaultwarden:
-            href: https://vaultwarden.apps.home
-            description: Password manager
-            icon: vaultwarden.svg
-        - Agent Vault:
-            href: https://agent-vault.apps.home
-            description: Agent secrets store
-            icon: infisical.svg
 
     - Tools:
         - IT Tools:
@@ -157,10 +167,10 @@ config:
             href: https://syncthing.apps.home
             description: File sync
             icon: syncthing.svg
-        - ntfy:
-            href: https://ntfy.apps.home
-            description: Push notifications
-            icon: ntfy.svg
+        - Stirling PDF:
+            href: https://stirling-pdf.apps.home
+            description: PDF toolkit
+            icon: stirling-pdf.png
 
     - Comms:
         - Matrix:
@@ -171,6 +181,10 @@ config:
             href: https://hookshot.apps.home
             description: Matrix bridge / webhooks
             icon: mdi-bridge
+        - ntfy:
+            href: https://ntfy.apps.home
+            description: Push notifications
+            icon: ntfy.svg
 
     - Smart Home:
         - Home Assistant:
@@ -181,20 +195,6 @@ config:
             href: https://zigbee2mqtt.infra.home
             description: Zigbee device gateway
             icon: zigbee2mqtt.png
-
-    - Infrastructure:
-        - Hubble:
-            href: https://hubble.infra.home
-            description: Cilium network observability
-            icon: cilium.png
-        - qBittorrent:
-            href: https://qbittorrent.infra.home
-            description: Torrent client
-            icon: qbittorrent.png
-        - Pocket ID:
-            href: https://auth.apps.home
-            description: OIDC identity provider
-            icon: pocket-id.png
 
   bookmarks:
     - Observability:
