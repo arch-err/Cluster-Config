@@ -89,6 +89,26 @@ controllers:
               mv /config/configuration.yaml.tmp /config/configuration.yaml
             fi
 
+            # Idempotently enable OIDC auto-redirect on an EXISTING auth_oidc:
+            # block (fresh PVCs get it via the heredoc below). hass-oidc-auth's
+            # `features.default_redirect: true` skips the provider-selection
+            # screen and sends users straight to pocket-id. Break-glass stays
+            # reachable via the built-in `?skip_oidc_redirect=true` query param.
+            # We only patch when the block exists but the line is absent — the
+            # insert anchors on `disable_rfc7636: false` (the last line of the
+            # GitOps-managed features: block, 4-space indent) and appends the
+            # new key right after it, matching that exact indentation. No-op
+            # once present, so this is safe to run on every boot.
+            if grep -q '^auth_oidc:' /config/configuration.yaml \
+               && ! grep -q '^    default_redirect:' /config/configuration.yaml; then
+              echo "[seed-config] enabling default_redirect on existing auth_oidc.features"
+              awk '
+                { print }
+                /^    disable_rfc7636: false$/ { print "    default_redirect: true" }
+              ' /config/configuration.yaml > /config/configuration.yaml.tmp
+              mv /config/configuration.yaml.tmp /config/configuration.yaml
+            fi
+
             # Append the auth_oidc: block once (grep-guarded) for a fresh PVC
             # so we never clobber the user's hand-owned configuration.yaml.
             if ! grep -q '^auth_oidc:' /config/configuration.yaml; then
@@ -117,6 +137,9 @@ controllers:
               |  features:
               |    automatic_person_creation: true
               |    disable_rfc7636: false
+              |    # Auto-redirect straight to pocket-id, skipping the provider-
+              |    # selection screen. Break-glass: ?skip_oidc_redirect=true.
+              |    default_redirect: true
               |  network:
               |    tls_verify: true
               |    tls_ca_path: /etc/ssl/home-ca/ca.crt
