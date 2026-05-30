@@ -84,8 +84,6 @@ Postgres pods are NOT tar'd from their PVC — running pg WAL state during a tar
 | `immich/immich-postgres-*` | `kubectl exec ... pg_dump -Fc -d immich \| gzip > immich-postgres.dump.gz` |
 | `paperless-ngx/paperless-ngx-postgresql-0` | same pattern, `-d paperless` |
 
-`crossview-postgres` is deliberately **emptyDir** (pilot mode per `values/infra/crossview.yaml` header) — no PVC, no backup target. OIDC users auto-recreate on next login.
-
 `argocd-redis` and `paperless-ngx-redis-master-0` — caches, not source-of-truth, no PVC backup either.
 
 ## How to run

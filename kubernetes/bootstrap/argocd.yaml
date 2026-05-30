@@ -109,14 +109,6 @@ extraObjects:
         helm:
           valueFiles:
             - ../apps.yaml
-            # Sibling overlay layering `organizations:` (repos-as-code) on top
-            # of apps.yaml's `components:`. Walked by platform/templates/
-            # forgejo-orgs.yaml to emit Crossplane MRs (Organization /
-            # Repository / Webhook / RepositoryCollaborator) reconciled by
-            # provider-gitea against in-cluster forgejo. See
-            # kubernetes/values/forgejo-orgs.yaml header for schema +
-            # provider-version-specific limitations.
-            - ../values/forgejo-orgs.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd

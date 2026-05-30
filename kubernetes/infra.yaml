@@ -202,108 +202,6 @@ components:
       # secretName defaults to "grafana-oidc-client"
 
   # ════════════════════════════════════════════════════════════════════════════
-  # CROSSPLANE + CROSSVIEW — control-plane core + UI dashboard
-  # ════════════════════════════════════════════════════════════════════════════
-  # Crossplane core (CRDs + RBAC manager) in `crossplane-system` ns.
-  # Pure machinery — no HTTPRoute, no dashboard card. Restricted-PSS clean
-  # (chart defaults: uid 65532, drop ALL caps, allowPrivEsc=false,
-  # readOnlyRootFs=true). Pinned to chart 2.2.1 (latest stable; rc.0 releases
-  # available but staying on stable for the home cluster).
-  # NO providers installed yet (provider-cloudflare, provider-kubernetes etc.) —
-  # follow-up discussion needed on which to add.
-  - name: crossplane
-    namespace: crossplane-system
-    chart:
-      repo: https://charts.crossplane.io/stable
-      name: crossplane
-      version: 2.2.1
-    syncWave: "2"  # before crossview, which depends on crossplane CRDs existing
-                   # (crossview's RBAC binds to apiextensions.crossplane.io/*)
-
-  # provider-gitea — Crossplane provider for managing the in-cluster forgejo
-  # (git.apps.home) declaratively. Wraps three Crossplane CRs (Provider +
-  # DeploymentRuntimeConfig + ProviderConfig) inside bjw-s app-template's
-  # rawResources surface — no upstream Helm chart exists for the provider,
-  # and the platform chart's `components:` block expects a Helm-shaped source.
-  # Same wrap pattern as crossview. Image pinned to `v0.6.0-final` (last
-  # release with working controllers wired into Setup() — v0.7+ are
-  # framework-only stubs). Full rationale + bump criteria + resource-kind
-  # list in values/infra/provider-gitea.yaml header.
-  #
-  # TLS trust: home-ca-bundle ConfigMap (trust-manager Bundle with
-  # namespaceSelector: {} → present in crossplane-system) is mounted into
-  # the provider Pod via DeploymentRuntimeConfig, replacing the alpine
-  # ca-certificates bundle. SSL_CERT_FILE env var set as belt-and-suspenders.
-  # ProviderConfig stays `insecure: false`.
-  #
-  # Credentials: admin API token from Secret crossplane-system/forgejo-admin-token
-  # (key: token), minted by phase 3.5's forgejo-admin-bootstrap Job.
-  - name: provider-gitea
-    namespace: crossplane-system
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    syncWave: "3"  # after crossplane core (wave 2) so the pkg.crossplane.io
-                   # CRDs exist before we apply Provider / DeploymentRuntimeConfig.
-
-  # Crossview — Crossplane UI dashboard. WRAPPED VIA bjw-s app-template v4.6.2
-  # (NOT the upstream crossplane-contrib/crossview chart) because the upstream
-  # chart only exposes app.extraEnv — no extraVolumes / extraInitContainers
-  # hook, which blocked declarative mounting of `home-ca-bundle` + the
-  # CA-merge init container Crossview's Go TLS stack needs to trust pocket-id
-  # for OIDC token exchange. See values/infra/crossview.yaml header for the
-  # full migration rationale. Image still ghcr.io/crossplane-contrib/crossview
-  # v4.3.0, pinned in the values file.
-  #
-  # AUTH: native OIDC against pocket-id (per docs/SSO_SETUP.md). NO oauth2-proxy
-  # — Crossview ships its own OIDC client. The platform oidc:* block below
-  # registers the pocket-id client `crossview` (admin-group-restricted at the
-  # IDP) and renders `crossview-oidc-client` Secret in the crossview ns;
-  # values/infra/crossview.yaml wires OIDC_CLIENT_SECRET via secretKeyRef.
-  # First SSO user becomes admin (per upstream README); subsequent SSO users
-  # auto-provisioned as regular users.
-  #
-  # POSTGRES: folded into the same Helm release as a `controllers.postgres`
-  # block. emptyDir persistence (pilot mode — local accounts/sessions lost on
-  # pod restart; OIDC users auto-recreate on login). Promote to kadalu-backed
-  # PV with init-chown (immich pattern) when user mgmt is settled.
-  - name: crossview
-    namespace: crossview
-    chart:
-      repo: https://bjw-s-labs.github.io/helm-charts
-      name: app-template
-      version: 4.6.2
-    syncWave: "3"  # after crossplane CRDs (wave 2) + extras (ns) settle
-    route:
-      hostname: crossview.infra.home
-      gateway: infra
-      # bjw-s app-template renders services as `<release>-<key>` (with
-      # nameOverride). Values file declares service key `app` →
-      # rendered name `crossview-app`.
-      service: crossview-app
-      port: 80
-      dashboard:
-        enabled: true
-        name: Crossview
-        group: GitOps
-        icon: crossplane.svg
-        description: Crossplane resource dashboard (admin)
-        app: crossview
-    # Per-app OIDC client (pocket-id id=`crossview`). Secret rendered into the
-    # `crossview` ns as `crossview-oidc-client`; consumed by Crossview itself
-    # via OIDC_CLIENT_SECRET env var (chart secretKeyRef in values).
-    oidc:
-      enabled: true
-      callbackUrls:
-        # Native Crossview OIDC callback path (per docs/SSO_SETUP.md).
-        - https://crossview.infra.home/api/auth/oidc/callback
-      scopes: [openid, profile, email, groups]
-      # Infra-tier — administrators only. apps_users get 403 at the IDP.
-      groupRestriction:
-        allowedGroups: [administrators]
-
-  # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -365,11 +263,6 @@ extras:
   kadalu: true
   monitoring: true
   hubbleAuth: true
-  # crossview — restricted-PSS namespace only (no PVCs/postgres at this layer;
-  # the chart's bundled postgres uses emptyDir in pilot mode — see
-  # values/infra/crossview.yaml header for the trade-off).
-  crossview:
-    enabled: true
 
 # Gateway configuration
 gateway:
