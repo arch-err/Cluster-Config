@@ -70,7 +70,9 @@ controllers:
             # seeding so secrets.yaml doesn't carry a dangling secret.
             if [ -f /config/secrets.yaml ] && grep -q '^oidc_client_secret:' /config/secrets.yaml; then
               echo "[seed-config] removing stale oidc_client_secret from secrets.yaml"
-              grep -v '^oidc_client_secret:' /config/secrets.yaml > /config/secrets.yaml.tmp
+              # `grep -v` exits 1 if it filters out every line (e.g. the file
+              # held only that one secret) — `|| true` keeps `set -e` happy.
+              grep -v '^oidc_client_secret:' /config/secrets.yaml > /config/secrets.yaml.tmp || true
               mv /config/secrets.yaml.tmp /config/secrets.yaml
             fi
 
@@ -81,7 +83,9 @@ controllers:
             # hand-owned configuration.yaml untouched.
             if grep -q '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml; then
               echo "[seed-config] stripping client_secret from auth_oidc (public-mode migration)"
-              grep -v '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml > /config/configuration.yaml.tmp
+              # `|| true` for the same reason as above (configuration.yaml will
+              # never be single-line, but keep the idiom consistent + safe).
+              grep -v '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml > /config/configuration.yaml.tmp || true
               mv /config/configuration.yaml.tmp /config/configuration.yaml
             fi
 
