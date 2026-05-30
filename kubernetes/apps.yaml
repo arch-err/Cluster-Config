@@ -804,6 +804,81 @@ components:
     # NO route, NO oidc — SMB is L4. Service is LoadBalancer @ 10.10.10.205
     # via cilium L2 (see values/apps/samba.yaml). LAN-only, UniFi FW scoped.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # MOSQUITTO — internal MQTT broker (eclipse-mosquitto 2.x). The private bus
+  # for the Zigbee2MQTT ⇄ Home Assistant integration: Z2M publishes device
+  # state, HA's MQTT integration subscribes. ClusterIP on :1883 only — NO
+  # route (MQTT is L4, not HTTP), NOT exposed off-cluster. Auth via password
+  # file (allow_anonymous false); users zigbee2mqtt + homeassistant. extras
+  # .mosquitto renders the (restricted-PSS) ns. See values/apps/mosquitto.yaml.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: mosquitto
+    namespace: mqtt
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns) + apps-secrets (mosquitto-auth) settle
+    # NO route, NO oidc — internal MQTT bus on ClusterIP :1883.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # ZIGBEE2MQTT — Zigbee coordinator bridge. Owns the ConBee II dongle (the
+  # device is injected by the generic-device-plugin DaemonSet via the
+  # devic.es/zigbee resource request in values; pod stays NON-privileged).
+  # Pinned to node-1 (the dongle's node). Publishes to mosquitto; HA consumes
+  # over MQTT (HA is NOT pinned, does NOT get the device). The sensitive
+  # frontend (permit-join, network reset, re-pair) is gated behind oauth2-proxy
+  # + pocket-id; route → oauth2-zigbee2mqtt Service. extras.zigbee2mqtt renders
+  # the (baseline-PSS) ns + the Retain data PVC holding the irreplaceable
+  # Zigbee network identity (coordinator backup / pan_id / network key).
+  # See values/apps/zigbee2mqtt.yaml.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: zigbee2mqtt
+    namespace: zigbee2mqtt
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + Retain PVC) + the mqtt-client secret
+    # HTTPRoute points at the oauth2-zigbee2mqtt Service (same ns), NOT directly
+    # at the Z2M workload — the frontend can permit-join / reset the mesh, so
+    # it is never exposed ungated.
+    route:
+      hostname: zigbee2mqtt.apps.home
+      gateway: apps
+      service: oauth2-zigbee2mqtt
+      port: 80
+      dashboard:
+        name: Zigbee2MQTT
+        group: Home
+        icon: zigbee2mqtt.svg
+        description: Zigbee coordinator bridge (ConBee II)
+        app: zigbee2mqtt
+    # Per-app OIDC client (pocket-id id=`zigbee2mqtt`). Secret rendered into the
+    # `zigbee2mqtt` ns as `zigbee2mqtt-oidc-client`; consumed by the
+    # zigbee2mqtt-oauth2 release. apps_users + administrators allowed at the IDP
+    # level on top of oauth2-proxy --allowed-group.
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://zigbee2mqtt.apps.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # oauth2-proxy fronting zigbee2mqtt's frontend. Same pattern as
+  # calibre-web-oauth2. Lives in the zigbee2mqtt ns so the OIDC-client Secret +
+  # HTTPRoute backendRef are co-located.
+  - name: zigbee2mqtt-oauth2
+    namespace: zigbee2mqtt
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    # Consumes `zigbee2mqtt-oidc-client` Secret rendered by the zigbee2mqtt
+    # Application's oidc:* block. No oidc:* block here — this IS the proxy.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -912,3 +987,18 @@ extras:
   samba:
     enabled: true
     dataSize: 100Gi
+  # mosquitto — namespace only (restricted PSS — eclipse-mosquitto runs as
+  # non-root uid 1883). The data PVC is chart-managed (default kadalu.replica2,
+  # SKIP-tier: retained MQTT state is rebuilt by clients on reconnect).
+  mosquitto:
+    enabled: true
+  # zigbee2mqtt — namespace (baseline PSS) + the Retain data PVC. Baseline
+  # because the koenkk/zigbee2mqtt image's s6-overlay /init starts as root to
+  # set up /app/data perms before dropping to the run user; restricted PSS
+  # rejects that init flow (same trade as calibre-web / home-assistant). The
+  # data PVC holds the IRREPLACEABLE Zigbee network identity (coordinator
+  # backup, pan_id, network key, device pairings) → kadalu.replica2-retain SC
+  # so an ArgoCD prune can't wipe it. CRITICAL-tier.
+  zigbee2mqtt:
+    enabled: true
+    dataSize: 1Gi

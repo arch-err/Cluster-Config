@@ -1,0 +1,106 @@
+# zigbee2mqtt-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting the zigbee2mqtt frontend. Mirrors
+# calibre-web-oauth2. The Z2M frontend can permit-join / reset the mesh /
+# re-pair devices — it is sensitive and is NEVER exposed ungated. EVERY path
+# requires OIDC (no /api bypass — Z2M's frontend API is exactly the sensitive
+# surface we're gating).
+#
+# Consumes `zigbee2mqtt-oidc-client` (rendered by the zigbee2mqtt Application's
+# oidc:* block in apps.yaml; pocket-id client id=`zigbee2mqtt`, restricted to
+# apps_users + administrators at the IDP level on top of the --allowed-group
+# flags below).
+#
+# COOKIE SECRET: sourced from SopsSecret `zigbee2mqtt-oauth2-cookie` in the
+# zigbee2mqtt ns (kubernetes/secrets/apps/zigbee2mqtt-oauth2-cookie.yaml).
+
+fullnameOverride: oauth2-zigbee2mqtt
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — the zigbee2mqtt frontend in-cluster service (:8080).
+  - --upstream=http://zigbee2mqtt.zigbee2mqtt.svc.cluster.local:8080
+  - --cookie-domain=zigbee2mqtt.apps.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_zigbee2mqtt_oauth2_proxy
+  - --allowed-group=apps_users
+  - --allowed-group=administrators
+  # No skip-auth-route — gate EVERY path (the frontend API is the sensitive
+  # surface). Z2M's frontend uses websockets for live updates; oauth2-proxy
+  # passes the cookie through the WS upgrade so the gated session works.
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+# OIDC creds from the platform-rendered Secret (zigbee2mqtt Application's
+# oidc:* block in apps.yaml).
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: zigbee2mqtt-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: zigbee2mqtt-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: zigbee2mqtt-oidc-client
+        key: issuer_url
+  # Distinct cookie secret per sibling oauth2-proxy release. From SopsSecret
+  # `zigbee2mqtt-oauth2-cookie` (same ns).
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: zigbee2mqtt-oauth2-cookie
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false

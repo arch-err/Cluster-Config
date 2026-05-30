@@ -1,0 +1,167 @@
+# mosquitto — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Eclipse Mosquitto 2.x MQTT broker. Upstream: https://mosquitto.org/
+# Image: docker.io/library/eclipse-mosquitto — runs as uid 1883 (`mosquitto`).
+#
+# ROLE: internal MQTT bus for the Zigbee2MQTT ⇄ Home Assistant integration.
+# zigbee2mqtt publishes device state here; HA's MQTT integration subscribes.
+# ClusterIP only on :1883 — NOT exposed off-cluster, NO HTTPRoute (MQTT is
+# an L4 protocol the L7 gateway can't carry, and this is a private bus).
+#
+# AUTH (mosquitto 2.x): allow_anonymous false + a password_file. Two users
+# (zigbee2mqtt, homeassistant) live as PBKDF2 $7$ hashes in the
+# `mosquitto-passwd` Secret (SopsSecret mosquitto-auth, mqtt ns), mounted
+# read-only at /mosquitto/config/passwd. Plaintext counterparts for the two
+# clients live in per-consumer-ns SopsSecrets (zigbee2mqtt-mqtt-client,
+# home-assistant-mqtt-client). Rotating a password = regenerate the hash
+# (mosquitto_passwd) into mosquitto-auth AND the plaintext in the client
+# secret, then restart all three pods.
+#
+# CONFIG: mosquitto.conf is rendered inline as a ConfigMap below (non-secret;
+# it references the passwd file by path). Mosquitto 2.x binds only localhost
+# unless an explicit `listener 1883` is set — we bind 0.0.0.0:1883 so the
+# ClusterIP Service reaches it.
+#
+# PSS: restricted-PSS clean. eclipse-mosquitto runs as non-root uid 1883 and
+# writes only to /mosquitto/data + /mosquitto/log (explicit volumes below).
+#
+# STORAGE: small `data` PVC for retained messages + the persistence DB
+# (mosquitto.db). NOT critical data — retained MQTT state is rebuilt by Z2M/HA
+# republishing on reconnect — so default kadalu.replica2 (Delete reclaim) is
+# fine here. (Z2M's OWN data PVC, which holds the irreplaceable Zigbee network
+# identity, is the Retain one — see values/apps/zigbee2mqtt.yaml.)
+
+controllers:
+  main:
+    # Single broker; sqlite-style persistence file in /mosquitto/data.
+    # Recreate avoids two brokers racing on mosquitto.db across a rollout.
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/library/eclipse-mosquitto
+          tag: "2.0.20"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 1883
+              initialDelaySeconds: 10
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 1883
+              initialDelaySeconds: 5
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        # Restricted-PSS clean. eclipse-mosquitto image's default user is
+        # uid 1883 (`mosquitto`). Lock down explicitly.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1883
+          runAsGroup: 1883
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  securityContext:
+    # data PVC must be writable by uid 1883 on first create.
+    fsGroup: 1883
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      mqtt:
+        port: 1883
+        targetPort: 1883
+
+persistence:
+  # Retained messages + persistence DB (mosquitto.db). SKIP-tier — rebuilt by
+  # clients republishing on reconnect, so default kadalu.replica2 (Delete) is
+  # acceptable. Small.
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    advancedMounts:
+      main:
+        app:
+          - path: /mosquitto/data
+  # Writable log dir (readOnlyRootFilesystem=true). mosquitto logs to stderr
+  # by default (log_dest stdout in our conf) but the dir must exist + be
+  # writable for any file-based logging mosquitto attempts at startup.
+  log:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /mosquitto/log
+  # The broker config, rendered inline as a ConfigMap (see configMaps.conf).
+  # Mounted at /mosquitto/config so mosquitto.conf is the loaded config.
+  config:
+    enabled: true
+    type: configMap
+    identifier: conf
+    advancedMounts:
+      main:
+        app:
+          - path: /mosquitto/config/mosquitto.conf
+            subPath: mosquitto.conf
+            readOnly: true
+  # The password file (PBKDF2 hashes) from SopsSecret mosquitto-auth.
+  # Mounted read-only at the path mosquitto.conf's `password_file` points to.
+  passwd:
+    enabled: true
+    type: secret
+    name: mosquitto-passwd
+    advancedMounts:
+      main:
+        app:
+          - path: /mosquitto/config/passwd
+            subPath: passwd
+            readOnly: true
+
+# bjw-s app-template renders this ConfigMap inline; cross-ref'd by the
+# persistence.config block via `identifier: conf`.
+configMaps:
+  conf:
+    enabled: true
+    data:
+      mosquitto.conf: |
+        # Managed by GitOps — kubernetes/values/apps/mosquitto.yaml.
+        # Mosquitto 2.x: an explicit listener is required to bind beyond
+        # localhost, and allow_anonymous defaults to false in 2.x but we set
+        # it explicitly for clarity + safety.
+        listener 1883 0.0.0.0
+        allow_anonymous false
+        password_file /mosquitto/config/passwd
+
+        # Persistence — retained messages + subscriptions survive restarts.
+        persistence true
+        persistence_location /mosquitto/data/
+        autosave_interval 60
+
+        # Log to stdout so `kubectl logs` shows broker activity.
+        log_dest stdout
+        log_type error
+        log_type warning
+        log_type notice
+        log_type information
+        connection_messages true

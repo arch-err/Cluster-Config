@@ -191,6 +191,90 @@ controllers:
           runAsUser: 0
           runAsGroup: 0
           allowPrivilegeEscalation: false
+      # ── MQTT broker config entry seed ───────────────────────────────────────
+      # HA 2026 removed the configuration.yaml `mqtt: broker:` option — the
+      # broker connection is a config ENTRY in /config/.storage/core.config_
+      # entries, normally created via the UI. To wire it declaratively we seed
+      # that entry ONCE, before HA starts, IF no mqtt entry already exists.
+      # Idempotent + non-clobbering: if the user later edits the integration in
+      # the UI, this no-ops (it only acts when zero mqtt entries are present).
+      # Points HA at the in-cluster mosquitto Service with the `homeassistant`
+      # broker creds (from the home-assistant-mqtt-client Secret) and turns on
+      # MQTT discovery so Z2M's homeassistant:true auto-creates entities.
+      seed-mqtt:
+        image:
+          repository: docker.io/library/python
+          tag: "3.12-alpine"
+        env:
+          - { name: MQTT_BROKER, value: "mosquitto.mqtt.svc.cluster.local" }
+          - { name: MQTT_PORT, value: "1883" }
+          - name: MQTT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: home-assistant-mqtt-client
+                key: username
+          - name: MQTT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: home-assistant-mqtt-client
+                key: password
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            python3 - <<'PY'
+            import json, os, sys, uuid, datetime
+            path = "/config/.storage/core.config_entries"
+            if not os.path.exists(path):
+                # HA hasn't created .storage yet (fresh /config). Skip — HA will
+                # write the store on first boot; re-run on next rollout will seed.
+                print("[seed-mqtt] .storage/core.config_entries absent; skipping (will seed on a later boot)")
+                sys.exit(0)
+            with open(path) as f:
+                store = json.load(f)
+            entries = store.setdefault("data", {}).setdefault("entries", [])
+            if any(e.get("domain") == "mqtt" for e in entries):
+                print("[seed-mqtt] mqtt config entry already present; leaving alone")
+                sys.exit(0)
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            entries.append({
+                "created_at": now,
+                "modified_at": now,
+                "data": {
+                    "broker": os.environ["MQTT_BROKER"],
+                    "port": int(os.environ["MQTT_PORT"]),
+                    "username": os.environ["MQTT_USERNAME"],
+                    "password": os.environ["MQTT_PASSWORD"],
+                },
+                "disabled_by": None,
+                "discovery_keys": {},
+                "domain": "mqtt",
+                "entry_id": uuid.uuid4().hex,
+                "minor_version": 2,
+                "version": 1,
+                "options": {
+                    "discovery": True,
+                    "discovery_prefix": "homeassistant",
+                },
+                "pref_disable_new_entities": False,
+                "pref_disable_polling": False,
+                "source": "user",
+                "title": "Mosquitto (cluster)",
+                "unique_id": None,
+            })
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(store, f, indent=2)
+            os.replace(tmp, path)
+            print("[seed-mqtt] seeded mqtt config entry -> mosquitto.mqtt.svc:1883")
+            PY
+        securityContext:
+          # /config is owned by root (HA runs root); match it so the JSON edit
+          # has write perms on .storage.
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
     containers:
       app:
         image:
@@ -311,6 +395,8 @@ persistence:
         seed-config:
           - path: /config
         install-oidc:
+          - path: /config
+        seed-mqtt:
           - path: /config
   # configuration.yaml seed. Mounted into the init container only; copied
   # into /config on first boot if absent. HA's own File editor / UI is the

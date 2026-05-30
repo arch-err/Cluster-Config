@@ -1,0 +1,321 @@
+# zigbee2mqtt — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Zigbee coordinator bridge. Upstream: https://www.zigbee2mqtt.io/
+# Image: docker.io/koenkk/zigbee2mqtt — s6-overlay, /init starts as root.
+#
+# ─── Role / topology ──────────────────────────────────────────────────────────
+# Owns the Dresden Elektronik ConBee II Zigbee dongle physically attached to
+# node-1. The dongle is injected by the squat generic-device-plugin DaemonSet
+# (infra) via the `devic.es/zigbee: 1` resource request below — so THIS pod
+# stays NON-privileged (no privileged securityContext, no hostPath /dev). Z2M
+# talks to the coordinator over the stable by-id serial path and publishes
+# device state to the mosquitto broker (mqtt ns). Home Assistant consumes over
+# MQTT — HA is NOT node-pinned and does NOT get the device; Z2M owns the radio.
+#
+# Pinned to node-1 (nodeSelector) — the dongle's node. The device-plugin only
+# advertises the resource on node-1, so the scheduler would land here anyway;
+# the nodeSelector makes it deterministic.
+#
+# ─── Serial / adapter ─────────────────────────────────────────────────────────
+# serial.adapter: deconz (ConBee II is a deCONZ/deconz-firmware coordinator).
+# serial.port: the stable by-id path. The device-plugin injects the char
+# device at this exact in-container path (mountPath in the DS == this path), so
+# it survives the dongle's hourly USB re-enumeration (ttyACM0 may renumber; the
+# by-id symlink does not). NEVER use /dev/ttyACM0 here.
+#
+# ─── DATA (CRITICAL) ──────────────────────────────────────────────────────────
+# The `data` PVC (/app/data) holds the IRREPLACEABLE Zigbee network identity:
+# coordinator_backup.json, pan_id, the network key, and every device pairing.
+# Losing it = re-pair every device + re-key the mesh. It is on
+# kadalu.replica2-retain (rendered by extras.zigbee2mqtt) so an ArgoCD prune
+# can't wipe it. network_key / pan_id are GENERATEd on first boot and then
+# baked into this PVC — from then on this PVC is the ONLY copy of the network
+# identity. CRITICAL-tier; treat with the no-data-destruction rule.
+#
+# ─── MQTT auth ────────────────────────────────────────────────────────────────
+# mqtt.server points at the in-cluster mosquitto Service. user/password come
+# from the zigbee2mqtt-mqtt-client Secret (SopsSecret, this ns) via env-var
+# config override (ZIGBEE2MQTT_CONFIG_MQTT_USER/_PASSWORD) so they never land
+# in the seeded configuration.yaml ConfigMap. Z2M merges env overrides on top
+# of the file config at startup.
+#
+# ─── Frontend (GATED) ─────────────────────────────────────────────────────────
+# The frontend can permit-join, reset the network, and re-pair devices — it is
+# sensitive and is NEVER exposed ungated. It listens on :8080 (ClusterIP);
+# external access is via the oauth2-zigbee2mqtt proxy (pocket-id OIDC) only —
+# see values/apps/zigbee2mqtt-oauth2.yaml + the route in apps.yaml.
+#
+# ─── Metrics ──────────────────────────────────────────────────────────────────
+# Z2M 2.x has NO built-in Prometheus endpoint (confirmed against the settings
+# schema). Metrics come from a kpetremann/mqtt-exporter SIDECAR that subscribes
+# to the mosquitto bus and parses Z2M's JSON payloads into Prometheus metrics
+# (linkquality/LQI, battery, availability, message rate, last-seen). It exposes
+# /metrics on :9000; Alloy scrapes it via the prometheus.io/scrape pod
+# annotations below (a dedicated Alloy scrape block honours them — see
+# values/infra/alloy.yaml). Grafana then has LQI/availability/battery/msg-rate.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label (extras renders it). koenkk/zigbee2mqtt is s6-overlay;
+# /init runs as root then drops. Restricted PSS rejects that init flow (same
+# trade as calibre-web / home-assistant). The pod is NON-privileged.
+
+controllers:
+  main:
+    # Single bridge; coordinator state in /app/data. Recreate avoids two pods
+    # racing on the serial device + the data dir across a rollout.
+    strategy: Recreate
+    initContainers:
+      # Seed a base configuration.yaml into /app/data on first boot (and top it
+      # up if absent). Idempotent: never clobbers an existing file, so Z2M's own
+      # UI edits + the on-first-boot-generated network_key/pan_id persist. MQTT
+      # creds are NOT written here — they come via env overrides at runtime.
+      seed-config:
+        image:
+          repository: docker.io/library/busybox
+          tag: "1.37.0"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            if [ ! -f /app/data/configuration.yaml ]; then
+              echo "[seed-config] seeding /app/data/configuration.yaml"
+              cp /seed/configuration.yaml /app/data/configuration.yaml
+            else
+              echo "[seed-config] configuration.yaml exists; leaving alone"
+            fi
+        securityContext:
+          # Baseline ns; chown the data dir is handled by fsGroup. busybox as
+          # root to write the seed file regardless of existing perms.
+          runAsUser: 0
+          runAsGroup: 0
+    containers:
+      app:
+        image:
+          repository: docker.io/koenkk/zigbee2mqtt
+          tag: "2.9.2"
+        env:
+          TZ: "Europe/Amsterdam"
+          # Z2M reads its data dir from this env (default /app/data).
+          ZIGBEE2MQTT_DATA: /app/data
+          # MQTT credentials via env-var config override (kept out of the
+          # ConfigMap). Z2M merges ZIGBEE2MQTT_CONFIG_<SECTION>_<KEY> on top of
+          # the file config at startup.
+          ZIGBEE2MQTT_CONFIG_MQTT_USER:
+            valueFrom:
+              secretKeyRef:
+                name: zigbee2mqtt-mqtt-client
+                key: username
+          ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: zigbee2mqtt-mqtt-client
+                key: password
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 8080
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8080
+              initialDelaySeconds: 15
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+            # The ConBee II char device, injected by the generic-device-plugin
+            # DaemonSet (kube-system, node-1). request==limit is required for
+            # extended resources. This is what makes the pod NON-privileged:
+            # the kubelet wires the device into the container with correct
+            # cgroup perms, no privileged flag needed.
+            devic.es/zigbee: 1
+          limits:
+            memory: 512Mi
+            devic.es/zigbee: 1
+        securityContext:
+          # s6-overlay /init needs root to supervise; baseline PSS allows it.
+          # Do NOT set privileged — the device-plugin handles device injection.
+          allowPrivilegeEscalation: false
+      # ── Prometheus metrics sidecar ──────────────────────────────────────────
+      # kpetremann/mqtt-exporter subscribes to mosquitto and turns Z2M's JSON
+      # payloads into Prometheus metrics (LQI/battery/availability/msg-rate).
+      # Exposes /metrics on :9000. Scraped by Alloy via the pod annotations.
+      metrics:
+        image:
+          repository: ghcr.io/kpetremann/mqtt-exporter
+          tag: "1.12.1"
+        env:
+          MQTT_ADDRESS: mosquitto.mqtt.svc.cluster.local
+          MQTT_PORT: "1883"
+          PROMETHEUS_PORT: "9000"
+          # Normalize Z2M availability (online/offline) into a clean metric.
+          ZIGBEE2MQTT_AVAILABILITY: "True"
+          # Expose per-device last-seen timestamps.
+          EXPOSE_LAST_SEEN: "True"
+          # Subscribe to the zigbee2mqtt topic tree.
+          MQTT_TOPIC: "zigbee2mqtt/#"
+          MQTT_USERNAME:
+            valueFrom:
+              secretKeyRef:
+                name: zigbee2mqtt-mqtt-client
+                key: username
+          MQTT_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: zigbee2mqtt-mqtt-client
+                key: password
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 9000
+              initialDelaySeconds: 15
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 9000
+              initialDelaySeconds: 10
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          # Plain python app — no privileged paths. Lock it down non-root.
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  # Pin to the node physically holding the ConBee dongle.
+  nodeSelector:
+    kubernetes.io/hostname: node-1
+  # Pod-level annotations so Alloy's annotation-driven scrape picks up the
+  # metrics sidecar's /metrics on :9000.
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9000"
+    prometheus.io/path: "/metrics"
+  securityContext:
+    # data PVC writable by the Z2M run group on first create.
+    fsGroup: 0
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      # Frontend (gated by oauth2-zigbee2mqtt). ClusterIP.
+      http:
+        port: 8080
+        targetPort: 8080
+      # Prometheus metrics (sidecar). Scraped by Alloy in-cluster.
+      metrics:
+        port: 9000
+        targetPort: 9000
+
+# RECLAIM: data PVC is kadalu.replica2-retain (rendered by extras.zigbee2mqtt)
+# — CRITICAL Zigbee network identity. See header.
+persistence:
+  # Coordinator state + network identity. existingClaim → the Retain PVC
+  # pre-rendered by extras.zigbee2mqtt.
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: zigbee2mqtt-data
+    advancedMounts:
+      main:
+        app:
+          - path: /app/data
+        seed-config:
+          - path: /app/data
+  # configuration.yaml seed — mounted into the init container only; copied into
+  # /app/data on first boot if absent. Z2M's UI/runtime is the source of truth
+  # from then on (network_key/pan_id get generated + baked into the PVC).
+  seed:
+    enabled: true
+    type: configMap
+    identifier: seed
+    advancedMounts:
+      main:
+        seed-config:
+          - path: /seed
+
+# bjw-s app-template renders this ConfigMap inline; cross-ref'd by the
+# persistence.seed block via `identifier: seed`.
+configMaps:
+  seed:
+    enabled: true
+    data:
+      configuration.yaml: |
+        # Managed by GitOps — kubernetes/values/apps/zigbee2mqtt.yaml.
+        # Seeded once by the seed-config init container if /app/data is empty.
+        # After first boot, Z2M owns this file (UI edits, generated network
+        # identity). MQTT user/password are injected via env overrides at
+        # runtime (NOT written here) — see ZIGBEE2MQTT_CONFIG_MQTT_* above.
+        version: 4
+
+        mqtt:
+          base_topic: zigbee2mqtt
+          server: mqtt://mosquitto.mqtt.svc.cluster.local:1883
+          # user + password come from env (ZIGBEE2MQTT_CONFIG_MQTT_USER/_PASSWORD).
+
+        serial:
+          # ConBee II — stable by-id path injected by the generic-device-plugin
+          # at this exact in-container path. deCONZ-firmware coordinator.
+          port: /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00
+          adapter: deconz
+
+        # MQTT discovery — HA auto-creates entities for paired devices. The
+        # mosquitto `homeassistant` user is wired into HA's MQTT integration
+        # (see home-assistant values seed). availability so HA marks devices
+        # online/offline.
+        homeassistant:
+          enabled: true
+
+        availability:
+          enabled: true
+
+        # Web UI — GATED behind oauth2-zigbee2mqtt (pocket-id). Listens on
+        # :8080 ClusterIP; never exposed ungated.
+        frontend:
+          enabled: true
+          port: 8080
+
+        advanced:
+          # GENERATE on first boot → baked into this PVC (the only copy after).
+          network_key: GENERATE
+          pan_id: GENERATE
+          # ConBee II default Zigbee channel; change only before first pairing.
+          channel: 11
+          log_level: info
+          # Emit MQTT in a shape the exporter + HA both parse cleanly.
+          log_output:
+            - console
