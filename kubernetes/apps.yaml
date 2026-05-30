@@ -569,10 +569,15 @@ components:
     # into the `home-assistant` ns as `home-assistant-oidc-client`; consumed
     # by the home-assistant-oauth2 release. apps_users + administrators
     # allowed at the IDP level on top of oauth2-proxy --allowed-group.
+    # Phase 1 (additive): client stays CONFIDENTIAL so the oauth2-proxy
+    # front-door keeps its client_secret. Native hass-oidc-auth callback
+    # added ALONGSIDE the proxy callback (rollback-safe). Phase 2 will drop
+    # the proxy callback and flip to public.
     oidc:
       enabled: true
       callbackUrls:
-        - https://ha.apps.home/oauth2/callback
+        - https://ha.apps.home/auth/oidc/callback   # native hass-oidc-auth
+        - https://ha.apps.home/oauth2/callback       # oauth2-proxy (Phase 1)
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [apps_users, administrators]

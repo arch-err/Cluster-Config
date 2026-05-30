@@ -45,6 +45,17 @@ controllers:
         image:
           repository: docker.io/library/busybox
           tag: "1.37.0"
+        # OIDC client_secret (confidential mode, Phase 1) reaches this init
+        # via env from the platform-rendered home-assistant-oidc-client Secret.
+        # It is written into /config/secrets.yaml as oidc_client_secret and
+        # referenced from configuration.yaml via `!secret oidc_client_secret`,
+        # so the secret never lives in plaintext in the GitOps repo.
+        env:
+          - name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: home-assistant-oidc-client
+                key: client_secret
         command:
           - /bin/sh
           - -c
@@ -56,11 +67,99 @@ controllers:
             else
               echo "[seed-config] /config/configuration.yaml exists; leaving alone"
             fi
+
+            # ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────────
+            # Seed secrets.yaml with the OIDC client_secret (confidential mode).
+            # Idempotent: rewrite the oidc_client_secret line each boot so a
+            # pocket-id secret rotation propagates, without clobbering other
+            # user-owned !secret entries.
+            touch /config/secrets.yaml
+            if grep -q '^oidc_client_secret:' /config/secrets.yaml; then
+              grep -v '^oidc_client_secret:' /config/secrets.yaml > /config/secrets.yaml.tmp
+              mv /config/secrets.yaml.tmp /config/secrets.yaml
+            fi
+            printf 'oidc_client_secret: %s\n' "$OIDC_CLIENT_SECRET" >> /config/secrets.yaml
+
+            # Append the auth_oidc: block once (grep-guarded) so we never
+            # clobber the user's hand-owned configuration.yaml.
+            if ! grep -q '^auth_oidc:' /config/configuration.yaml; then
+              echo "[seed-config] appending auth_oidc block to configuration.yaml"
+              # Each heredoc line is prefixed with a `|` sentinel marking the
+              # intended column-0 of the emitted HA YAML. sed strips everything
+              # up to and including that `|`, so HA's indentation-sensitive
+              # config is exact regardless of helm/container indentation.
+              sed 's/^[[:space:]]*|//' >> /config/configuration.yaml <<'EOF'
+              |
+              |# ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────
+              |# Confidential client (Phase 1); client_secret from secrets.yaml.
+              |# tls_ca_path points at the Home Lab Root CA for auth.apps.home.
+              |# The built-in `homeassistant` username/password provider stays
+              |# enabled via default_config above as the break-glass local admin.
+              |auth_oidc:
+              |  client_id: home-assistant
+              |  client_secret: !secret oidc_client_secret
+              |  discovery_url: https://auth.apps.home/.well-known/openid-configuration
+              |  display_name: "Pocket ID (SSO)"
+              |  claims:
+              |    username: preferred_username
+              |    display_name: name
+              |    groups: groups
+              |  roles:
+              |    admin: administrators
+              |  features:
+              |    automatic_person_creation: true
+              |    disable_rfc7636: false
+              |  network:
+              |    tls_verify: true
+              |    tls_ca_path: /etc/ssl/home-ca/ca.crt
+            EOF
+            else
+              echo "[seed-config] auth_oidc block already present; leaving alone"
+            fi
         securityContext:
           # Baseline-PSS ns; busybox runs as root by default. Explicitly
           # declare it so PSS audit logs are clean.
           runAsUser: 0
           runAsGroup: 0
+      # Downloads the pinned hass-oidc-auth release zip into
+      # /config/custom_components/auth_oidc on the config PVC. Declarative +
+      # idempotent via a .installed_version marker (re-extracts only on a
+      # version bump). Egress to github.com verified working from this ns.
+      install-oidc:
+        image:
+          repository: docker.io/library/alpine
+          tag: "3.21"
+        env:
+          - { name: OIDC_VERSION, value: "v1.1.0" }
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            DEST=/config/custom_components/auth_oidc
+            MARK="$DEST/.installed_version"
+            if [ -f "$MARK" ] && [ "$(cat "$MARK")" = "$OIDC_VERSION" ]; then
+              echo "[install-oidc] $OIDC_VERSION already installed; skip"; exit 0
+            fi
+            apk add --no-cache unzip curl ca-certificates >/dev/null
+            tmp=$(mktemp -d)
+            curl -fsSL -o "$tmp/o.zip" \
+              "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/$OIDC_VERSION/hass-oidc-auth.zip"
+            rm -rf "$DEST"; mkdir -p "$DEST"
+            unzip -q "$tmp/o.zip" -d "$tmp/x"
+            # The v1.1.0 zip root IS the auth_oidc package contents
+            # (__init__.py at root), not nested under custom_components/.
+            if [ -d "$tmp/x/custom_components/auth_oidc" ]; then
+              cp -a "$tmp/x/custom_components/auth_oidc/." "$DEST/"
+            else
+              cp -a "$tmp/x/." "$DEST/"
+            fi
+            echo "$OIDC_VERSION" > "$MARK"
+            echo "[install-oidc] installed $OIDC_VERSION -> $DEST"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
     containers:
       app:
         image:
@@ -180,6 +279,8 @@ persistence:
           - path: /config
         seed-config:
           - path: /config
+        install-oidc:
+          - path: /config
   # configuration.yaml seed. Mounted into the init container only; copied
   # into /config on first boot if absent. HA's own File editor / UI is the
   # source of truth from then on. The chart renders the ConfigMap inline
@@ -192,6 +293,18 @@ persistence:
       main:
         seed-config:
           - path: /seed
+  # Home Lab Root CA bundle (broadcast to every ns by trust-manager). Mounted
+  # read-only into the HA app container so hass-oidc-auth's tls_ca_path can
+  # validate the auth.apps.home cert on OIDC discovery/jwks calls.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true
   # Future-proofing: when the user wants to add a Zigbee dongle hostPath
   # mount, the second `persistence:` entry goes here (see commented block
   # above for the shape).
