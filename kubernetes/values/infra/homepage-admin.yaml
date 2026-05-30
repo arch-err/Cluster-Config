@@ -59,6 +59,9 @@ config:
   #     manual one-time — see that file's comment block. Until the user
   #     runs that command + edits the Secret, the ArgoCD card will show
   #     "auth failed".
+  # NOTE: groups below are PROVISIONAL — comprehensive link inventory of every
+  # app we run, bucketed into sensible-but-rough categories. Easy to regroup.
+  # Grafana + ArgoCD keep their live widgets (creds via envFrom).
   services:
     - Observability:
         - Grafana:
@@ -79,6 +82,110 @@ config:
               type: argocd
               url: https://argocd.infra.home
               key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+
+    - Media:
+        - Jellyfin:
+            href: https://jellyfin.apps.home
+            description: Movies & TV streaming
+            icon: jellyfin.png
+        - Navidrome:
+            href: https://navidrome.apps.home
+            description: Music streaming server
+            icon: navidrome.png
+        - Audiobookshelf:
+            href: https://audiobookshelf.apps.home
+            description: Audiobooks & podcasts
+            icon: audiobookshelf.png
+        - Immich:
+            href: https://immich.apps.home
+            description: Photo & video library
+            icon: immich.png
+        - MeTube:
+            href: https://metube.apps.home
+            description: yt-dlp web downloader
+            icon: mdi-download-box
+        - BookLore:
+            href: https://booklore.apps.home
+            description: Ebook library manager
+            icon: mdi-book-open-page-variant
+        - Calibre-Web:
+            href: https://calibre.apps.home
+            description: Ebook reader & catalogue
+            icon: calibre-web.png
+
+    - Docs & Notes:
+        - Papra:
+            href: https://papra.apps.home
+            description: Document management
+            icon: mdi-file-document-multiple
+        - Stirling PDF:
+            href: https://stirling-pdf.apps.home
+            description: PDF toolkit
+            icon: mdi-file-pdf-box
+        - Excalidash:
+            href: https://excalidash.apps.home
+            description: Whiteboard / diagrams
+            icon: mdi-draw
+        - Vaultwarden:
+            href: https://vaultwarden.apps.home
+            description: Password manager
+            icon: vaultwarden.png
+        - Agent Vault:
+            href: https://agent-vault.apps.home
+            description: Agent secrets store
+            icon: mdi-safe
+
+    - Tools:
+        - IT Tools:
+            href: https://it-tools.apps.home
+            description: Dev/sysadmin utilities
+            icon: it-tools.png
+        - CyberChef:
+            href: https://cyberchef.apps.home
+            description: Data transform workbench
+            icon: mdi-chef-hat
+        - Syncthing:
+            href: https://syncthing.apps.home
+            description: File sync
+            icon: syncthing.png
+        - ntfy:
+            href: https://ntfy.apps.home
+            description: Push notifications
+            icon: ntfy.png
+
+    - Comms:
+        - Matrix:
+            href: https://matrix.apps.home
+            description: Matrix homeserver
+            icon: matrix.png
+        - Hookshot:
+            href: https://hookshot.apps.home
+            description: Matrix bridge / webhooks
+            icon: mdi-bridge
+
+    - Smart Home:
+        - Home Assistant:
+            href: https://ha.apps.home
+            description: Home automation
+            icon: home-assistant.png
+        - Zigbee2MQTT:
+            href: https://zigbee2mqtt.infra.home
+            description: Zigbee device gateway
+            icon: zigbee2mqtt.png
+
+    - Infrastructure:
+        - Hubble:
+            href: https://hubble.infra.home
+            description: Cilium network observability
+            icon: cilium.png
+        - qBittorrent:
+            href: https://qbittorrent.infra.home
+            description: Torrent client
+            icon: qbittorrent.png
+        - Pocket ID:
+            href: https://auth.apps.home
+            description: OIDC identity provider
+            icon: mdi-shield-key
 
   bookmarks:
     - Observability:
@@ -135,7 +242,7 @@ config:
     statusStyle: dot
     cardBlur: sm
     background:
-      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/red_distortion_3.jpg
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/red_distortion_1.jpg
       blur: sm
       opacity: 80
       brightness: 60
