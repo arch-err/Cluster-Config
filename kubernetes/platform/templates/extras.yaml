@@ -679,8 +679,8 @@ spec:
 # home-assistant namespace — baseline PSS. Official HA image
 # (ghcr.io/home-assistant/home-assistant) uses s6-overlay; /init starts as
 # root and supervises the HA python process. Restricted PSS rejects the
-# root-init flow. oauth2-home-assistant sidecar release lives in this same
-# ns so the OIDC-client Secret + HTTPRoute backendRef are co-located.
+# root-init flow. Auth is native (hass-oidc-auth integration on the config
+# PVC); the OIDC-client Secret + HTTPRoute backendRef live in this ns.
 #
 # When the user later wants USB dongles / hostNetwork (multicast/SSDP), flip
 # this to privileged PSS — the labels swap is the trade-acknowledging step

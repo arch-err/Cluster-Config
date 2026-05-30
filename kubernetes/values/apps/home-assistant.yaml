@@ -10,17 +10,21 @@
 # enabling them is a values-file delta, not a rewrite.
 #
 # ─── Auth ─────────────────────────────────────────────────────────────────────
-# HA's native auth doesn't speak OIDC (no built-in OIDC provider). Front-door
-# pattern via oauth2-proxy sidecar release (home-assistant-oauth2), same shape
-# as calibre-web / arr-oauth2-{prowlarr,readarr}. HA's `trusted_proxies` +
-# `use_x_forwarded_for` (rendered via configuration.yaml ConfigMap + init copy
-# below) lets it trust X-Forwarded-* from the in-cluster oauth2-proxy.
+# NATIVE OIDC via the hass-oidc-auth custom integration (christiaangoossens/
+# hass-oidc-auth, pinned v1.1.0, installed onto the /config PVC by the
+# install-oidc init container below). pocket-id is a first-class HA auth
+# provider on HA's own login screen — single SSO, no proxy front-door. The
+# auth_oidc: block (public PKCE client, no client_secret) is appended/migrated
+# into configuration.yaml by the seed-config init. The built-in `homeassistant`
+# username/password provider stays enabled as the break-glass local admin.
 #
-# After first deploy HA shows its onboarding/owner-account screen — that's
-# expected; create the local owner account once, then the oauth2-proxy front
-# gates all further access (X-Forwarded-User isn't auto-bound to an HA user
-# without a custom auth provider — that's a future step if/when the user wants
-# SSO username-mapping; for now oauth2-proxy gates *access*, HA owns *identity*).
+# HA still sits behind the cilium gateway, so it trusts X-Forwarded-* via
+# `trusted_proxies` + `use_x_forwarded_for` (configuration.yaml seed below).
+#
+# After first deploy HA shows its onboarding/owner-account screen — create the
+# local owner account once (break-glass admin); pocket-id logins then come in
+# via the native OIDC provider. Binding the user's pocket-id identity to their
+# admin account is a one-time automatic_user_linking flip done after cutover.
 #
 # ─── PSS ──────────────────────────────────────────────────────────────────────
 # Baseline ns label (extras renders it). HA's image is s6-overlay; /init runs
@@ -45,17 +49,9 @@ controllers:
         image:
           repository: docker.io/library/busybox
           tag: "1.37.0"
-        # OIDC client_secret (confidential mode, Phase 1) reaches this init
-        # via env from the platform-rendered home-assistant-oidc-client Secret.
-        # It is written into /config/secrets.yaml as oidc_client_secret and
-        # referenced from configuration.yaml via `!secret oidc_client_secret`,
-        # so the secret never lives in plaintext in the GitOps repo.
-        env:
-          - name: OIDC_CLIENT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: home-assistant-oidc-client
-                key: client_secret
+        # Phase 2: the pocket-id client is PUBLIC — no client_secret. The
+        # native hass-oidc-auth integration uses PKCE and sends no secret, so
+        # this init no longer references the (now-absent) client_secret key.
         command:
           - /bin/sh
           - -c
@@ -69,19 +65,28 @@ controllers:
             fi
 
             # ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────────
-            # Seed secrets.yaml with the OIDC client_secret (confidential mode).
-            # Idempotent: rewrite the oidc_client_secret line each boot so a
-            # pocket-id secret rotation propagates, without clobbering other
-            # user-owned !secret entries.
-            touch /config/secrets.yaml
-            if grep -q '^oidc_client_secret:' /config/secrets.yaml; then
+            # Public PKCE client → NO client_secret. Drop any stale
+            # oidc_client_secret line left over from the confidential Phase-1
+            # seeding so secrets.yaml doesn't carry a dangling secret.
+            if [ -f /config/secrets.yaml ] && grep -q '^oidc_client_secret:' /config/secrets.yaml; then
+              echo "[seed-config] removing stale oidc_client_secret from secrets.yaml"
               grep -v '^oidc_client_secret:' /config/secrets.yaml > /config/secrets.yaml.tmp
               mv /config/secrets.yaml.tmp /config/secrets.yaml
             fi
-            printf 'oidc_client_secret: %s\n' "$OIDC_CLIENT_SECRET" >> /config/secrets.yaml
 
-            # Append the auth_oidc: block once (grep-guarded) so we never
-            # clobber the user's hand-owned configuration.yaml.
+            # Migrate an EXISTING confidential auth_oidc: block to public mode.
+            # The Phase-1 block has a `client_secret: !secret oidc_client_secret`
+            # line; a public client must NOT send one. Strip exactly that line
+            # in-place (idempotent — no-op once gone), leaving the rest of the
+            # hand-owned configuration.yaml untouched.
+            if grep -q '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml; then
+              echo "[seed-config] stripping client_secret from auth_oidc (public-mode migration)"
+              grep -v '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml > /config/configuration.yaml.tmp
+              mv /config/configuration.yaml.tmp /config/configuration.yaml
+            fi
+
+            # Append the auth_oidc: block once (grep-guarded) for a fresh PVC
+            # so we never clobber the user's hand-owned configuration.yaml.
             if ! grep -q '^auth_oidc:' /config/configuration.yaml; then
               echo "[seed-config] appending auth_oidc block to configuration.yaml"
               # Each heredoc line is prefixed with a `|` sentinel marking the
@@ -91,13 +96,12 @@ controllers:
               sed 's/^[[:space:]]*|//' >> /config/configuration.yaml <<'EOF'
               |
               |# ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────
-              |# Confidential client (Phase 1); client_secret from secrets.yaml.
+              |# Public PKCE client — no client_secret (hass-oidc-auth default).
               |# tls_ca_path points at the Home Lab Root CA for auth.apps.home.
               |# The built-in `homeassistant` username/password provider stays
               |# enabled via default_config above as the break-glass local admin.
               |auth_oidc:
               |  client_id: home-assistant
-              |  client_secret: !secret oidc_client_secret
               |  discovery_url: https://auth.apps.home/.well-known/openid-configuration
               |  display_name: "Pocket ID (SSO)"
               |  claims:
