@@ -39,75 +39,6 @@ serviceAccount:
   name: homepage-admin
 enableRbac: true
 
-# Liquid-glass card styling. gethomepage auto-loads /app/config/custom.css if
-# present; the chart's config: block doesn't render a custom.css slot, so we
-# ship it as a ConfigMap (below) and mount it over that path via persistence.
-# Targets the live DOM classes (verified against the running pod, v1.12.3):
-#   .service-card — the per-service card; .bookmark — bookmark cards.
-configMaps:
-  customcss:
-    enabled: true
-    data:
-      custom.css: |
-        /* --- liquid glass: service + bookmark cards --- */
-        .service-card,
-        .bookmark {
-          background: rgba(255, 255, 255, 0.06) !important;
-          backdrop-filter: blur(14px) saturate(160%) !important;
-          -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
-          border: 1px solid rgba(255, 255, 255, 0.12) !important;
-          border-radius: 18px !important;
-          box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.45),
-            inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
-          transition: background 180ms ease, border-color 180ms ease,
-                      box-shadow 180ms ease, transform 180ms ease !important;
-        }
-        .service-card:hover,
-        .bookmark:hover {
-          background: rgba(255, 255, 255, 0.13) !important;
-          border-color: rgba(255, 255, 255, 0.24) !important;
-          box-shadow:
-            0 10px 40px rgba(0, 0, 0, 0.60),
-            inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
-          transform: translateY(-2px) !important;
-        }
-        /* Higher-contrast text on the glass. */
-        .service-name,
-        .bookmark-name {
-          color: rgba(255, 255, 255, 0.96) !important;
-          font-weight: 600 !important;
-        }
-        .service-description,
-        .bookmark-description {
-          color: rgba(255, 255, 255, 0.66) !important;
-        }
-        /* Match the inner bookmark icon tile to the glass radius. */
-        .bookmark-icon {
-          background: rgba(255, 255, 255, 0.08) !important;
-          border-radius: 16px 0 0 16px !important;
-        }
-        /* Frost the top info widgets to match the cards. */
-        #information-widgets {
-          backdrop-filter: blur(14px) saturate(160%) !important;
-          -webkit-backdrop-filter: blur(14px) saturate(160%) !important;
-          background: rgba(255, 255, 255, 0.05) !important;
-          border: 1px solid rgba(255, 255, 255, 0.10) !important;
-          border-radius: 18px !important;
-          padding: 0.5rem 0.75rem !important;
-        }
-
-# Mount the custom.css ConfigMap over gethomepage's auto-loaded path.
-# (bjw-s common 1.5.1 syntax — flat mountPath/subPath, not globalMounts.)
-persistence:
-  customcss:
-    enabled: true
-    type: configMap
-    name: "{{ .Release.Name }}-customcss"
-    mountPath: /app/config/custom.css
-    subPath: custom.css
-    readOnly: true
-
 config:
   kubernetes:
     mode: cluster
@@ -311,15 +242,16 @@ config:
     headerStyle: clean
     hideVersion: true
     statusStyle: dot
-    # cardBlur drives the frosted backdrop on .service-card; custom.css (below,
-    # mounted at /app/config/custom.css) layers the full liquid-glass treatment
-    # — translucent fill, hairline highlight border, rounded corners, deep shadow.
-    cardBlur: md
+    # Native glass feel (no custom.css — keeps it robust). cardBlur is the only
+    # built-in knob for the frosted-backdrop look on the translucent .service-card
+    # tiles; max it out. The bg below is dimmed so the light cards pop against it.
+    cardBlur: xl
     background:
       image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/glaze_2.png
-      # No bg blur — keep the silk crisp so the frosted cards read as glass over it.
-      opacity: 70
-      brightness: 55
+      # Crisp silk behind the frosted cards; brightness/opacity dialed down so the
+      # translucent tiles read with more contrast against the dark silk.
+      brightness: 50
+      opacity: 65
 
 resources:
   requests:
