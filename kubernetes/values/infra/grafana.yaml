@@ -2,21 +2,25 @@
 # Chart: grafana/grafana
 # Dashboards via git-sync sidecar from arch-err/grafana-dashboards
 
-# Persistence for grafana DB (sqlite by default)
-# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
+# Grafana state lives in CNPG postgres now (see [database] under grafana.ini +
+# the `db:` block on the grafana component in infra.yaml), NOT in a local sqlite
+# PVC. The old sqlite-on-kadalu-replica2 setup split-brained: the encrypted
+# secrets row and its data_keys row diverged across the two replicas →
+# "data key not found" crashloop. Postgres (single cnpg instance owning its own
+# PVC) has one writer, so no split-brain. Grafana itself is now stateless
+# (dashboards git-synced, datasources provisioned), so: no PVC, RollingUpdate OK.
 persistence:
-  enabled: true
-  storageClassName: kadalu.replica2
-  size: 5Gi
+  enabled: false
 
-# SQLite + RWX kadalu volume = two pods can't safely share. RollingUpdate spawns
-# a new pod while the old one still holds the DB open, and the new pod sees
-# stale/out-of-sync state across replica2 (most visibly: "data key not found"
-# during datasource provisioning when the encrypted secrets row has been
-# updated by the running pod but its data_keys row hasn't yet propagated to
-# the other node's replica). Recreate guarantees the old pod is gone first.
-deploymentStrategy:
-  type: Recreate
+# Postgres password injected from the cnpg-minted `grafana-db-app` Secret (key
+# `password`). The rest of the DB connection is set declaratively in
+# grafana.ini.database below. Keeping the secret out of values means rotations
+# (cnpg re-mints on Cluster recreate) flow through without a values edit.
+envValueFrom:
+  GF_DATABASE_PASSWORD:
+    secretKeyRef:
+      name: grafana-db-app
+      key: password
 
 # Admin: chart auto-generates random 40-char password if adminPassword is unset.
 # Retrieve with:
@@ -126,6 +130,18 @@ extraSecretMounts:
 
 # Grafana config
 grafana.ini:
+  # Postgres backend via the cnpg `grafana-db` Cluster (infra.yaml grafana db:).
+  # host = the cnpg read-write Service; name/user = `grafana` (db+owner minted by
+  # the Cluster's initdb). Password comes from env GF_DATABASE_PASSWORD
+  # (envValueFrom → grafana-db-app secret) and overrides any password here.
+  # ssl_mode=require: cnpg serves TLS on the -rw service; `require` encrypts
+  # without pinning the CA (no client CA mount needed for an in-cluster hop).
+  database:
+    type: postgres
+    host: grafana-db-rw.monitoring.svc:5432
+    name: grafana
+    user: grafana
+    ssl_mode: require
   server:
     root_url: https://grafana.infra.home
   analytics:

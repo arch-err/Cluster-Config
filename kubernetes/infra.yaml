@@ -184,6 +184,20 @@ components:
       name: grafana
       version: 8.7.x
     syncWave: "3"  # After datasources are reachable
+    # CNPG postgres backend (replaces sqlite-on-replica2, which split-brained:
+    # the encrypted secrets row and its data_keys row diverged across the two
+    # kadalu replicas → "data key not found" crashloop. A single-instance cnpg
+    # Cluster owns its own PVC exclusively, so no concurrent-writer split-brain.)
+    # Renders Cluster `grafana-db` in this ns (db-postgres.yaml) + mints Secret
+    # `grafana-db-app` (username/password/host/dbname/...); grafana.yaml wires
+    # GF_DATABASE_* to it. DB+owner = `grafana`, rw service = grafana-db-rw.
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: kadalu.replica2-retain
     route:
       hostname: grafana.infra.home
       gateway: infra
