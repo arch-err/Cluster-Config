@@ -46,8 +46,6 @@ Approximate sizes per tier. Actual on-disk bytes after gzip are smaller — sqli
 
 | App | Source | PVC capacity | Note |
 |---|---|---|---|
-| readarr config | `arr/readarr` | 2Gi | book wishlist + arr config |
-| prowlarr config | `prowlarr/prowlarr` | 2Gi | indexer config |
 | qbittorrent config | `qbittorrent/qbittorrent` | 2Gi | torrent state |
 | navidrome | `navidrome/navidrome` | 5Gi | sqlite — scrobbles, playlists |
 | jellyfin config | `jellyfin/jellyfin-config` | 5Gi | watch history, user accounts |
@@ -58,7 +56,7 @@ Approximate sizes per tier. Actual on-disk bytes after gzip are smaller — sqli
 | metube | `metube/metube` | 1Gi | download queue/history |
 | ntfy | `ntfy/ntfy-data` | 5Gi | message DB |
 | matrix synapse | `matrix/matrix-synapse` | 5Gi | sqlite — accounts, rooms, history |
-| grafana | `monitoring/grafana` | 5Gi | dashboards, alert rules |
+| grafana | `monitoring/grafana-db-1` | 10Gi | cnpg postgres — alert rules, users, prefs (dashboards are git-synced) |
 
 **Subtotal:** PVC ceiling ~46Gi; realistic compressed payload **3–8 GB**.
 
@@ -66,7 +64,7 @@ Approximate sizes per tier. Actual on-disk bytes after gzip are smaller — sqli
 
 | Source | Capacity | Why skipped |
 |---|---|---|
-| `arr/media-library` (RWX shared) | 1500Gi | Re-downloadable media. Same volume reused by jellyfin / navidrome / metube / readarr / abs-v2 / qbittorrent under different PVC names — all SKIP |
+| `arr/media-library` (RWX shared) | 1500Gi | Re-downloadable media. Same volume reused by jellyfin / navidrome / metube / abs-v2 / qbittorrent under different PVC names — all SKIP |
 | `arr/media-downloads` + `qbittorrent/media-downloads` | 200Gi | Transient torrent scratch |
 | `monitoring/prometheus-server` | 30Gi | Time-series — regenerates from current cluster state |
 | `monitoring/storage-loki-0` | 30Gi | Log storage — regenerates from current logs |
