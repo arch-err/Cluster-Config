@@ -1,0 +1,129 @@
+# hermes-oauth2 — chart: oauth2-proxy/oauth2-proxy v10.4.3
+# Forward-auth proxy fronting the OFF-CLUSTER "Hermes Agent" harness + web
+# dashboard running at http://10.10.10.160:9119 (plain HTTP, uvicorn-served
+# Vite SPA with an embedded WebSocket chat). Hermes has NO native auth — it
+# hands a session token to anyone — so oauth2-proxy is the SOLE auth layer.
+# EVERY path is gated (no /api bypass): the whole surface is sensitive.
+#
+# Mirrors zigbee2mqtt-oauth2 (the canonical *.infra.home + oauth2-proxy +
+# pocket-id precedent). Exposed on the INFRA gateway (operator tooling tier).
+#
+# ─── External backend (the novel bit) ────────────────────────────────────────
+# There is NO in-cluster pod behind hermes. The upstream below points at a
+# SELECTORLESS Service `hermes-backend` (this ns) whose EndpointSlice hard-codes
+# the external box 10.10.10.160:9119. Service + EndpointSlice are rendered by
+# extras.hermes (platform/templates/extras.yaml). So the request path is:
+#   client → infra gateway (TLS terminate) → oauth2-hermes → hermes-backend svc
+#          → EndpointSlice → 10.10.10.160:9119 (plain HTTP).
+#
+# ─── WebSocket (the embedded chat) ────────────────────────────────────────────
+# oauth2-proxy's upstream is Go's httputil.ReverseProxy, which natively forwards
+# `Connection: Upgrade` / `Upgrade: websocket`. `--proxy-websockets=true` is the
+# default; we set it explicitly. `--flush-interval=-1` disables response
+# buffering so SSE/streaming + WS frames flush immediately rather than being
+# chunk-buffered. The session cookie rides through the WS handshake, so the
+# gated session works for the live chat.
+#
+# Consumes `hermes-oidc-client` (rendered by the hermes Application's oidc:*
+# block in apps.yaml; pocket-id client id=`hermes`, restricted to
+# infra_users + administrators at the IDP level on top of the --allowed-group
+# flags below).
+#
+# COOKIE SECRET: sourced from SopsSecret `hermes-oauth2-cookie` in the hermes
+# ns (kubernetes/secrets/apps/hermes-oauth2-cookie.yaml).
+
+fullnameOverride: oauth2-hermes
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  # Single upstream — the selectorless hermes-backend Service (this ns) whose
+  # EndpointSlice targets the off-cluster box 10.10.10.160:9119 (plain HTTP).
+  - --upstream=http://hermes-backend.hermes.svc.cluster.local:9119
+  # WebSocket + streaming: forward Upgrade handshakes and flush immediately so
+  # the embedded chat (WS) and any SSE/stream survive the proxy.
+  - --proxy-websockets=true
+  - --flush-interval=-1
+  - --cookie-domain=hermes.infra.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_hermes_oauth2_proxy
+  - --allowed-group=infra_users
+  - --allowed-group=administrators
+  # No skip-auth-route — gate EVERY path (the entire hermes surface is
+  # sensitive; it has no native auth of its own).
+  - --pass-user-headers=true
+  - --set-xauthrequest=true
+  - --pass-access-token=false
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+# OIDC creds from the platform-rendered Secret (hermes Application's oidc:*
+# block in apps.yaml).
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: hermes-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: hermes-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: hermes-oidc-client
+        key: issuer_url
+  # Distinct cookie secret per oauth2-proxy release. From SopsSecret
+  # `hermes-oauth2-cookie` (same ns).
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: hermes-oauth2-cookie
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false

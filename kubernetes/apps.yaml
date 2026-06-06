@@ -881,6 +881,70 @@ components:
     # Consumes `zigbee2mqtt-oidc-client` Secret rendered by the zigbee2mqtt
     # Application's oidc:* block. No oidc:* block here — this IS the proxy.
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # HERMES — the "Hermes Agent" harness + web dashboard, running OFF the
+  # cluster on a plain server at http://10.10.10.160:9119 (uvicorn-served Vite
+  # SPA with an embedded WebSocket chat). It has NO native auth — it hands a
+  # session token to anyone — so oauth2-proxy is the SOLE auth gate.
+  #
+  # There is NO in-cluster workload: the only k8s-side component is the
+  # oauth2-proxy (this `hermes-oauth2` component IS the proxy). The proxy's
+  # upstream is a SELECTORLESS Service `hermes-backend` whose EndpointSlice
+  # hard-codes the external box 10.10.10.160:9119 — both rendered by
+  # extras.hermes (platform/templates/extras.yaml).
+  #
+  # This component carries BOTH the route (→ oauth2-hermes svc:80, infra
+  # gateway) AND the oidc:* block (pocket-id client id=`hermes`, secret
+  # `hermes-oidc-client` — overridden off the component name so the proxy's
+  # values reference clean `hermes-*` names). Exposed on the INFRA gateway
+  # (operator tooling tier; infra_users + administrators). Mirrors the
+  # zigbee2mqtt oauth2-proxy + pocket-id pattern, the only difference being the
+  # external selectorless backend.
+  #
+  # DNS: *.infra.home is synthesized by CoreDNS's `template ANY A infra.home`
+  # plugin → infra gateway 10.10.10.201 (see kubernetes/manual/coredns). No
+  # explicit hermes record needed.
+  #
+  # WebSocket: oauth2-proxy forwards Upgrade handshakes natively
+  # (--proxy-websockets=true) + flushes immediately (--flush-interval=-1) — the
+  # embedded chat survives the proxy. See values/apps/hermes-oauth2.yaml.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: hermes-oauth2
+    namespace: hermes
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"  # after extras (ns + selectorless svc/EndpointSlice) settle
+    # HTTPRoute → the oauth2-hermes Service (same ns), NOT the external box
+    # directly — oauth2-proxy is the only gate. Host on the INFRA gateway.
+    route:
+      hostname: hermes.infra.home
+      gateway: infra
+      service: oauth2-hermes
+      port: 80
+      dashboard:
+        enabled: true   # gateway:infra defaults to hidden; opt in explicitly
+        name: Hermes
+        group: Tools
+        icon: si-robotframework.svg
+        description: Hermes Agent harness + dashboard (off-cluster)
+        app: oauth2-hermes
+    # Per-app OIDC client (pocket-id id=`hermes`). clientId + secretName
+    # overrides decouple the pocket-id client + rendered Secret name from this
+    # component's `hermes-oauth2` name → Secret `hermes-oidc-client`, consumed
+    # by the oauth2-proxy (values/apps/hermes-oauth2.yaml). infra_users +
+    # administrators allowed at the IDP level on top of --allowed-group.
+    oidc:
+      enabled: true
+      clientId: hermes
+      secretName: hermes-oidc-client
+      callbackUrls:
+        - https://hermes.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [infra_users, administrators]
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -1004,3 +1068,12 @@ extras:
   zigbee2mqtt:
     enabled: true
     dataSize: 1Gi
+  # hermes — selectorless Service + EndpointSlice pointing at the OFF-CLUSTER
+  # "Hermes Agent" box (10.10.10.160:9119). No in-cluster workload; the
+  # oauth2-hermes proxy (hermes-oauth2 component) dials this Service, which
+  # resolves to the external box via the manually-managed EndpointSlice.
+  # Renders the hermes ns (restricted PSS — oauth2-proxy runs non-root).
+  hermes:
+    enabled: true
+    address: "10.10.10.160"
+    port: 9119

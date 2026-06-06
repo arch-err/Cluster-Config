@@ -1146,6 +1146,85 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* HERMES — selectorless Service + EndpointSlice → OFF-CLUSTER box             */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* The "Hermes Agent" harness + web dashboard runs OFF the cluster on a plain */}}
+{{/* server at 10.10.10.160:9119 (plain HTTP, uvicorn-served Vite SPA with an    */}}
+{{/* embedded WebSocket chat). Nothing in-cluster backs it. We give it a         */}}
+{{/* cluster-resolvable backend so oauth2-hermes can proxy to it as if it were   */}}
+{{/* a normal Service:                                                           */}}
+{{/*   - hermes namespace (default RESTRICTED PSS — only oauth2-proxy runs here, */}}
+{{/*     and it runs fine non-root; no baseline flip needed).                    */}}
+{{/*   - Service `hermes-backend` with NO selector (ClusterIP). Port `http`      */}}
+{{/*     80→9119? NO — we expose the upstream port directly (9119) and the       */}}
+{{/*     oauth2 upstream dials :9119. The EndpointSlice below provides the       */}}
+{{/*     endpoints manually (selectorless ⇒ kube doesn't manage them).          */}}
+{{/*   - EndpointSlice (label kubernetes.io/service-name: hermes-backend) with   */}}
+{{/*     the external box's IP as a single IPv4 endpoint on port 9119. The       */}}
+{{/*     port NAME (`http`) + NUMBER (9119) MUST match the Service port for the  */}}
+{{/*     endpoints to resolve.                                                   */}}
+{{/* oauth2-hermes (values/apps/hermes-oauth2.yaml) sets                         */}}
+{{/* --upstream=http://hermes-backend.hermes.svc.cluster.local:9119.            */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.hermes }}
+{{- $hermes := .Values.extras.hermes }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hermes
+  labels:
+    # restricted — oauth2-proxy runs non-root; the backend is OFF-cluster so
+    # nothing privileged is needed here.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Selectorless Service — no pod backs it; the EndpointSlice below points at the
+# off-cluster box. Named port `http`:9119 (matches the EndpointSlice port).
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-backend
+  namespace: hermes
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9119
+      targetPort: 9119
+      protocol: TCP
+---
+# Manually-managed EndpointSlice for the selectorless Service. Targets the
+# external Hermes box. The label kubernetes.io/service-name MUST equal the
+# Service name; the port name+number MUST match the Service port so the
+# endpoints resolve. conditions.ready:true so kube-proxy/cilium programs it.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: hermes-backend
+  namespace: hermes
+  labels:
+    kubernetes.io/service-name: hermes-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+addressType: IPv4
+endpoints:
+  - addresses:
+      - {{ $hermes.address | default "10.10.10.160" }}
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: {{ $hermes.port | default 9119 }}
+    protocol: TCP
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* ZIGBEE2MQTT — namespace (baseline PSS) + Retain data PVC                    */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if .Values.extras.zigbee2mqtt }}
