@@ -1749,6 +1749,58 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* MATTERMOST (namespace baseline-PSS for file-PVC chown init + file PVC)       */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* Mattermost Team Edition chat UI @ agents.apps.home. Renders:                */}}
+{{/*   - mattermost namespace, BASELINE PSS. The mattermost image runs non-root */}}
+{{/*     (uid 2000) but the file PVC needs a root chown init (chown -R 2000:2000 */}}
+{{/*     /mattermost/data + /config) before the main container starts — Kadalu/  */}}
+{{/*     GlusterFS doesn't honour fsGroup for the mount owner. Restricted PSS    */}}
+{{/*     rejects runAsUser=0; baseline permits the justified root init (mirrors  */}}
+{{/*     the immich-postgres chown-init trade). The cnpg postgres pods (from the */}}
+{{/*     mattermost db: block) also run here — cnpg is fine under baseline.      */}}
+{{/*   - mattermost-data PVC (RWO kadalu.replica2-retain) — CRITICAL user data:  */}}
+{{/*     chat uploads/avatars (subPath data) + on-disk config.json (subPath      */}}
+{{/*     config). Retain reclaim via SC so an ArgoCD prune can't wipe it.        */}}
+{{/* The postgres PVC is provisioned by the cnpg Cluster CR (db-postgres.yaml),  */}}
+{{/* also kadalu.replica2-retain. AUTH is local-accounts-only (pocket-id OIDC    */}}
+{{/* not viable on Team Edition) — no oidc/oauth2 objects here.                  */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.mattermost }}
+{{- $mm := .Values.extras.mattermost }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mattermost
+  labels:
+    # baseline — file-PVC chown init needs runAsUser=0 on Kadalu.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Mattermost file storage — uploads/avatars + on-disk config.json (two subPath
+# mounts off this one claim). CRITICAL user data: Retain SC so a component-
+# removal prune does NOT wipe the underlying brick.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mattermost-data
+  namespace: mattermost
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ $mm.dataSize | default "20Gi" }}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* COREDNS — *.apps.home / *.infra.home in-cluster resolution                  */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/*                                                                             */}}

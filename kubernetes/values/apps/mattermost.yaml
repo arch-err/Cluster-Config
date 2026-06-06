@@ -1,0 +1,206 @@
+# mattermost — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Mattermost Team Edition (free/OSS) — chat UI for talking to the user's
+# "Hermes Agent" instances. Served at https://agents.apps.home (apps gateway).
+# Upstream image: docker.io/mattermost/mattermost-team-edition
+# Pinned to 11.7.2 (current stable GA on Docker Hub as of 2026-06-06; the 11.x
+# line; 11.3.0-rc* etc are RCs — we pin a GA point release).
+#
+# ─── AUTH: LOCAL ACCOUNTS ONLY (OIDC via pocket-id is NOT viable) ──────────────
+# The user wanted pocket-id OIDC if possible. It is NOT possible on Team Edition.
+# WHY (verified against Mattermost source + pocket-id docs, 2026-06-06):
+#   * Mattermost Team Edition has NO native generic OIDC/SAML — that's a paid
+#     Enterprise feature. The ONLY SSO Team Edition supports is the GitLab OAuth
+#     provider, whose endpoints (Auth/Token/UserAPI) are overridable, so the
+#     known trick is to point that "GitLab" provider at a generic IDP.
+#   * BUT Mattermost parses the GitLab user-API response into a Go struct whose
+#     id field is `Id int64` (mattermost/model/gitlab/gitlab.go). It reads a
+#     GitLab `/api/v4/user`-shaped JSON: {id:<int>, username, login, email, name}.
+#   * pocket-id's userinfo emits OIDC-standard claims (sub=UUID string,
+#     preferred_username, email, name) — it has NO numeric top-level `id` field,
+#     and Go's JSON unmarshal of a UUID string into an int64 fails outright.
+#   * The authentik/Keycloak versions of this shim work ONLY because they have
+#     programmable property/protocol mappers (and a GitHub/GitLab-compatible
+#     endpoint) that reshape userinfo into {id:<numeric pk>, username, email,
+#     name}. pocket-id CANNOT do this: its custom-claims feature only adds extra
+#     (group-attached) claims and renames a claim to a user *attribute* — it
+#     cannot synthesize a stable per-user int64 `id`, cannot rename sub→id, and
+#     has no GitLab/GitHub-compat user endpoint.
+# Verdict: pocket-id cannot drive Mattermost Team Edition SSO. Per the user's
+# explicit fallback, we use LOCAL ACCOUNTS ONLY — plain Mattermost login. NO
+# oauth2-proxy front door (a chat app needs real per-user identity; a front-door
+# proxy is the wrong shape and the user declined it). First account created via
+# the signup page becomes the System Admin. Consider setting
+# EnableOpenServer=false after the first admin signs up (admin can disable open
+# signup in the System Console once seeded).
+#
+# ─── DATABASE (CNPG) ──────────────────────────────────────────────────────────
+# Postgres via the cnpg `db:` block on the mattermost component (apps.yaml),
+# mirroring grafana-db. Renders Cluster `mattermost-db` (pg16, 1 instance,
+# exclusive PVC on kadalu.replica2-retain) in this ns + cnpg mints Secret
+# `mattermost-db-app` (username/password/host/dbname/...). DB + owner = both
+# `mattermost`; rw service = `mattermost-db-rw`.
+#   The official mattermost image's entrypoint BUILDS MM_SQLSETTINGS_DATASOURCE
+#   itself from component env vars (MM_USERNAME/MM_PASSWORD/DB_HOST/
+#   DB_PORT_NUMBER/MM_DBNAME/DB_USE_SSL) when DATASOURCE is unset, URL-encoding
+#   the password — so we never have to string-interpolate a secret into a DSN.
+#   We feed MM_PASSWORD from the cnpg secret via secretKeyRef; the rest inline.
+#   DB_USE_SSL=require: cnpg serves TLS on the -rw service (same as grafana's
+#   ssl_mode: require) — encrypts the in-cluster hop without pinning the CA.
+#
+# ─── FILE STORAGE (Retain, CRITICAL data) ─────────────────────────────────────
+# Mattermost writes uploads/avatars to /mattermost/data and its on-disk config
+# to /mattermost/config. Both persist on the `mattermost-data` PVC (20Gi,
+# kadalu.replica2-retain — Retain reclaim, holds irreplaceable user data) via
+# two subPath mounts. Rendered by extras.mattermost (ns + PVC). NO S3 (user
+# did not ask for it).
+#   Kadalu chown gotcha: the image runs non-root (uid 2000); fsGroup alone is
+#   NOT enough on Kadalu (GlusterFS). A root chown init container chowns both
+#   subPaths to 2000:2000 before the main container starts (mirrors the
+#   immich-postgres chown-init pattern). That root init needs the ns labeled
+#   baseline PSS (see extras.mattermost) — baseline is pre-authorized for this
+#   justified case; we do NOT go privileged.
+#
+# ─── ROUTING / WEBSOCKET ──────────────────────────────────────────────────────
+# HTTPRoute on the apps gateway (host agents.apps.home) is rendered by the
+# platform chart (apps.yaml route:), NOT this chart — no built-in ingress/route
+# here. Service main:8065 → mattermost. Mattermost realtime rides
+# /api/v4/websocket; Cilium Gateway forwards WS upgrades natively (no proxy in
+# path). SITEURL is mandatory (WebSocket origin + any future SSO depend on it).
+
+controllers:
+  main:
+    # Single writer to the data dir; Recreate avoids old/new pods racing on the
+    # config.json + data mount during rollouts (same posture as samba/booklore).
+    strategy: Recreate
+    initContainers:
+      # Kadalu chown — root init chowns the mounted data + config subPaths to
+      # uid:gid 2000 (the mattermost user) before the non-root main container
+      # starts. fsGroup alone fails on Kadalu/GlusterFS. Mirrors immich-postgres.
+      chown-data:
+        image:
+          repository: docker.io/library/busybox
+          tag: "1.37.0"
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            chown -R 2000:2000 /mattermost/data /mattermost/config
+            echo "[chown-data] chowned /mattermost/data + /mattermost/config to 2000:2000"
+        securityContext:
+          # root for the chown; baseline PSS (see extras.mattermost) permits this.
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+            add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    containers:
+      app:
+        image:
+          repository: docker.io/mattermost/mattermost-team-edition
+          tag: "11.7.2"
+        env:
+          TZ: "Europe/Amsterdam"
+          # ── Site URL (mandatory) ──
+          MM_SERVICESETTINGS_SITEURL: "https://agents.apps.home"
+          MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+          # ── DB driver ──
+          MM_SQLSETTINGS_DRIVERNAME: "postgres"
+          # The image entrypoint assembles MM_SQLSETTINGS_DATASOURCE from these
+          # component vars (URL-encoding the password) when DATASOURCE is unset.
+          MM_USERNAME: "mattermost"
+          MM_DBNAME: "mattermost"
+          DB_HOST: "mattermost-db-rw"
+          DB_PORT_NUMBER: "5432"
+          # cnpg serves TLS on -rw; require encrypts without CA pinning.
+          DB_USE_SSL: "require"
+          MM_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: mattermost-db-app
+                key: password
+          # ── Local accounts only (no SSO). Open signup so the first account
+          #    becomes System Admin; tighten in System Console post-seed. ──
+          MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL: "true"
+          MM_EMAILSETTINGS_ENABLESIGNINWITHEMAIL: "true"
+          MM_EMAILSETTINGS_ENABLESIGNINWITHUSERNAME: "true"
+          # No outbound SMTP wired — disable email verification so local signup
+          # works without a mail server (can be wired later in System Console).
+          MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION: "false"
+          MM_TEAMSETTINGS_ENABLEOPENSERVER: "true"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v4/system/ping
+                port: 8065
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v4/system/ping
+                port: 8065
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          # Main container runs as the baked mattermost user (2000). Drop caps;
+          # the chown already happened in the root init container.
+          runAsUser: 2000
+          runAsGroup: 2000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # writes /mattermost/logs, /tmp, plugins
+          capabilities:
+            drop: [ALL]
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 2000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8065
+        targetPort: 8065
+
+persistence:
+  # CRITICAL user data — chat uploads/avatars (/mattermost/data) + on-disk
+  # config.json (/mattermost/config). One Retain PVC, two subPath mounts.
+  # PVC `mattermost-data` is pre-rendered in extras.mattermost (kadalu.replica2
+  # -retain SC) rather than chart-provisioned (the bjw-s persistence schema
+  # rejects storageClassName at the top level — same workaround as booklore).
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: mattermost-data
+    advancedMounts:
+      main:
+        chown-data:
+          - path: /mattermost/data
+            subPath: data
+          - path: /mattermost/config
+            subPath: config
+        app:
+          - path: /mattermost/data
+            subPath: data
+          - path: /mattermost/config
+            subPath: config

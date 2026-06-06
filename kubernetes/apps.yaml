@@ -805,6 +805,55 @@ components:
     # via cilium L2 (see values/apps/samba.yaml). LAN-only, UniFi FW scoped.
 
   # ──────────────────────────────────────────────────────────────────────────
+  # MATTERMOST — Team Edition chat UI for the "Hermes Agent" instances, served
+  # at agents.apps.home (apps gateway). Stateful (chat history): cnpg postgres
+  # (db: block below, mirrors grafana-db) + a Retain file PVC (extras.mattermost)
+  # for uploads + on-disk config. AUTH: LOCAL ACCOUNTS ONLY — pocket-id OIDC is
+  # NOT viable on Team Edition (its GitLab-OAuth shim needs a numeric int64 user
+  # `id` that pocket-id cannot emit; full rationale in values/apps/mattermost
+  # .yaml header). NO oauth2-proxy front door (chat needs real per-user
+  # identity; user declined a gate). See values/apps/mattermost.yaml.
+  #   syncWave 4: the cnpg Cluster CR renders at wave 0 and must reconcile (and
+  #   mint mattermost-db-app) before the app pod starts — wave 4 > the db's 0
+  #   and > extras (ns+PVC). Mattermost's entrypoint also DB-connect-retries.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: mattermost
+    namespace: mattermost
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after extras (ns + file PVC) + the cnpg Cluster settle
+    # cnpg postgres backend (mirrors grafana-db). Renders Cluster `mattermost-db`
+    # in this ns (db-postgres.yaml) + mints Secret `mattermost-db-app`
+    # (username/password/host/dbname/...); values/apps/mattermost.yaml wires
+    # MM_PASSWORD to it + the entrypoint builds the DSN. DB+owner = `mattermost`,
+    # rw service = mattermost-db-rw. Retain SC so an ArgoCD prune can't wipe it.
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: kadalu.replica2-retain
+    route:
+      hostname: agents.apps.home
+      gateway: apps
+      service: mattermost
+      port: 8065
+      # WebSocket realtime (/api/v4/websocket) + file uploads can be long-lived;
+      # bump the request timeout off the gateway default.
+      timeout: 1h
+      dashboard:
+        name: Mattermost
+        group: Comms
+        icon: si-mattermost.svg
+        description: Chat UI for the Hermes Agent instances
+        app: mattermost
+    # NO oidc: block — Team Edition can't do pocket-id SSO (see header). Local
+    # accounts only; no oauth2-proxy. First signup → System Admin.
+
+  # ──────────────────────────────────────────────────────────────────────────
   # MOSQUITTO — internal MQTT broker (eclipse-mosquitto 2.x). The private bus
   # for the Zigbee2MQTT ⇄ Home Assistant integration: Z2M publishes device
   # state, HA's MQTT integration subscribes. ClusterIP on :1883 only — NO
@@ -1053,6 +1102,18 @@ extras:
   samba:
     enabled: true
     dataSize: 100Gi
+  # mattermost — renders:
+  #   - mattermost namespace (BASELINE PSS — the file PVC's chown init container
+  #     runs as root to chown /mattermost/data + /config to uid 2000 on Kadalu;
+  #     fsGroup alone fails on GlusterFS. Restricted PSS rejects runAsUser=0).
+  #   - mattermost-data PVC: 20Gi RWO kadalu.replica2-retain — uploads/avatars
+  #     (subPath data) + on-disk config.json (subPath config). CRITICAL user
+  #     data → Retain reclaim via SC so an ArgoCD prune can't wipe chat files.
+  # (The postgres PVC is owned by the cnpg Cluster from the db: block, also on
+  #  kadalu.replica2-retain.) See values/apps/mattermost.yaml.
+  mattermost:
+    enabled: true
+    dataSize: 20Gi
   # mosquitto — namespace only (restricted PSS — eclipse-mosquitto runs as
   # non-root uid 1883). The data PVC is chart-managed (default kadalu.replica2,
   # SKIP-tier: retained MQTT state is rebuilt by clients on reconnect).
