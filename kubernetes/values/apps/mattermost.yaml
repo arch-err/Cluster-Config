@@ -39,13 +39,17 @@
 # exclusive PVC on kadalu.replica2-retain) in this ns + cnpg mints Secret
 # `mattermost-db-app` (username/password/host/dbname/...). DB + owner = both
 # `mattermost`; rw service = `mattermost-db-rw`.
-#   The official mattermost image's entrypoint BUILDS MM_SQLSETTINGS_DATASOURCE
-#   itself from component env vars (MM_USERNAME/MM_PASSWORD/DB_HOST/
-#   DB_PORT_NUMBER/MM_DBNAME/DB_USE_SSL) when DATASOURCE is unset, URL-encoding
-#   the password — so we never have to string-interpolate a secret into a DSN.
-#   We feed MM_PASSWORD from the cnpg secret via secretKeyRef; the rest inline.
-#   DB_USE_SSL=require: cnpg serves TLS on the -rw service (same as grafana's
-#   ssl_mode: require) — encrypts the in-cluster hop without pinning the CA.
+#   The OFFICIAL mattermost-team-edition image reads MM_SQLSETTINGS_DATASOURCE
+#   directly — it does NOT build a DSN from MM_USERNAME/DB_HOST/... (that DSN-
+#   assembling entrypoint is a Bitnami-image behaviour; the original draft wired
+#   those decomposed vars and the image ignored them, falling back to its baked
+#   localhost/mattermost_test default and crashlooping). FIX: feed the full
+#   datasource from the cnpg-minted secret's ready-made `uri` key
+#   (postgresql://mattermost:<pw>@mattermost-db-rw.mattermost:5432/mattermost)
+#   via secretKeyRef — no string interpolation of the secret needed. The uri
+#   carries no sslmode, so libpq defaults to `prefer`, which negotiates TLS
+#   against cnpg's TLS-enabled server — encrypts the in-cluster hop without CA
+#   pinning (same security posture the draft intended).
 #
 # ─── FILE STORAGE (Retain, CRITICAL data) ─────────────────────────────────────
 # Mattermost writes uploads/avatars to /mattermost/data and its on-disk config
@@ -107,19 +111,22 @@ controllers:
           MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
           # ── DB driver ──
           MM_SQLSETTINGS_DRIVERNAME: "postgres"
-          # The image entrypoint assembles MM_SQLSETTINGS_DATASOURCE from these
-          # component vars (URL-encoding the password) when DATASOURCE is unset.
-          MM_USERNAME: "mattermost"
-          MM_DBNAME: "mattermost"
-          DB_HOST: "mattermost-db-rw"
-          DB_PORT_NUMBER: "5432"
-          # cnpg serves TLS on -rw; require encrypts without CA pinning.
-          DB_USE_SSL: "require"
-          MM_PASSWORD:
+          # CORRECTION (2026-06-06): the OFFICIAL mattermost-team-edition image
+          # does NOT assemble the DSN from MM_USERNAME/DB_HOST/... — that DSN-
+          # building entrypoint is a Bitnami-image behaviour. The official image
+          # only reads MM_SQLSETTINGS_DATASOURCE directly; with it unset it fell
+          # back to the baked default DSN (localhost/mattermost_test) and
+          # crashlooped on "connection refused". So we feed the full datasource
+          # straight from the cnpg-minted secret's ready-made `uri` key
+          # (postgresql://mattermost:<pw>@mattermost-db-rw.mattermost:5432/
+          # mattermost). lib/pq accepts the postgresql:// scheme. No sslmode in
+          # the uri ⇒ libpq default `prefer`, which negotiates TLS against cnpg's
+          # TLS-enabled server (encrypts the in-cluster hop, no CA pinning).
+          MM_SQLSETTINGS_DATASOURCE:
             valueFrom:
               secretKeyRef:
                 name: mattermost-db-app
-                key: password
+                key: uri
           # ── Local accounts only (no SSO). Open signup so the first account
           #    becomes System Admin; tighten in System Console post-seed. ──
           MM_EMAILSETTINGS_ENABLESIGNUPWITHEMAIL: "true"
