@@ -19,7 +19,7 @@
 # ─── WebSocket (the embedded chat) ────────────────────────────────────────────
 # oauth2-proxy's upstream is Go's httputil.ReverseProxy, which natively forwards
 # `Connection: Upgrade` / `Upgrade: websocket`. `--proxy-websockets=true` is the
-# default; we set it explicitly. `--flush-interval=-1` disables response
+# default; we set it explicitly. `--flush-interval=-1s` disables response
 # buffering so SSE/streaming + WS frames flush immediately rather than being
 # chunk-buffered. The session cookie rides through the WS handshake, so the
 # gated session works for the live chat.
@@ -61,7 +61,7 @@ extraArgs:
   # WebSocket + streaming: forward Upgrade handshakes and flush immediately so
   # the embedded chat (WS) and any SSE/stream survive the proxy.
   - --proxy-websockets=true
-  - --flush-interval=-1
+  - --flush-interval=-1s
   - --cookie-domain=hermes.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
