@@ -109,6 +109,9 @@ controllers:
           # ── Site URL (mandatory) ──
           MM_SERVICESETTINGS_SITEURL: "https://agents.apps.home"
           MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+          # integration auth — PATs for scripting, bot accounts for the hermes integration
+          MM_SERVICESETTINGS_ENABLEPERSONALACCESSTOKENS: "true"
+          MM_SERVICESETTINGS_ENABLEBOTACCOUNTCREATION: "true"
           # ── DB driver ──
           MM_SQLSETTINGS_DRIVERNAME: "postgres"
           # CORRECTION (2026-06-06): the OFFICIAL mattermost-team-edition image
