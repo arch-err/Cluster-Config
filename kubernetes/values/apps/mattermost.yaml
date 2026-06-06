@@ -136,6 +136,18 @@ controllers:
           # works without a mail server (can be wired later in System Console).
           MM_EMAILSETTINGS_REQUIREEMAILVERIFICATION: "false"
           MM_TEAMSETTINGS_ENABLEOPENSERVER: "true"
+          # ── Mobile push (HPNS hosted proxy, ID-only contents) ──
+          # Use Mattermost's hosted Push Notification Service (HPNS). Team
+          # Edition is permitted to use HPNS via manual URL entry (the bundled
+          # mobile apps reach it the same way). PUSHNOTIFICATIONCONTENTS=id_loaded
+          # = ID-ONLY (max privacy): the payload through HPNS carries only an
+          # opaque post ID — HPNS never sees message text/sender. The app then
+          # fetches the actual content from THIS server, which is LAN-only; so
+          # off-LAN the push degrades to a bare "You have a new message" with no
+          # body. These map to Mattermost's EmailSettings.* config keys.
+          MM_EMAILSETTINGS_SENDPUSHNOTIFICATIONS: "true"
+          MM_EMAILSETTINGS_PUSHNOTIFICATIONSERVER: "https://push.mattermost.com"
+          MM_EMAILSETTINGS_PUSHNOTIFICATIONCONTENTS: "id_loaded"
         probes:
           liveness:
             enabled: true
