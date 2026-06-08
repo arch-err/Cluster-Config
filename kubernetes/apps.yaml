@@ -331,6 +331,34 @@ components:
       groupRestriction:
         allowedGroups: [apps_users, administrators]
 
+  - name: pingvin-share
+    namespace: pingvin-share
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after OIDC client secret + Retain PVC settle
+    route:
+      hostname: pingvin.apps.home
+      gateway: apps
+      service: pingvin-share
+      port: 3000
+      timeout: 30m  # large file uploads
+      dashboard:
+        name: Pingvin Share
+        group: Files
+        icon: pingvin-share.png
+        description: File sharing / transfer links
+        app: pingvin-share
+    oidc:
+      enabled: true
+      clientId: pingvin-share
+      callbackUrls:
+        - https://pingvin.apps.home/api/oauth/callback/oidc
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
   # qbittorrent lives in its OWN namespace (privileged PSS — gluetun NET_ADMIN)
   # and is exposed only via the INFRA gateway (not apps), so the WebUI is
   # reachable only from LAN-privileged devices. Its media-downloads /
