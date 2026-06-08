@@ -117,6 +117,14 @@ components:
       name: sops-secrets-operator
     syncWave: "-2"  # Before ArgoCD, so secrets are ready
 
+  - name: agent-rbac
+    namespace: agent-access
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "-1"  # read-only inventory access, no workload rendered
+
   - name: kadalu
     namespace: kadalu
     chart:
