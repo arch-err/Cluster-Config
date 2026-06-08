@@ -353,6 +353,10 @@ components:
     oidc:
       enabled: true
       clientId: pingvin-share
+      # Pingvin Share X's OIDC client does not send PKCE code_challenge /
+      # code_verifier (see upstream GenericOidcProvider), so Pocket ID must not
+      # require PKCE for this confidential client.
+      pkceEnabled: false
       callbackUrls:
         - https://pingvin.apps.home/api/oauth/callback/oidc
       scopes: [openid, profile, email, groups]
