@@ -223,6 +223,39 @@ components:
       scopes: [openid, profile, email, groups]
       # secretName defaults to "grafana-oidc-client"
 
+  # Eclipse Che — Kubernetes-native cloud development workspaces. Split into
+  # operator + CheCluster instance: the operator owns CRDs/controllers; the
+  # app-template release below declares the CheCluster CR and infra HTTPRoute.
+  # Exposed on infra gateway because this is developer/admin tooling, not a
+  # general user app. Heavy workload; keep it isolated from apps frontend rot.
+  - name: eclipse-che-operator
+    namespace: eclipse-che
+    chart:
+      repo: https://eclipse-che.github.io/che-operator/charts
+      name: eclipse-che
+      version: 7.118.0
+    syncWave: "3"
+
+  - name: eclipse-che
+    namespace: eclipse-che
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after eclipse-che-operator installs CheCluster CRD
+    route:
+      hostname: che.infra.home
+      gateway: infra
+      service: che-host
+      port: 8080
+      timeout: 30m  # workspace startup and websocket traffic can be long-lived
+      dashboard:
+        enabled: true
+        name: Eclipse Che
+        group: DevTools
+        icon: eclipse-che.png
+        description: Kubernetes-native cloud workspaces
+
   # ════════════════════════════════════════════════════════════════════════════
   # DASHBOARD + CATCH-ALL (infra-side homepage + error-pages)
   # ════════════════════════════════════════════════════════════════════════════

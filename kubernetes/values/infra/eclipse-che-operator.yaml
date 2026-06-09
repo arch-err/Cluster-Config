@@ -1,0 +1,3 @@
+# Eclipse Che operator chart values.
+# The chart mainly installs CRDs + operator controller/webhooks.
+# Keep this sparse; CheCluster instance lives in eclipse-che.yaml.
