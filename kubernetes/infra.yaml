@@ -209,10 +209,7 @@ components:
     route:
       # User-facing Grafana belongs on the apps frontend. Keep the backing
       # release/state in the monitoring infra layer; only the public Gateway
-      # face moves to apps.home. Route name intentionally changes from
-      # `grafana` → `grafana-apps` because the root Argo app ignores
-      # HTTPRoute.spec diffs; create/prune is the safe declarative migration.
-      name: grafana-apps
+      # face moves to apps.home.
       hostname: grafana.apps.home
       gateway: apps
       service: grafana
