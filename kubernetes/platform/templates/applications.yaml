@@ -85,4 +85,10 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
+      # Argo CD cannot scope Application-level prune/delete guards to only
+      # Namespace resources. Default generated child apps to confirmation-gated
+      # destructive cleanup so critical resources such as Namespaces are never
+      # automatically pruned or deleted by an app sync/app deletion.
+      - Prune=confirm
+      - Delete=confirm
 {{- end }}
