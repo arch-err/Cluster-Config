@@ -1,0 +1,19 @@
+# Namespace policy for Eclipse Che.
+# Che operator/workspaces are not restricted-PSS clean by default: the operator
+# chart omits runAsNonRoot/seccomp, and workspace defaults use SETUID/SETGID.
+# Keep this exception scoped to the Che namespace only.
+
+controllers: {}
+service: {}
+
+rawResources:
+  namespace:
+    forceRename: eclipse-che
+    apiVersion: v1
+    kind: Namespace
+    labels:
+      pod-security.kubernetes.io/enforce: baseline
+      pod-security.kubernetes.io/audit: baseline
+      pod-security.kubernetes.io/warn: baseline
+      app.kubernetes.io/part-of: che.eclipse.org
+    spec: {}
