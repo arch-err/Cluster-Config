@@ -207,8 +207,11 @@ components:
         size: 10Gi
         storageClass: kadalu.replica2-retain
     route:
-      hostname: grafana.infra.home
-      gateway: infra
+      # User-facing Grafana belongs on the apps frontend. Keep the backing
+      # release/state in the monitoring infra layer; only the public Gateway
+      # face moves to apps.home.
+      hostname: grafana.apps.home
+      gateway: apps
       service: grafana
       port: 80
       dashboard:
@@ -219,7 +222,7 @@ components:
     oidc:
       enabled: true
       callbackUrls:
-        - https://grafana.infra.home/login/generic_oauth
+        - https://grafana.apps.home/login/generic_oauth
       scopes: [openid, profile, email, groups]
       # secretName defaults to "grafana-oidc-client"
 
