@@ -50,7 +50,7 @@ config:
 
   settings:
     title: Apps
-    instanceName: apps   # scopes auto-discovery to routes annotated `gethomepage.dev/instance: apps`
+    instanceName: apps   # scopes auto-discovery to `gethomepage.dev/instance.apps`
     theme: dark
     color: slate
     headerStyle: clean

@@ -3,13 +3,13 @@
 {{- $name := .name }}
 {{- $isApps := eq (.route.gateway | default "internal") "apps" }}
 {{- /* Compute whether this route should appear on the gethomepage dashboard.
-       - dashboard omitted (nil)  → default-SHOW on every gateway (apps + infra)
+       - dashboard omitted (nil)  → default-SHOW only on apps gateway
        - dashboard: false         → always hide
        - dashboard: true          → always show with auto-derived name/icon
        - dashboard: { ... }       → show unless `enabled: false`; map fields override defaults
-       Each gateway's homepage filters via `gethomepage.dev/instance` so apps
-       homepage shows apps-gateway routes, infra homepage shows infra-gateway
-       routes — auto-discovery, no per-app opt-in. */ -}}
+       Each gateway's homepage filters via gethomepage instance annotations:
+       routes are tagged for their gateway instance and for the admin instance,
+       so apps/infra stay scoped while admin sees every visible route. */ -}}
 {{- $dash := .route.dashboard }}
 {{- $dashKind := kindOf $dash }}
 {{- $show := false }}
@@ -50,10 +50,11 @@ metadata:
     gethomepage.dev/enabled: "true"
     gethomepage.dev/name: {{ ternary ($name | title) $dashName (eq $dashName "") | quote }}
     gethomepage.dev/icon: {{ ternary (printf "%s.svg" $name) $dashIcon (eq $dashIcon "") | quote }}
-    # instance: derived from gateway. Apps homepage (instanceName: apps) shows only
-    # routes with this matching its instanceName; same for infra. Routes without an
-    # instance annotation are visible on every homepage.
-    gethomepage.dev/instance: {{ .route.gateway | default "internal" | quote }}
+    # Instances: derived from gateway plus admin. Homepage supports multiple
+    # `gethomepage.dev/instance.<name>` annotations so a route can be visible on
+    # exactly these dashboards without leaking to every Homepage instance.
+    gethomepage.dev/instance.{{ .route.gateway | default "internal" }}: ""
+    gethomepage.dev/instance.admin: ""
     {{- if ne (printf "%v" $siteMonitorVal) "false" }}
     # siteMonitor: HTTP-ping URL for the status dot. Defaults to https://<hostname>;
     # override with `dashboard.siteMonitor: <url>`; opt out with `dashboard.siteMonitor: false`.
