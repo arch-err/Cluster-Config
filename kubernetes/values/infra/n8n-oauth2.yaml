@@ -1,0 +1,92 @@
+# n8n-oauth2 — oauth2-proxy gate for n8n on infra gateway.
+# Chart: oauth2-proxy/oauth2-proxy v10.4.3
+#
+# This is the only HTTPRoute backend for n8n.infra.home. There are deliberately
+# no skip-auth routes: editor, REST API, and webhooks all require Pocket ID auth.
+# If unauthenticated webhooks are ever needed, create a separate narrow hostname
+# and threat model it explicitly; do not punch holes in this proxy by default.
+
+fullnameOverride: oauth2-n8n
+
+image:
+  tag: "v7.15.2"
+
+proxyVarsAsSecrets: false
+
+config:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  emailDomains: ["*"]
+
+extraArgs:
+  - --provider=oidc
+  - --provider-display-name=Pocket ID
+  - --skip-provider-button=true
+  - --code-challenge-method=S256
+  - --insecure-oidc-allow-unverified-email=true
+  - --skip-oidc-discovery=false
+  - --http-address=0.0.0.0:4180
+  - --reverse-proxy=true
+  - --real-client-ip-header=X-Forwarded-For
+  - --upstream=http://n8n.n8n.svc.cluster.local:5678
+  - --proxy-websockets=true
+  - --cookie-domain=n8n.infra.home
+  - --cookie-secure=true
+  - --cookie-samesite=lax
+  - --cookie-name=_n8n_oauth2_proxy
+  - --allowed-group=administrators
+  - --pass-user-headers=true
+  - --pass-authorization-header=false
+  - --pass-access-token=false
+  - --set-xauthrequest=true
+  - --email-domain=*
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: n8n-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: n8n-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+    valueFrom:
+      secretKeyRef:
+        name: n8n-oidc-client
+        key: issuer_url
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: n8n-secrets
+        key: oauth2-cookie-secret
+
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+extraVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: false
+
+gatewayApi:
+  enabled: false
+ingress:
+  enabled: false

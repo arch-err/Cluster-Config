@@ -256,6 +256,52 @@ components:
       port: 3000
       dashboard: false   # don't link to ourselves
 
+  # n8n workflow automation. External traffic terminates at oauth2-proxy only;
+  # a NetworkPolicy in values/infra/n8n.yaml allows the n8n pod to receive
+  # traffic only from the oauth2-proxy pod, preventing direct in-cluster bypass.
+  - name: n8n
+    namespace: n8n
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after cnpg + infra base; db Cluster rendered by platform chart
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: kadalu.replica2-retain
+    route:
+      hostname: n8n.infra.home
+      gateway: infra
+      service: oauth2-n8n
+      port: 80
+      timeout: 30m
+      dashboard:
+        enabled: true
+        group: Automation
+        icon: n8n.svg
+        description: Workflow automation
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://n8n.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [administrators]
+
+  # oauth2-proxy fronting n8n. No route here; the n8n HTTPRoute above points at
+  # this Service. The app Service remains ClusterIP-only and NetworkPolicy-gated.
+  - name: n8n-oauth2
+    namespace: n8n
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+
   # Catch-all backend for *.infra.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing infra is unaffected.
