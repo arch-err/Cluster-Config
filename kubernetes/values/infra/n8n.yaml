@@ -1,0 +1,158 @@
+# n8n — workflow automation, exposed only through oauth2-proxy on infra gateway.
+# Chart: bjw-s/app-template v4.6.2
+# Image: n8nio/n8n pinned to a current release.
+#
+# SECURITY MODEL
+# - Public HTTPRoute in infra.yaml targets Service `oauth2-n8n`, not this app.
+# - This app Service is ClusterIP-only and has no HTTPRoute.
+# - NetworkPolicy below permits ingress to n8n pods only from the n8n oauth2-proxy
+#   pods on TCP/5678. If somebody later points a route at Service/n8n directly,
+#   Cilium/Kubernetes NetworkPolicy should drop it.
+# - Modern n8n no longer supports disabling native user management/login
+#   (N8N_USER_MANAGEMENT_DISABLED was removed after v1). Do not pin an ancient
+#   vulnerable n8n just to resurrect that flag; the perimeter auth gate is OIDC.
+#
+# DATA MODEL
+# - PostgreSQL comes from the platform chart's `db:` block in infra.yaml:
+#   Cluster n8n-db, app Secret n8n-db-app.
+# - /home/node/.n8n gets a small RWO PVC for local config/custom nodes/cache.
+# - N8N_ENCRYPTION_KEY is SOPS-managed in Secret n8n-secrets so credentials stay
+#   decryptable across pod/PVC rebuilds.
+
+controllers:
+  main:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: n8nio/n8n
+          tag: "2.25.7"
+        env:
+          NODE_ENV: production
+          TZ: Europe/Stockholm
+
+          N8N_HOST: n8n.infra.home
+          N8N_PORT: "5678"
+          N8N_PROTOCOL: https
+          N8N_EDITOR_BASE_URL: https://n8n.infra.home
+          WEBHOOK_URL: https://n8n.infra.home/
+          N8N_PROXY_HOPS: "1"
+          N8N_SECURE_COOKIE: "true"
+
+          DB_TYPE: postgresdb
+          DB_POSTGRESDB_HOST: n8n-db-rw.n8n.svc.cluster.local
+          DB_POSTGRESDB_PORT: "5432"
+          DB_POSTGRESDB_DATABASE:
+            valueFrom:
+              secretKeyRef:
+                name: n8n-db-app
+                key: dbname
+          DB_POSTGRESDB_USER:
+            valueFrom:
+              secretKeyRef:
+                name: n8n-db-app
+                key: username
+          DB_POSTGRESDB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: n8n-db-app
+                key: password
+          N8N_ENCRYPTION_KEY:
+            valueFrom:
+              secretKeyRef:
+                name: n8n-secrets
+                key: encryption-key
+
+          # Reduce unsolicited outbound chatter / UI nags.
+          N8N_DIAGNOSTICS_ENABLED: "false"
+          N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+          N8N_TEMPLATES_ENABLED: "false"
+          N8N_HIRING_BANNER_ENABLED: "false"
+          N8N_PERSONALIZATION_ENABLED: "false"
+          N8N_PUBLIC_API_SWAGGERUI_DISABLED: "true"
+          N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 5678
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 5
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 5678
+              initialDelaySeconds: 20
+              periodSeconds: 15
+              timeoutSeconds: 5
+              failureThreshold: 6
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 5678
+              periodSeconds: 10
+              failureThreshold: 30
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 5678
+        targetPort: 5678
+
+persistence:
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: kadalu.replica2-retain
+    advancedMounts:
+      main:
+        app:
+          - path: /home/node/.n8n
+
+# Hard bypass guard: only oauth2-proxy may connect to the n8n pod.
+networkpolicies:
+  ingress-only-from-oauth2-proxy:
+    enabled: true
+    controller: main
+    policyTypes:
+      - Ingress
+    rules:
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: oauth2-proxy
+                  app.kubernetes.io/instance: n8n-oauth2
+          ports:
+            - protocol: TCP
+              port: 5678
