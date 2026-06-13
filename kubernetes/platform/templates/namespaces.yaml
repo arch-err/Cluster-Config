@@ -1,0 +1,50 @@
+{{- /*
+══════════════════════════════════════════════════════════════════════════════
+NAMESPACES — parent-owned namespace bootstrap
+══════════════════════════════════════════════════════════════════════════════
+
+The platform chart renders parent-owned resources into some component namespaces
+(CNPG Cluster CRs, OIDC RBAC, HTTPRoutes). Those resources cannot rely on the
+child ArgoCD Application's CreateNamespace=true when the child app syncs later
+than its prerequisites. Create missing component namespaces early, but do not
+re-render namespaces already owned by extras.yaml (many carry PSS annotations).
+*/}}
+{{- $seen := dict -}}
+{{- $extrasOwned := dict
+  "audiobookshelf-v2" true
+  "booklore" true
+  "calibre-web" true
+  "external" true
+  "gateway-system" true
+  "hermes" true
+  "home-assistant" true
+  "immich" true
+  "jellyfin" true
+  "kadalu" true
+  "mattermost" true
+  "metube" true
+  "monitoring" true
+  "mqtt" true
+  "navidrome" true
+  "paperless-ngx" true
+  "qbittorrent" true
+  "samba" true
+  "sops-secrets-operator" true
+  "stirling-pdf" true
+  "zigbee2mqtt" true
+-}}
+{{- range $component := .Values.components }}
+{{- $ns := ($component.namespace | default $component.name) }}
+{{- if and (ne $ns "kube-system") (not (hasKey $extrasOwned $ns)) (not (hasKey $seen $ns)) }}
+{{- $_ := set $seen $ns true }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+{{- end }}
+{{- end }}

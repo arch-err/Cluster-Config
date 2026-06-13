@@ -265,11 +265,9 @@ components:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
       version: 4.6.2
-    # Must sync before parent-rendered n8n namespace resources (CNPG Cluster
-    # wave 0, OIDC Role/RoleBinding wave 9, HTTPRoute wave 10). The child app's
-    # CreateNamespace=true creates `n8n`; otherwise Argo can softlock trying to
-    # apply namespace-scoped resources before the namespace exists.
-    syncWave: "-1"
+    # DB and OIDC prerequisites are parent-rendered before app consumers:
+    # namespaces wave -5, CNPG Cluster/OIDC Job wave 2, child app wave 3.
+    syncWave: "3"
     db:
       enabled: true
       version: "16"

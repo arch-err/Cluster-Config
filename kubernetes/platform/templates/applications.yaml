@@ -9,7 +9,17 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: {{ .syncWave | default "0" | quote }}
+    {{- /*
+      Components that consume parent-rendered prerequisites (CNPG db Secrets or
+      OIDC client Secrets) must not sync before those prerequisites. Explicit
+      syncWave wins; otherwise default those consumers to wave 3, after namespace
+      bootstrap (wave -5), OIDC RBAC (wave 1), DB/OIDC jobs (wave 2).
+    */}}
+    {{- $defaultWave := "0" }}
+    {{- if or (and .db .db.enabled) (and .oidc .oidc.enabled) }}
+    {{- $defaultWave = "3" }}
+    {{- end }}
+    argocd.argoproj.io/sync-wave: {{ .syncWave | default $defaultWave | quote }}
 spec:
   project: default
   sources:
