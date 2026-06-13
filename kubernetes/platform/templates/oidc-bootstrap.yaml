@@ -91,7 +91,7 @@ metadata:
   name: oidc-bootstrap-{{ $clientId }}
   namespace: pocket-id
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
@@ -105,7 +105,7 @@ metadata:
   name: oidc-bootstrap-{{ $clientId }}
   namespace: {{ $appNs }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
@@ -127,7 +127,7 @@ metadata:
   name: oidc-bootstrap-{{ $clientId }}
   namespace: {{ $appNs }}
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
@@ -148,7 +148,7 @@ metadata:
   name: oidc-bootstrap-{{ $clientId }}
   namespace: pocket-id
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "9"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: oidc-bootstrap
@@ -348,9 +348,7 @@ metadata:
   name: oidc-bootstrap-{{ $clientId }}-{{ $specHash }}
   namespace: pocket-id
   annotations:
-    # Wave 2: after pocket-id app/namespace and OIDC RBAC (wave 1), before
-    # OIDC-consuming child apps (default/explicit wave 3).
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "11"
     # Replace=true was here historically but caused argocd re-syncs to faceplant on
     # completed Jobs (spec.selector is server-set + immutable post-create). Job names
     # already include $specHash so any spec change produces a NEW Job — replacement

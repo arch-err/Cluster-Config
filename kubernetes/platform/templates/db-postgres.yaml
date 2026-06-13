@@ -88,10 +88,7 @@ metadata:
   name: {{ $clusterName }}
   namespace: {{ $appNs }}
   annotations:
-    # Wave 2: after cnpg operator app/CRDs (wave 0) and kadalu storage (wave 1),
-    # before db-consuming child apps (default/explicit wave 3).
-    argocd.argoproj.io/sync-wave: "2"
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/managed-by: platform-chart
     app.kubernetes.io/component: db-postgres
