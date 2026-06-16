@@ -1026,6 +1026,22 @@ components:
       groupRestriction:
         allowedGroups: [infra_users, administrators]
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # PROTONMAIL-BRIDGE — internal-only IMAP/SMTP bridge for Proton Mail. This is
+  # for cluster workloads (n8n later) to read/send mail through Proton without
+  # exposing the mailbox protocols off-cluster. Namespace carries default-deny
+  # ingress NetworkPolicy in extras.protonmail-bridge; add explicit allow rules
+  # for n8n once it exists. One-time Proton login is manual via kubectl exec.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: protonmail-bridge
+    namespace: protonmail-bridge
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"  # after extras (ns + NetworkPolicy) settle
+    # NO route, NO oidc — IMAP/SMTP are internal L4 protocols, not a web UI.
+
   # Catch-all backend for *.apps.home — any hostname that doesn't match a more
   # specific HTTPRoute falls through here. Wildcard hostname; Gateway API spec
   # gives precedence to more-specific HTTPRoutes, so existing apps are unaffected.
@@ -1150,6 +1166,14 @@ extras:
   # non-root uid 1883). The data PVC is chart-managed (default kadalu.replica2,
   # SKIP-tier: retained MQTT state is rebuilt by clients on reconnect).
   mosquitto:
+    enabled: true
+  # protonmail-bridge — namespace + default-deny ingress NetworkPolicy. The
+  # Bridge pod exposes IMAP/SMTP only on ClusterIP; allow rules for n8n will be
+  # added once n8n's namespace/labels are known. Namespace is baseline PSS
+  # because the headless Bridge image stores its profile under /root. Config/
+  # session PVC is chart-managed on kadalu.replica2-retain (non-critical but
+  # convenient to keep).
+  protonmail-bridge:
     enabled: true
   # zigbee2mqtt — namespace (baseline PSS) + the Retain data PVC. Baseline
   # because the koenkk/zigbee2mqtt image's s6-overlay /init starts as root to
