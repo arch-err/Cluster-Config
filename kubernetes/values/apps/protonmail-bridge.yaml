@@ -36,7 +36,7 @@ controllers:
               gpg --generate-key --batch /protonmail/gpgparams
               pass init pass-key
             fi
-            exec /protonmail/entrypoint.sh
+            exec bash /protonmail/entrypoint.sh
         probes:
           # Disabled until the one-time Proton login is completed. Before login,
           # Bridge starts its CLI but does not expose usable IMAP/SMTP sockets;
