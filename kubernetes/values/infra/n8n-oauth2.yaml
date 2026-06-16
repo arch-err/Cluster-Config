@@ -2,9 +2,9 @@
 # Chart: oauth2-proxy/oauth2-proxy v10.4.3
 #
 # This is the only HTTPRoute backend for n8n.infra.home. Editor and REST API
-# stay behind Pocket ID auth. Production webhook executions under /webhook/* are
-# intentionally public so external services can trigger automations without
-# cluster-internal access. Test webhooks (/webhook-test/*) remain authenticated.
+# stay behind Pocket ID auth. Production and test webhook executions under
+# /webhook/* and /webhook-test/* are intentionally public so external services
+# can trigger automations without cluster-internal access.
 
 fullnameOverride: oauth2-n8n
 
@@ -31,8 +31,9 @@ extraArgs:
   - --real-client-ip-header=X-Forwarded-For
   - --upstream=http://n8n.n8n.svc.cluster.local:5678
   - --proxy-websockets=true
-  # Public n8n production webhooks. Keep this narrow: no /webhook-test, no API.
+  # Public n8n webhooks. Keep this narrow: no editor, no REST API.
   - --skip-auth-route=^/webhook(/|$).*
+  - --skip-auth-route=^/webhook-test(/|$).*
   - --cookie-domain=n8n.infra.home
   - --cookie-secure=true
   - --cookie-samesite=lax
