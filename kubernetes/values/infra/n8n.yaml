@@ -39,12 +39,10 @@ controllers:
           N8N_PROXY_HOPS: "1"
           N8N_SECURE_COOKIE: "true"
 
-          # SSRF protection: keep private/reserved ranges blocked by default, but
-          # allow requests to cluster-hosted apps exposed through our home DNS.
-          # Docs: N8N_SSRF_ALLOWED_HOSTNAMES supports comma-separated wildcard
-          # hostname patterns and takes precedence over blocked IP ranges.
-          N8N_SSRF_PROTECTION_ENABLED: "true"
-          N8N_SSRF_ALLOWED_HOSTNAMES: "*.apps.home,*.infra.home"
+          # SSRF protection disabled for now so automation workflows can call
+          # internal/home services freely while we iterate. Re-enable with
+          # N8N_SSRF_ALLOWED_HOSTNAMES once the allowed surface is settled.
+          N8N_SSRF_PROTECTION_ENABLED: "false"
 
           DB_TYPE: postgresdb
           DB_POSTGRESDB_HOST: n8n-db-rw.n8n.svc.cluster.local
