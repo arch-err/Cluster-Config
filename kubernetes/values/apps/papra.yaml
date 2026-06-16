@@ -119,6 +119,8 @@ controllers:
           DOCUMENT_STORAGE_DRIVER: "filesystem"
           DOCUMENT_STORAGE_FILESYSTEM_ROOT: "./app-data/documents"
           PAPRA_CONFIG_DIR: "./app-data"
+          # Allow Papra webhooks to call n8n's public webhook endpoint.
+          WEBHOOK_URL_ALLOWED_HOSTNAMES: "n8n.infra.home"
           # Disable native email/password — pocket-id OIDC is the only path in.
           AUTH_PROVIDERS_EMAIL_IS_ENABLED: "false"
           # Belt-and-suspenders: even though email signup is off, lock the
