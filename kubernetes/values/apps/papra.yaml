@@ -168,10 +168,14 @@ controllers:
               httpGet:
                 path: /api/health
                 port: 1221
-              # Cold start migrates the sqlite schema; give it room.
+              # Cold start migrates the sqlite schema; give it room. Under n8n
+              # batch updates, sqlite/kadalu stalls can make the event loop miss
+              # the default 1s kube-probe timeout; don't restart a healthy-but-
+              # busy pod just because a probe was queued behind writes.
               initialDelaySeconds: 30
               periodSeconds: 30
-              failureThreshold: 6
+              timeoutSeconds: 10
+              failureThreshold: 12
           readiness:
             enabled: true
             custom: true
@@ -181,16 +185,19 @@ controllers:
                 port: 1221
               initialDelaySeconds: 10
               periodSeconds: 15
+              timeoutSeconds: 5
+              failureThreshold: 6
           startup:
             enabled: false
         resources:
           requests:
-            # tesseract.js OCR runs in-process — bursts cpu during scans.
-            # Keep reqs conservative; let the limit absorb spikes.
-            cpu: 100m
-            memory: 256Mi
+            # tesseract.js OCR + n8n batch metadata updates run in-process and
+            # can block the Node event loop. Give the scheduler a realistic CPU
+            # request so probes and UI requests are not starved during bursts.
+            cpu: 500m
+            memory: 512Mi
           limits:
-            memory: 1Gi
+            memory: 2Gi
         # Restricted-PSS clean. nonroot user is uid 999 per the rootless
         # Dockerfile. Node binary needs no caps; the app writes only to
         # /app/app-data (PVC) + /tmp (emptyDir) — / can stay read-only.
