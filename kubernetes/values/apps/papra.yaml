@@ -253,35 +253,18 @@ persistence:
           - path: /etc/ssl/home-ca
             readOnly: true
 
-# Ingress allowlist for Papra. Keep browser/API access through the apps gateway
-# and additionally allow n8n to call Papra directly inside the cluster for
-# automations (http://papra.papra.svc.cluster.local:1221).
+# Papra serves one HTTP port. Keep that port reachable for browser/API access
+# through the apps gateway and for in-cluster automations such as n8n
+# (http://papra.papra.svc.cluster.local:1221), while implicitly denying any
+# future non-HTTP ports on the Papra pod.
 networkpolicies:
-  ingress-from-gateway-and-n8n:
+  ingress-http:
     enabled: true
     controller: main
     policyTypes:
       - Ingress
     rules:
       ingress:
-        - from:
-            - namespaceSelector:
-                matchLabels:
-                  kubernetes.io/metadata.name: kube-system
-              podSelector:
-                matchLabels:
-                  k8s-app: cilium-envoy
-          ports:
-            - protocol: TCP
-              port: 1221
-        - from:
-            - namespaceSelector:
-                matchLabels:
-                  kubernetes.io/metadata.name: n8n
-              podSelector:
-                matchLabels:
-                  app.kubernetes.io/name: n8n
-                  app.kubernetes.io/instance: n8n
-          ports:
+        - ports:
             - protocol: TCP
               port: 1221
