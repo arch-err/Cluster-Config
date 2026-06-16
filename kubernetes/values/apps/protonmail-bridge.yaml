@@ -3,15 +3,17 @@
 # IMAP + SMTP on a ClusterIP only; no HTTPRoute, no OIDC, no off-cluster access.
 #
 # SECURITY MODEL:
-# - Namespace is baseline-PSS (headless Bridge image stores profile under /root)
-#   and has a default-deny ingress NetworkPolicy rendered by extras.protonmail-bridge.
+# - Namespace is baseline-PSS (headless Bridge image stores profile/keychain under
+#   /root and binds low localhost ports internally) and has a default-deny ingress
+#   NetworkPolicy rendered by extras.protonmail-bridge.
 # - This Service is intentionally unreachable until an explicit NetworkPolicy
 #   allow rule is added for a consumer namespace (e.g. n8n).
 # - One-time Proton login / bridge setup is manual via kubectl exec.
 #
 # STORAGE:
-# Bridge config/session state is persisted so restarts do not require re-login.
-# Not critical user data, but kept on kadalu.replica2-retain per operator choice.
+# Bridge config/session state plus pass/gpg keychain are persisted so restarts do
+# not require re-login. Not critical user data, but kept on kadalu.replica2-retain
+# per operator choice.
 #
 # NOTE: docker.io/shenxn/protonmail-bridge is the commonly used headless wrapper
 # around Proton Mail Bridge. If we standardize on a different image later, keep
@@ -25,23 +27,24 @@ controllers:
         image:
           repository: docker.io/shenxn/protonmail-bridge
           tag: latest
+        command:
+          - /bin/bash
+          - -lc
+          - |
+            set -euo pipefail
+            if [ ! -d /root/.password-store ]; then
+              gpg --generate-key --batch /protonmail/gpgparams
+              pass init pass-key
+            fi
+            exec /protonmail/entrypoint.sh
         probes:
+          # Disabled until the one-time Proton login is completed. Before login,
+          # Bridge starts its CLI but does not expose usable IMAP/SMTP sockets;
+          # liveness probes would restart the manual setup session.
           liveness:
-            enabled: true
-            custom: true
-            spec:
-              tcpSocket:
-                port: 1143
-              initialDelaySeconds: 30
-              periodSeconds: 30
+            enabled: false
           readiness:
-            enabled: true
-            custom: true
-            spec:
-              tcpSocket:
-                port: 1143
-              initialDelaySeconds: 10
-              periodSeconds: 15
+            enabled: false
           startup:
             enabled: false
         resources:
@@ -51,12 +54,7 @@ controllers:
           limits:
             memory: 512Mi
         securityContext:
-          allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
-          capabilities:
-            drop: [ALL]
-          seccompProfile:
-            type: RuntimeDefault
 
 service:
   main:
@@ -64,11 +62,11 @@ service:
     ports:
       imap:
         port: 1143
-        targetPort: 1143
+        targetPort: 143
         protocol: TCP
       smtp:
         port: 1025
-        targetPort: 1025
+        targetPort: 25
         protocol: TCP
 
 persistence:
@@ -80,4 +78,4 @@ persistence:
     advancedMounts:
       main:
         app:
-          - path: /root/.config/protonmail/bridge
+          - path: /root
