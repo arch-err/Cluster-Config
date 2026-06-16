@@ -13,7 +13,7 @@
 # Bridge config/session state is persisted so restarts do not require re-login.
 # Not critical user data, but kept on kadalu.replica2-retain per operator choice.
 #
-# NOTE: ghcr.io/shenxn/protonmail-bridge is the commonly used headless wrapper
+# NOTE: docker.io/shenxn/protonmail-bridge is the commonly used headless wrapper
 # around Proton Mail Bridge. If we standardize on a different image later, keep
 # the Service ports and PVC intent stable for consumers.
 
@@ -23,7 +23,7 @@ controllers:
     containers:
       app:
         image:
-          repository: ghcr.io/shenxn/protonmail-bridge
+          repository: docker.io/shenxn/protonmail-bridge
           tag: latest
         probes:
           liveness:
