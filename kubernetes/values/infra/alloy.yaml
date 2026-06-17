@@ -107,6 +107,93 @@ alloy:
         scrape_interval = "30s"
       }
 
+      // Scrape kubelet/cAdvisor through the Kubernetes API server node proxy.
+      // Talos does not expose the old insecure kubelet port; using the API
+      // server avoids per-node serving cert/SAN issues and uses Alloy's service
+      // account token + Kubernetes CA. These jobs provide per-container CPU,
+      // memory, filesystem, and network metrics for app dashboards.
+      discovery.relabel "kubelet" {
+        targets = discovery.kubernetes.nodes.targets
+
+        rule {
+          target_label = "__address__"
+          replacement  = "kubernetes.default.svc:443"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      discovery.relabel "kubelet_cadvisor" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics/cadvisor"
+        }
+      }
+
+      prometheus.scrape "kubelet_cadvisor" {
+        job_name          = "kubelet-cadvisor"
+        targets           = discovery.relabel.kubelet_cadvisor.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
+      discovery.relabel "kubelet_resource" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics/resource"
+        }
+      }
+
+      prometheus.scrape "kubelet_resource" {
+        job_name          = "kubelet-resource"
+        targets           = discovery.relabel.kubelet_resource.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
+      discovery.relabel "kubelet_metrics" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics"
+        }
+      }
+
+      prometheus.scrape "kubelet_metrics" {
+        job_name          = "kubelet"
+        targets           = discovery.relabel.kubelet_metrics.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
       // Send metrics to Prometheus (remote-write receiver enabled in prometheus values)
       prometheus.remote_write "prometheus" {
         endpoint {
