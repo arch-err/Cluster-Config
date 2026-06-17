@@ -1146,6 +1146,26 @@ metadata:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* KIVRA-SYNC — namespace baseline PSS for root bootstrap image                */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if index .Values.extras "kivra-sync" }}
+---
+# kivra-sync namespace — baseline PSS because the initial throwaway deploy uses
+# python:slim and installs/clones upstream at startup as root. Replace with a
+# pinned non-root image later and drop this exception.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kivra-sync
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* PROTONMAIL-BRIDGE — namespace + default-deny ingress                         */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if index .Values.extras "protonmail-bridge" }}

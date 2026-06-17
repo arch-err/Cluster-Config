@@ -1215,6 +1215,8 @@ extras:
   # because the headless Bridge image stores its profile under /root. Config/
   # session PVC is chart-managed on kadalu.replica2-retain (non-critical but
   # convenient to keep).
+  kivra-sync:
+    enabled: true
   protonmail-bridge:
     enabled: true
   # zigbee2mqtt — namespace (baseline PSS) + the Retain data PVC. Baseline
