@@ -1,0 +1,66 @@
+# kivra-sync-oauth2 — oauth2-proxy gate for kivra-sync web UI.
+
+fullnameOverride: oauth2-kivra-sync
+
+config:
+  existingSecret: kivra-sync-oauth2-secrets
+  configFile: |-
+    provider = "oidc"
+    oidc_issuer_url = "https://auth.apps.home"
+    scope = "openid profile email groups"
+    email_domains = ["*"]
+    allowed_groups = ["infra_users", "administrators"]
+    upstreams = ["http://kivra-sync.kivra-sync.svc.cluster.local:8080"]
+    reverse_proxy = true
+    proxy_websockets = true
+    pass_access_token = true
+    pass_authorization_header = true
+    set_xauthrequest = true
+    cookie_secure = true
+    cookie_domains = ["kivra-sync.infra.home"]
+    whitelist_domains = ["kivra-sync.infra.home"]
+
+extraArgs:
+  - --http-address=0.0.0.0:4180
+  - --cookie-name=_kivra_sync_oauth2_proxy
+  - --cookie-samesite=lax
+  - --skip-provider-button=true
+  - --ssl-insecure-skip-verify=false
+  - --provider-ca-file=/etc/ssl/home-ca/ca.crt
+
+extraEnv:
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: kivra-sync-oidc-client
+        key: client_id
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: kivra-sync-oidc-client
+        key: client_secret
+  - name: OAUTH2_PROXY_COOKIE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: kivra-sync-oauth2-secrets
+        key: cookie-secret
+
+extraVolumes:
+  - name: home-ca-bundle
+    configMap:
+      name: home-ca-bundle
+
+extraVolumeMounts:
+  - name: home-ca-bundle
+    mountPath: /etc/ssl/home-ca
+    readOnly: true
+
+service:
+  portNumber: 80
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

@@ -1,0 +1,78 @@
+# kivra-sync — BankID-triggered Kivra export helper.
+# Upstream has no published image as of initial deploy, so this starts from
+# python:3.13-slim and bootstraps the GitHub repo at container start. Replace
+# with a pinned built image once we publish one.
+#
+# Secret required before sync works:
+#   Secret/kivra-sync-secrets key personal-number = YYYYMMDDXXXX
+#
+# Download target: /data on a retained PVC. n8n/Papra import wiring comes next.
+
+controllers:
+  main:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: python
+          tag: 3.13-slim
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends ca-certificates git weasyprint
+            rm -rf /var/lib/apt/lists/*
+            if [ ! -d /opt/kivra-sync/.git ]; then
+              git clone --depth=1 https://github.com/felixandersen/kivra-sync.git /opt/kivra-sync
+            fi
+            cd /opt/kivra-sync
+            pip install --no-cache-dir -r requirements.txt
+            exec python kivra_sync.py "$KIVRA_PERSONAL_NUMBER" \
+              --interaction-provider=web \
+              --web-host=0.0.0.0 \
+              --web-port=8080 \
+              --storage-provider=filesystem \
+              --base-dir=/data
+        env:
+          KIVRA_PERSONAL_NUMBER:
+            valueFrom:
+              secretKeyRef:
+                name: kivra-sync-secrets
+                key: personal-number
+        probes:
+          liveness:
+            enabled: false
+          readiness:
+            enabled: false
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          readOnlyRootFilesystem: false
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8080
+        targetPort: 8080
+        protocol: TCP
+
+persistence:
+  data:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: kadalu.replica2-retain
+    advancedMounts:
+      main:
+        app:
+          - path: /data

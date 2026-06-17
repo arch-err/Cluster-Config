@@ -1027,6 +1027,48 @@ components:
         allowedGroups: [infra_users, administrators]
 
   # ──────────────────────────────────────────────────────────────────────────
+  # KIVRA-SYNC — BankID-triggered Kivra export helper. Web UI shows the BankID
+  # QR and exposes a manual trigger; downloaded files land on a small PVC for
+  # n8n/Papra import workflow work. Auth is via oauth2-proxy + pocket-id because
+  # upstream has no native auth.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: kivra-sync
+    namespace: kivra-sync
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: kivra-sync.infra.home
+      gateway: infra
+      service: oauth2-kivra-sync
+      port: 80
+      timeout: 30m  # BankID QR SSE + sync can be long-running
+      dashboard:
+        enabled: true
+        name: Kivra Sync
+        group: Documents
+        icon: si-kivra.svg
+        description: Pull Kivra receipts/letters for Papra import
+        app: kivra-sync
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://kivra-sync.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [infra_users, administrators]
+
+  - name: kivra-sync-oauth2
+    namespace: kivra-sync
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+
+  # ──────────────────────────────────────────────────────────────────────────
   # PROTONMAIL-BRIDGE — internal-only IMAP/SMTP bridge for Proton Mail. This is
   # for cluster workloads (n8n later) to read/send mail through Proton without
   # exposing the mailbox protocols off-cluster. Namespace carries default-deny
