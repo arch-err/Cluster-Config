@@ -328,6 +328,14 @@ extras:
   certIssuers: true
   trustManagerBundle: true   # broadcasts home-ca to all ns as ConfigMap home-ca-bundle
   externalServices: true
+  # rocky — TLS terminates at infra gateway (wildcard *.infra.home cert) and
+  # forwards cleartext HTTP to the off-cluster Rocky host on 10.10.10.160:3030.
+  # This is HTTPS→HTTP, not TLS passthrough (backend is plain HTTP).
+  rockyExternal:
+    enabled: true
+    address: "10.10.10.160"
+    port: 3030
+    hostname: rocky.infra.home
   kadalu: true
   monitoring: true
   hubbleAuth: true

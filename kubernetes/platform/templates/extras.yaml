@@ -333,6 +333,69 @@ spec:
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* ROCKY — HTTPS on infra gateway → plain HTTP off-cluster backend            */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.rockyExternal.enabled }}
+{{- $rocky := .Values.extras.rockyExternal }}
+---
+# Selectorless Service for the off-cluster Rocky HTTP backend.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rocky-backend
+  namespace: external
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $rocky.port | default 3030 }}
+      targetPort: {{ $rocky.port | default 3030 }}
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: rocky-backend
+  namespace: external
+  labels:
+    kubernetes.io/service-name: rocky-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+addressType: IPv4
+endpoints:
+  - addresses:
+      - {{ $rocky.address | default "10.10.10.160" }}
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: {{ $rocky.port | default 3030 }}
+    protocol: TCP
+---
+# TLS is terminated by the infra Gateway's wildcard cert; Envoy forwards HTTP.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rocky
+  namespace: external
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - name: infra
+      namespace: gateway-system
+  hostnames:
+    - {{ $rocky.hostname | default "rocky.infra.home" | quote }}
+  rules:
+    - backendRefs:
+        - name: rocky-backend
+          port: {{ $rocky.port | default 3030 }}
+{{- end }}
+
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* PAPERLESS-NGX (namespace baseline-PSS for paperless image + bitnami subs) */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{- if index .Values.extras "paperless-ngx" }}
