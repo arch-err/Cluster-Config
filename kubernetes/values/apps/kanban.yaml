@@ -49,7 +49,12 @@ controllers:
           NEXT_PUBLIC_BASE_URL: "https://kanban.apps.home"
           BETTER_AUTH_TRUSTED_ORIGINS: "https://kanban.apps.home"
           NEXT_PUBLIC_ALLOW_CREDENTIALS: "false"
-          NEXT_PUBLIC_DISABLE_SIGN_UP: "true"
+          # Must stay false for first-time OIDC users: upstream's user.create
+          # hook blocks ALL new users when NEXT_PUBLIC_DISABLE_SIGN_UP=true
+          # unless an invitation exists, which makes pocket-id callback land
+          # back on /login with no session. Credentials remain hidden by
+          # NEXT_PUBLIC_ALLOW_CREDENTIALS=false; email/magic-link disabled below.
+          NEXT_PUBLIC_DISABLE_SIGN_UP: "false"
           NEXT_PUBLIC_DISABLE_EMAIL: "true"
           LOG_LEVEL: "info"
           # Node TLS: trust home CA for Better Auth discovery against auth.apps.home.
