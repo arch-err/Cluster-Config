@@ -25,15 +25,18 @@ controllers:
           repository: ghcr.io/kanbn/kan-migrate
           tag: "0.6.0"
         env:
+          npm_config_cache: "/tmp/npm-cache"
           POSTGRES_URL:
             valueFrom:
               secretKeyRef:
                 name: kanban-db-app
                 key: uri
         securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
           runAsNonRoot: true
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
+          readOnlyRootFilesystem: false
           capabilities:
             drop: [ALL]
     containers:
