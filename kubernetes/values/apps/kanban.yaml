@@ -1,0 +1,131 @@
+# kanban — Kan / kan.bn, open-source Trello alternative
+# Upstream: https://github.com/kanbn/kan
+# Images: ghcr.io/kanbn/kan:0.6.0 + ghcr.io/kanbn/kan-migrate:0.6.0
+#
+# Data posture:
+#   - Postgres via platform cnpg `db:` block in apps.yaml (`kanban-db`, pg16,
+#     10Gi, kadalu.replica2-retain). This is the app's durable state.
+#   - No app file PVC: upstream compose declares only postgres storage; web is
+#     stateless unless S3 is configured (not needed for initial install).
+#
+# Auth posture:
+#   - Native generic OIDC (Better Auth genericOAuth) against pocket-id.
+#   - callback path is Better Auth genericOAuth's provider callback:
+#     /api/auth/oauth2/callback/oidc (providerId is hard-coded upstream as
+#     `oidc` in packages/auth/src/plugins.ts).
+#   - Email features disabled; credentials signup/signin hidden. Pocket-id
+#     client is group-restricted in apps.yaml to apps_users + administrators.
+
+controllers:
+  main:
+    strategy: Recreate
+    initContainers:
+      migrate:
+        image:
+          repository: ghcr.io/kanbn/kan-migrate
+          tag: "0.6.0"
+        env:
+          POSTGRES_URL:
+            valueFrom:
+              secretKeyRef:
+                name: kanban-db-app
+                key: uri
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+    containers:
+      app:
+        image:
+          repository: ghcr.io/kanbn/kan
+          tag: "0.6.0"
+        env:
+          NODE_ENV: "production"
+          NEXT_PUBLIC_BASE_URL: "https://kanban.apps.home"
+          BETTER_AUTH_TRUSTED_ORIGINS: "https://kanban.apps.home"
+          NEXT_PUBLIC_ALLOW_CREDENTIALS: "false"
+          NEXT_PUBLIC_DISABLE_SIGN_UP: "true"
+          NEXT_PUBLIC_DISABLE_EMAIL: "true"
+          LOG_LEVEL: "info"
+          # Node TLS: trust home CA for Better Auth discovery against auth.apps.home.
+          NODE_EXTRA_CA_CERTS: "/etc/ssl/home-ca/ca.crt"
+          POSTGRES_URL:
+            valueFrom:
+              secretKeyRef:
+                name: kanban-db-app
+                key: uri
+          BETTER_AUTH_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: kanban-auth-secret
+                key: BETTER_AUTH_SECRET
+          OIDC_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: kanban-oidc-client
+                key: client_id
+          OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: kanban-oidc-client
+                key: client_secret
+          OIDC_DISCOVERY_URL: "https://auth.apps.home/.well-known/openid-configuration"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 3000
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 3000
+              initialDelaySeconds: 20
+              periodSeconds: 15
+              failureThreshold: 6
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop: [ALL]
+
+defaultPodOptions:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 3000
+        targetPort: 3000
+
+persistence:
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true

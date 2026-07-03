@@ -837,6 +837,45 @@ components:
     # via cilium L2 (see values/apps/samba.yaml). LAN-only, UniFi FW scoped.
 
   # ──────────────────────────────────────────────────────────────────────────
+  # KANBAN — Kan / kan.bn, open-source Trello alternative. Native OIDC via
+  # Better Auth genericOAuth against pocket-id; no oauth2-proxy sidecar.
+  # Durable state is cnpg postgres only (kanban-db, Retain SC); upstream web
+  # container is stateless unless S3 is configured. See values/apps/kanban.yaml.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: kanban
+    namespace: kanban
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"  # after cnpg db + oidc secret bootstrap settle
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: kadalu.replica2-retain
+    route:
+      hostname: kanban.apps.home
+      gateway: apps
+      service: kanban
+      port: 3000
+      dashboard:
+        name: Kanban
+        group: Tools
+        icon: si-trello.svg
+        description: Kan / kan.bn project boards
+        app: kanban
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://kanban.apps.home/api/auth/oauth2/callback/oidc
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [apps_users, administrators]
+
+  # ──────────────────────────────────────────────────────────────────────────
   # MATTERMOST — Team Edition chat UI for the "Hermes Agent" instances, served
   # at agents.apps.home (apps gateway). Stateful (chat history): cnpg postgres
   # (db: block below, mirrors grafana-db) + a Retain file PVC (extras.mattermost)
@@ -1192,6 +1231,10 @@ extras:
   samba:
     enabled: true
     dataSize: 100Gi
+  # kanban — namespace only. Durable state is cnpg postgres from the app's
+  # db: block (10Gi kadalu.replica2-retain); upstream web container is stateless.
+  kanban:
+    enabled: true
   # mattermost — renders:
   #   - mattermost namespace (BASELINE PSS — the file PVC's chown init container
   #     runs as root to chown /mattermost/data + /config to uid 2000 on Kadalu;

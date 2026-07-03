@@ -335,7 +335,7 @@ spec:
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* ROCKY — HTTPS on infra gateway → plain HTTP off-cluster backend            */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
-{{- if .Values.extras.rockyExternal.enabled }}
+{{- if and .Values.extras.rockyExternal .Values.extras.rockyExternal.enabled }}
 {{- $rocky := .Values.extras.rockyExternal }}
 ---
 # Selectorless Service for the off-cluster Rocky HTTP backend.
@@ -1866,6 +1866,25 @@ spec:
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* MATTERMOST (namespace baseline-PSS for file-PVC chown init + file PVC)       */}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{/* Kan / kan.bn @ kanban.apps.home. Renders namespace only. Durable state is  */}}
+{{/* cnpg postgres from the component db: block (Retain SC); web is stateless.  */}}
+{{/* Restricted PSS: upstream Next.js image runs non-root and needs no root init.*/}}
+{{/* ══════════════════════════════════════════════════════════════════════════ */}}
+{{- if .Values.extras.kanban }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kanban
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}
+
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* Mattermost Team Edition chat UI @ agents.apps.home. Renders:                */}}
 {{/*   - mattermost namespace, BASELINE PSS. The mattermost image runs non-root */}}
