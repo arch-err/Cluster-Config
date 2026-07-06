@@ -133,6 +133,23 @@ components:
       version: 1.3.0
     syncWave: "1"  # After base infra, before storage consumers
 
+  # local-path-provisioner — node-local hostPath PVCs for latency-sensitive
+  # single-writer apps such as Papra (SQLite + document files). This is not HA
+  # storage; data lives on the selected node and must be backed up separately.
+  - name: local-path-provisioner
+    namespace: local-path-storage
+    namespaceLabels:
+      # local-path creates helper pods that mount hostPath to mkdir/rmdir PV
+      # directories on the selected node. They cannot pass restricted PSS.
+      pod-security.kubernetes.io/enforce: privileged
+      pod-security.kubernetes.io/audit: privileged
+      pod-security.kubernetes.io/warn: privileged
+    chart:
+      repo: https://charts.containeroo.ch
+      name: local-path-provisioner
+      version: 0.0.37
+    syncWave: "1"  # StorageClass must exist before local-path consumers
+
   # ════════════════════════════════════════════════════════════════════════════
   # MONITORING / OBSERVABILITY (Grafana Labs LGM stack)
   # ════════════════════════════════════════════════════════════════════════════

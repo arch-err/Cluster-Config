@@ -81,6 +81,13 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    {{- if .namespaceLabels }}
+    managedNamespaceMetadata:
+      labels:
+        {{- range $key, $value := .namespaceLabels }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+    {{- end }}
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
