@@ -2,10 +2,13 @@
 # Self-hosted dashboard + organizer for Excalidraw with live collab, version
 # history, scoped sharing, search, collections.
 # Upstream: https://github.com/ZimengXiong/ExcaliDash
+# Images: fork-built from upstream commit 294097c6da50e7a00fc234791a0b9d697fce3247
+# (post-0.5.1; includes API-key auth support before the next upstream release).
+# Build workflow: https://github.com/arch-err/ExcaliDash/actions/workflows/ghcr-images.yml
 #
 # Two-container pod:
-#   - backend  : zimengxiong/excalidash-backend:0.5.0   listens on :8000, owns SQLite at /app/prisma
-#   - frontend : zimengxiong/excalidash-frontend:0.5.0  nginx on :80, proxies to BACKEND_URL
+#   - backend  : ghcr.io/arch-err/excalidash-backend:api-key-294097c   listens on :8000, owns SQLite at /app/prisma
+#   - frontend : ghcr.io/arch-err/excalidash-frontend:api-key-294097c  nginx on :80, proxies to BACKEND_URL
 #
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 # NATIVE OIDC via pocket-id (AUTH_MODE=oidc_enforced) — no oauth2-proxy sidecar.
@@ -38,8 +41,8 @@ controllers:
     containers:
       backend:
         image:
-          repository: zimengxiong/excalidash-backend
-          tag: "0.5.0"
+          repository: ghcr.io/arch-err/excalidash-backend
+          tag: "api-key-294097c"
         env:
           DATABASE_URL: "file:/app/prisma/dev.db"
           PORT: "8000"
@@ -126,8 +129,8 @@ controllers:
 
       frontend:
         image:
-          repository: zimengxiong/excalidash-frontend
-          tag: "0.5.0"
+          repository: ghcr.io/arch-err/excalidash-frontend
+          tag: "api-key-294097c"
         env:
           # Same pod → backend reachable via loopback
           BACKEND_URL: "localhost:8000"
