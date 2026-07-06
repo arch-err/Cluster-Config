@@ -20,12 +20,13 @@
 # (200 when DB is reachable). /api/ping is a lighter alternative.
 #
 # ─── Storage ──────────────────────────────────────────────────────────────────
-# /app/app-data — single RWX kadalu PVC, 20Gi to start. Holds:
+# /app/app-data — node-local local-path RWO PVC, 20Gi to start. Holds:
 #   - app-data/db/db.sqlite           (drizzle/sqlite metadata DB)
 #   - app-data/documents/<org>/...    (plain files — pdf is pdf, jpg is jpg)
 #   - app-data/<other-config>         (PAPRA_CONFIG_DIR points here)
-# RWX even though single-pod (Recreate strategy) — keeps door open for HA
-# without a PV migration later. Same posture as vaultwarden.
+# SQLite + OCR/document writes stall badly on Kadalu/network storage; Papra is
+# intentionally single-node and backed up separately instead of using RWX live
+# storage.
 #
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 # Papra has NATIVE OIDC via better-auth's generic-oauth plugin
@@ -213,8 +214,13 @@ controllers:
             type: RuntimeDefault
 
 defaultPodOptions:
+  # Keep local-path PVC placement deterministic. The local PV lives on this
+  # node; normal reboots preserve the data, but node replacement requires
+  # restore from backup.
+  nodeSelector:
+    kubernetes.io/hostname: node-3
   securityContext:
-    # Match the kadalu mount to the container's runtime uid so writes work
+    # Match the local-path mount to the container's runtime uid so writes work
     # without a separate init-chown container. fsGroupChangePolicy avoids the
     # recursive chown on every pod start once the mount root is correct.
     fsGroup: 999
@@ -230,13 +236,13 @@ service:
 
 # RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
-  # Single RWX kadalu PVC, 20Gi. Holds sqlite db + plain-file document tree +
-  # any other app-data papra writes (search index, etc.). Kadalu PVCs are
-  # expandable; start small and grow.
+  # Node-local local-path PVC. Papra uses SQLite and document files in the same
+  # tree; Kadalu RWX caused API/upload stalls under small batch load. Keep this
+  # RWO and pinned to node-3, with backups for disaster recovery.
   app-data:
     enabled: true
-    accessMode: ReadWriteMany
-    size: 20Gi
+    type: persistentVolumeClaim
+    existingClaim: papra-local
     advancedMounts:
       main:
         app:
