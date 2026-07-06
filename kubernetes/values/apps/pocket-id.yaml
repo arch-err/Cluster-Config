@@ -3,6 +3,7 @@
 #
 # Tiny passkey-only OIDC provider. Single Go binary + SQLite at /app/data.
 # Replaces the torn-down authentik install. Hostname auth.apps.home.
+# SQLite lives on node-local local-path storage, not Kadalu/network storage.
 #
 # Admin onboarding: on first start with an empty DB, visiting the UI exposes
 # a setup flow at /login/setup (passkey enrollment for the first admin).
@@ -70,22 +71,26 @@ pocketID:
       type: RuntimeDefault
 
 # ──────────────────────────────────────────────────────────────────────────
-# Pod-level — fsGroup so the kadalu PVC mount is writable for uid 1000.
+# Pod-level — pin to the node holding the local-path PVC and make the mount
+# writable for uid 1000.
 # ──────────────────────────────────────────────────────────────────────────
+nodeSelector:
+  kubernetes.io/hostname: node-3
+
 podSecurityContext:
   fsGroup: 1000
   fsGroupChangePolicy: OnRootMismatch
 
 # ──────────────────────────────────────────────────────────────────────────
-# Persistence — small SQLite DB + uploads (logos, profile pics).
+# Persistence — small SQLite DB + uploads (logos, profile pics). Uses an
+# existing local-path PVC to avoid StatefulSet volumeClaimTemplate immutability
+# and to keep storage node-local. Back up separately; this is not replicated.
 # ──────────────────────────────────────────────────────────────────────────
 # RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
 persistence:
   data:
     enabled: true
-    accessMode: ReadWriteOnce
-    size: 5Gi
-    # storageClass empty → cluster default (kadalu.replica2)
+    existingClaim: pocket-id-local
 
 # ──────────────────────────────────────────────────────────────────────────
 # Routing — disable the chart's built-in Ingress; platform chart owns the
