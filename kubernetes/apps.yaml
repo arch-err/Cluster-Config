@@ -1065,6 +1065,37 @@ components:
       groupRestriction:
         allowedGroups: [infra_users, administrators]
 
+  # T3 web UI runs off-cluster on this server. oauth2-proxy is the only exposed
+  # route and gates every HTTP/WebSocket path with pocket-id OIDC.
+  - name: t3-oauth2
+    namespace: t3
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    route:
+      hostname: t3.infra.home
+      gateway: infra
+      service: oauth2-t3
+      port: 80
+      dashboard:
+        enabled: true
+        name: T3
+        group: Tools
+        icon: si-openaigym.svg
+        description: T3 coding workspace (off-cluster)
+        app: oauth2-t3
+    oidc:
+      enabled: true
+      clientId: t3
+      secretName: t3-oidc-client
+      callbackUrls:
+        - https://t3.infra.home/oauth2/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [infra_users, administrators]
+
   # ──────────────────────────────────────────────────────────────────────────
   # KIVRA-SYNC — BankID-triggered Kivra export helper. Web UI shows the BankID
   # QR and exposes a manual trigger; downloaded files land on a small PVC for
@@ -1281,3 +1312,8 @@ extras:
     enabled: true
     address: "10.10.10.160"
     port: 9119
+  # T3 is served directly on this off-cluster host; only oauth2-proxy is routed.
+  t3:
+    enabled: true
+    address: "10.10.10.160"
+    port: 3773
