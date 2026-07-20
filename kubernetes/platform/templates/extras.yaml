@@ -80,7 +80,7 @@ spec:
       kind: Secret
 {{- if .Values.gateway.infra }}
 ---
-# Infra Gateway (*.infra.home) with TLS termination + passthrough for external services
+# Infra Gateway (*.infra.home) with TLS termination + non-overlapping passthroughs
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -121,6 +121,19 @@ spec:
         namespaces:
           from: All
 {{- end }}
+{{- end }}
+    # TLS passthrough listeners for in-cluster services. Their hostnames must
+    # not overlap the terminating *.infra.home listener above.
+{{- range .Values.gateway.infra.passthroughs }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
 {{- end }}
 {{- end }}
 {{- if .Values.gateway.apps }}

@@ -3,8 +3,9 @@
 #
 # Two ports: 14321 (UI/API) + 14322 (TLS forward proxy, AV mints per-host certs).
 # UI is exposed via the platform chart's HTTPRoute on agent-vault.apps.home.
-# Proxy is exposed via the chart's TLSRoute → apps gateway passthrough listener
-#   on agent-vault-proxy.apps.home:443.
+# Proxy is exposed via the chart's TLSRoute → infra gateway passthrough listener
+# on agent-vault-proxy.home:443. Keeping it outside *.infra.home avoids overlap
+# with the infra gateway's terminating HTTPS listener.
 
 image:
   tag: "0.14.0"
@@ -38,13 +39,13 @@ resources:
   limits:
     memory: 512Mi
 
-# Expose proxy port via Gateway API TLS passthrough on the apps gateway.
+# Expose proxy port via Gateway API TLS passthrough on the infra gateway.
 # The passthrough listener `passthrough-agent-vault-proxy` is defined in
-# kubernetes/infra.yaml under gateway.apps.passthroughs.
+# kubernetes/infra.yaml under gateway.infra.passthroughs.
 tlsRoute:
   enabled: true
-  hostname: agent-vault-proxy.apps.home
+  hostname: agent-vault-proxy.home
   parentRef:
-    name: apps
+    name: infra
     namespace: gateway-system
     sectionName: passthrough-agent-vault-proxy

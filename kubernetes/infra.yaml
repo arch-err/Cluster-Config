@@ -381,15 +381,15 @@ gateway:
     ip: "10.10.10.201"
     domain: infra.home
     tlsSecret: wildcard-infra-home-tls
+    # In-cluster TLS passthrough backends use *.home so they do not overlap the
+    # terminating *.infra.home listener on port 443.
+    passthroughs:
+      - name: agent-vault-proxy
+        hostname: agent-vault-proxy.home
   apps:
     ip: "10.10.10.200"
     domain: apps.home
     tlsSecret: wildcard-apps-home-tls
-    # TLS passthrough listeners on the apps gateway. SNI-routed on port 443.
-    # Use for backends that mint their own TLS (e.g. agent-vault forward proxy).
-    passthroughs:
-      - name: agent-vault-proxy
-        hostname: agent-vault-proxy.apps.home
 
 # External services (TLS passthrough to Docker host via SNI routing)
 # These stay on *.home - K8s passes through to Docker's Traefik
