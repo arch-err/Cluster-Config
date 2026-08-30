@@ -106,6 +106,21 @@ nodes:
     ipAddress: 10.10.10.172
     controlPlane: true
     installDisk: /dev/nvme0n1
+    patches:
+      # Disk B is dedicated to node-local bulk storage. Match its persistent
+      # enclosure identity so a changing /dev/sdX name cannot select another disk.
+      - |-
+        apiVersion: v1alpha1
+        kind: UserVolumeConfig
+        name: bulk
+        volumeType: partition
+        provisioning:
+          diskSelector:
+            match: "'/dev/disk/by-id/usb-TOSHIBA_EXTERNAL_USB_20231113009381F-0:0' in disk.symlinks"
+          minSize: 3TB
+          grow: true
+        filesystem:
+          type: xfs
 
   - hostname: NODE-3
     ipAddress: 10.10.10.173

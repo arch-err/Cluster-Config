@@ -150,6 +150,21 @@ components:
       version: 0.0.37
     syncWave: "1"  # StorageClass must exist before local-path consumers
 
+  # Dedicated node-local bulk storage on Disk B. This is intentionally a
+  # separate provisioner so boot-disk local-path volumes remain independent.
+  - name: local-bulk
+    namespace: local-bulk-storage
+    namespaceLabels:
+      # Helper pods mount /var/mnt/bulk from node 2 to create PV directories.
+      pod-security.kubernetes.io/enforce: privileged
+      pod-security.kubernetes.io/audit: privileged
+      pod-security.kubernetes.io/warn: privileged
+    chart:
+      repo: https://charts.containeroo.ch
+      name: local-path-provisioner
+      version: 0.0.37
+    syncWave: "1"
+
   # ════════════════════════════════════════════════════════════════════════════
   # MONITORING / OBSERVABILITY (Grafana Labs LGM stack)
   # ════════════════════════════════════════════════════════════════════════════
