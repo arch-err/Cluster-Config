@@ -407,13 +407,13 @@ persistence:
   # /config — HA state. sqlite home-assistant_v2.db, configuration.yaml,
   # secrets.yaml, custom_components, blueprints, .storage/* registry files.
   # 5Gi is comfortable for a small install; recorder history can grow this
-  # over time. Kadalu RWX is forward-looking — HA itself is single-writer,
-  # but RWX lets us mount /config read-only from a backup pod or hass-cli
-  # sidecar later without surgery.
+  # over time. This is node-local bulk storage on node 2; availability comes
+  # from the tested Restic backup rather than a distributed filesystem.
   config:
     enabled: true
-    accessMode: ReadWriteMany
+    accessMode: ReadWriteOnce
     size: 5Gi
+    storageClass: local-bulk
     advancedMounts:
       main:
         app:
