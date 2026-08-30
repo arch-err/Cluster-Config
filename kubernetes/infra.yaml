@@ -237,7 +237,7 @@ components:
       instances: 1
       storage:
         size: 10Gi
-        storageClass: kadalu.replica2-retain
+        storageClass: local-bulk
     route:
       hostname: grafana.infra.home
       gateway: infra

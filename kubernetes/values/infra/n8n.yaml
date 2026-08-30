@@ -138,7 +138,7 @@ persistence:
     enabled: true
     accessMode: ReadWriteOnce
     size: 5Gi
-    storageClass: kadalu.replica2-retain
+    storageClass: local-bulk
     advancedMounts:
       main:
         app:
