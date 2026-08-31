@@ -636,6 +636,7 @@ components:
         icon: home-assistant.svg
         description: Smart-home hub
         app: home-assistant
+
     # Per-app OIDC client (pocket-id id=`home-assistant`). Secret rendered
     # into the `home-assistant` ns as `home-assistant-oidc-client`; consumed
     # by the native hass-oidc-auth integration. apps_users + administrators
@@ -652,6 +653,18 @@ components:
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [apps_users, administrators]
+
+  # Publish only Home Assistant's companion-app discovery record onto the
+  # trusted LAN. This is deliberately separate from the HA pod: the stable
+  # Cilium gateway URL is advertised, so both workloads remain schedulable on
+  # any node. The publisher does not reflect, browse, or expose pod services.
+  - name: home-assistant-mdns
+    namespace: home-assistant
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
 
   # ──────────────────────────────────────────────────────────────────────────
   # VAULTWARDEN — self-hosted Bitwarden-compatible password manager. Replaces

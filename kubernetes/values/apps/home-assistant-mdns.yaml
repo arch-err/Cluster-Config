@@ -1,0 +1,139 @@
+# Home Assistant companion-app discovery publisher.
+#
+# HA's pod-network mDNS cannot reach the physical LAN. This single, movable
+# host-networked pod publishes only `_home-assistant._tcp.local` and points
+# clients at the stable Cilium Gateway URL. It is not an mDNS reflector and
+# has no access to HA state, the Kubernetes API, host files, or host processes.
+
+controllers:
+  main:
+    strategy: Recreate
+    replicas: 1
+    containers:
+      app:
+        image:
+          repository: docker.io/flungo/avahi
+          # Pinned digest: upstream Alpine image containing Avahi 0.9-rc4.
+          tag: latest@sha256:4708182b7c1789ecfb2f986606a29c2b85b19f1606c639be668a7c74a75a47e0
+        command:
+          - /usr/sbin/avahi-daemon
+        args:
+          - --no-chroot
+          - --no-drop-root
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 86
+          runAsGroup: 86
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  # mDNS is link-local multicast and must originate on the node's LAN NIC.
+  # All cluster nodes expose the trusted 10.10.10.0/24 LAN as enp1s0, so the
+  # pod remains freely schedulable while Avahi is restricted to that interface.
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 86
+    runAsGroup: 86
+    fsGroup: 86
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+
+service:
+  main:
+    enabled: false
+
+persistence:
+  config:
+    enabled: true
+    type: configMap
+    identifier: config
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/avahi/avahi-daemon.conf
+            subPath: avahi-daemon.conf
+            readOnly: true
+          - path: /etc/avahi/services/home-assistant.service
+            subPath: home-assistant.service
+            readOnly: true
+  run:
+    enabled: true
+    type: emptyDir
+    medium: Memory
+    sizeLimit: 1Mi
+    advancedMounts:
+      main:
+        app:
+          - path: /run
+
+configMaps:
+  config:
+    enabled: true
+    data:
+      avahi-daemon.conf: |
+        [server]
+        host-name=home-assistant-discovery
+        domain-name=local
+        use-ipv4=yes
+        use-ipv6=no
+        allow-interfaces=enp1s0
+        enable-dbus=no
+        disallow-other-stacks=yes
+        check-response-ttl=yes
+        use-iff-running=yes
+        cache-entries-max=0
+        ratelimit-interval-usec=1000000
+        ratelimit-burst=20
+
+        [wide-area]
+        enable-wide-area=no
+
+        [publish]
+        disable-publishing=no
+        disable-user-service-publishing=yes
+        add-service-cookie=no
+        publish-addresses=no
+        publish-hinfo=no
+        publish-workstation=no
+        publish-domain=no
+        publish-dns-servers=no
+        publish-resolv-conf-dns-servers=no
+        publish-aaaa-on-ipv4=no
+        publish-a-on-ipv6=no
+
+        [reflector]
+        enable-reflector=no
+
+      home-assistant.service: |
+        <?xml version="1.0" standalone="no"?>
+        <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+        <service-group>
+          <name replace-wildcards="no">Home</name>
+          <service>
+            <type>_home-assistant._tcp</type>
+            <host-name>ha.apps.home</host-name>
+            <port>443</port>
+            <txt-record>location_name=Home</txt-record>
+            <txt-record>uuid=3a59364d28eb41b889c27ee917579eac</txt-record>
+            <txt-record>internal_url=https://ha.apps.home</txt-record>
+            <txt-record>base_url=https://ha.apps.home</txt-record>
+            <txt-record>requires_api_password=True</txt-record>
+          </service>
+        </service-group>
