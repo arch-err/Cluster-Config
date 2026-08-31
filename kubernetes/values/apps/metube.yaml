@@ -33,7 +33,7 @@ controllers:
       app:
         image:
           repository: ghcr.io/alexta69/metube
-          tag: "2026.04.28"
+          tag: "2026.08.04"
         env:
           # metube listens on :8081 by default.
           PORT: "8081"
