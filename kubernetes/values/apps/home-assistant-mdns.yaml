@@ -70,6 +70,12 @@ persistence:
           - path: /etc/avahi/avahi-daemon.conf
             subPath: avahi-daemon.conf
             readOnly: true
+          # The companion app resolves the DNS-SD SRV target via mDNS before
+          # opening the TXT-provided internal URL. Publish the gateway VIP for
+          # that exact hostname so TLS still uses ha.apps.home/SNI.
+          - path: /etc/avahi/hosts
+            subPath: hosts
+            readOnly: true
   services:
     enabled: true
     type: configMap
@@ -127,6 +133,9 @@ configMaps:
 
         [reflector]
         enable-reflector=no
+
+      hosts: |
+        10.10.10.200 ha.apps.home
 
   services:
     enabled: true
