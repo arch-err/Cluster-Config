@@ -32,7 +32,7 @@ singleBinary:
   replicas: 1
   persistence:
     enabled: true
-    storageClass: kadalu.replica2
+    storageClass: local-bulk
     size: 30Gi
 
 # Disable microservices components

@@ -45,6 +45,7 @@ The `<cluster-name>-app` Secret contains:
 ══════════════════════════════════════════════════════════════════════════════
 */}}
 {{- range $component := .Values.components }}
+{{- if not (has $component.name ($.Values.disabledComponents | default (list))) }}
 {{- if and $component.db $component.db.enabled }}
 {{- $app := $component.name }}
 {{- $appNs := $component.namespace | default $component.name }}
@@ -108,5 +109,6 @@ spec:
     storageClass: {{ $storageClass | quote }}
   resources:
     {{- toYaml $resources | nindent 4 }}
+{{- end }}
 {{- end }}
 {{- end }}

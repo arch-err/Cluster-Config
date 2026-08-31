@@ -18,7 +18,7 @@ prometheus-pushgateway:
 server:
   persistentVolume:
     enabled: true
-    storageClass: kadalu.replica2
+    storageClass: local-bulk
     size: 30Gi
 
   # 15d retention (set via chart's `server.retention`, which renders the flag).

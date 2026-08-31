@@ -115,6 +115,7 @@ persistence:
     enabled: true
     accessMode: ReadWriteOnce
     size: 5Gi
+    storageClass: local-bulk
     advancedMounts:
       main:
         app:
@@ -125,8 +126,8 @@ persistence:
   # RWX existingClaim if readarr handoff lands).
   calibre-library:
     enabled: true
-    accessMode: ReadWriteOnce
-    size: 50Gi
+    type: persistentVolumeClaim
+    existingClaim: calibre-library
     advancedMounts:
       main:
         app:
@@ -138,6 +139,7 @@ persistence:
     enabled: true
     accessMode: ReadWriteOnce
     size: 5Gi
+    storageClass: local-bulk
     advancedMounts:
       main:
         app:

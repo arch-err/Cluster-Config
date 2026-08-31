@@ -5,6 +5,11 @@ Only rendered when extras.* is enabled in values
 
 {{- if .Values.extras }}
 
+{{- /* Keep disabled app configuration available without rendering its raw resources. */}}
+{{- range (.Values.disabledExtras | default (list)) }}
+{{- $_ := set $.Values.extras . false }}
+{{- end }}
+
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
 {{/* SOPS SECRETS OPERATOR                                                       */}}
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
@@ -469,6 +474,50 @@ metadata:
     pod-security.kubernetes.io/warn: baseline
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+---
+# Calibre library — shared with BookLore via a sibling static local PV in its
+# namespace. The canonical directory is created/restored on Disk B.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: calibre-web-calibre-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  local:
+    path: /var/mnt/bulk/calibre-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
+  claimRef:
+    name: calibre-library
+    namespace: calibre-web
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: calibre-library
+  namespace: calibre-web
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: calibre-web-calibre-library
 {{- end }}
 
 {{/* ══════════════════════════════════════════════════════════════════════════ */}}
@@ -519,16 +568,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: booklore-calibre-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: {{ .Values.extras.booklore.calibreLibrarySubvolPath | default "subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1" }}
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/calibre-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: booklore-calibre-library
     namespace: booklore
@@ -563,7 +611,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: kadalu.replica2-retain
+  storageClassName: local-bulk
   resources:
     requests:
       storage: {{ .Values.extras.booklore.dataSize | default "2Gi" }}
@@ -580,7 +628,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: kadalu.replica2-retain
+  storageClassName: local-bulk
   resources:
     requests:
       storage: {{ .Values.extras.booklore.mariadbSize | default "5Gi" }}
@@ -716,16 +764,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: booklore-media-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: subvol/ar/lb/media-library
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: booklore-media-library
     namespace: booklore
@@ -918,16 +965,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: audiobookshelf-v2-media-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: subvol/ar/lb/media-library
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: media-library
     namespace: audiobookshelf-v2
@@ -986,16 +1032,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: metube-media-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: subvol/ar/lb/media-library
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: media-library
     namespace: metube
@@ -1801,6 +1846,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: local-bulk
   resources:
     requests:
       storage: {{ .Values.extras.immich.librarySize | default "200Gi" }}
@@ -1809,13 +1855,14 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: immich-postgres
+  name: immich-postgres-recovered
   namespace: immich
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: local-path
   resources:
     requests:
       storage: {{ .Values.extras.immich.postgresSize | default "20Gi" }}
@@ -1923,7 +1970,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: immich-postgres
+            claimName: immich-postgres-recovered
         - name: dshm
           emptyDir:
             medium: Memory

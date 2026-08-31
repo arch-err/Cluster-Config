@@ -5,6 +5,44 @@ repoURL: https://github.com/arch-err/Cluster-Config.git
 targetRevision: v2
 valuesPath: kubernetes/values/apps
 
+# Retain configuration for easy intentional redeployment while rendering no
+# Argo Application or app-specific raw resources for discarded services.
+disabledComponents:
+  - agent-vault
+  - hookshot
+  - hermes-oauth2
+  - kanban
+  - kivra-sync
+  - kivra-sync-oauth2
+  - matrix
+  - mattermost
+  - mosquitto
+  - ntfy
+  - pingvin-share
+  - protonmail-bridge
+  - qbittorrent
+  - samba
+  - stirling-pdf
+  - syncthing
+  - syncthing-oauth2
+  - t3-oauth2
+  - vaultwarden
+  - zigbee2mqtt
+  - zigbee2mqtt-oauth2
+
+disabledExtras:
+  - arr
+  - hermes
+  - kanban
+  - kivra-sync
+  - mattermost
+  - mosquitto
+  - protonmail-bridge
+  - samba
+  - stirling-pdf
+  - t3
+  - zigbee2mqtt
+
 # ══════════════════════════════════════════════════════════════════════════════
 # GATEWAY (apps gateway configuration)
 # ══════════════════════════════════════════════════════════════════════════════

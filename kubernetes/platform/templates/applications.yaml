@@ -1,5 +1,6 @@
 {{- $root := . -}}
 {{- range .Values.components }}
+{{- if not (has .name ($root.Values.disabledComponents | default (list))) }}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -98,4 +99,5 @@ spec:
       # automatically pruned or deleted by an app sync/app deletion.
       - Prune=confirm
       - Delete=confirm
+{{- end }}
 {{- end }}

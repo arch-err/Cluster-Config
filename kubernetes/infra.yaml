@@ -5,6 +5,9 @@ repoURL: https://github.com/arch-err/Cluster-Config.git
 targetRevision: v2
 valuesPath: kubernetes/values/infra
 
+disabledComponents:
+  - kadalu
+
 # ══════════════════════════════════════════════════════════════════════════════
 # COMPONENTS (generates ArgoCD Applications)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -237,7 +240,7 @@ components:
       instances: 1
       storage:
         size: 10Gi
-        storageClass: kadalu.replica2-retain
+        storageClass: local-bulk
     route:
       hostname: grafana.infra.home
       gateway: infra
@@ -368,7 +371,7 @@ extras:
     address: "10.10.10.160"
     port: 3030
     hostname: rocky.infra.home
-  kadalu: true
+  kadalu: false
   monitoring: true
   hubbleAuth: true
   # generic-device-plugin (squat) — a privileged DaemonSet, pinned to node-1,

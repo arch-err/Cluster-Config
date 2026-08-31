@@ -1,4 +1,5 @@
 {{- range $.Values.components }}
+{{- if not (has .name ($.Values.disabledComponents | default (list))) }}
 {{- if .route }}
 {{- $name := .name }}
 {{- $isApps := eq (.route.gateway | default "internal") "apps" }}
@@ -137,6 +138,7 @@ spec:
       backendRefs:
         - name: {{ .route.service | default .name }}
           port: {{ .route.port | default 80 }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

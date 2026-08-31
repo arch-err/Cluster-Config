@@ -38,6 +38,7 @@ Pocket-id authenticates that token via the `X-API-Key` request header.
 ══════════════════════════════════════════════════════════════════════════════
 */}}
 {{- range $component := .Values.components }}
+{{- if not (has $component.name ($.Values.disabledComponents | default (list))) }}
 {{- if and $component.oidc $component.oidc.enabled }}
 {{- $app := $component.name }}
 {{- $appNs := $component.namespace | default $component.name }}
@@ -448,5 +449,6 @@ spec:
         - name: home
           emptyDir:
             sizeLimit: 16Mi
+{{- end }}
 {{- end }}
 {{- end }}
