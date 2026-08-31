@@ -659,7 +659,15 @@ components:
   # Cilium gateway URL is advertised, so both workloads remain schedulable on
   # any node. The publisher does not reflect, browse, or expose pod services.
   - name: home-assistant-mdns
-    namespace: home-assistant
+    # `hostNetwork` is forbidden by baseline PSS. Keep that exception isolated
+    # from Home Assistant itself: this namespace contains only the mDNS
+    # publisher, while the workload still drops all capabilities and runs
+    # non-root with a read-only filesystem.
+    namespace: home-assistant-mdns
+    namespaceLabels:
+      pod-security.kubernetes.io/enforce: privileged
+      pod-security.kubernetes.io/audit: privileged
+      pod-security.kubernetes.io/warn: privileged
     chart:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
