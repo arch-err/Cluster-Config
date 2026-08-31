@@ -60,18 +60,26 @@ service:
     enabled: false
 
 persistence:
-  config:
+  daemon-config:
     enabled: true
     type: configMap
-    identifier: config
+    identifier: daemon-config
     advancedMounts:
       main:
         app:
           - path: /etc/avahi/avahi-daemon.conf
             subPath: avahi-daemon.conf
             readOnly: true
-          - path: /etc/avahi/services/home-assistant.service
-            subPath: home-assistant.service
+  services:
+    enabled: true
+    type: configMap
+    identifier: services
+    advancedMounts:
+      main:
+        app:
+          # Mount the entire directory so image-supplied SSH/SFTP records are
+          # hidden; this publisher must advertise only Home Assistant.
+          - path: /etc/avahi/services
             readOnly: true
   run:
     enabled: true
@@ -84,7 +92,7 @@ persistence:
           - path: /run
 
 configMaps:
-  config:
+  daemon-config:
     enabled: true
     data:
       avahi-daemon.conf: |
@@ -113,7 +121,6 @@ configMaps:
         publish-hinfo=no
         publish-workstation=no
         publish-domain=no
-        publish-dns-servers=no
         publish-resolv-conf-dns-servers=no
         publish-aaaa-on-ipv4=no
         publish-a-on-ipv6=no
@@ -121,6 +128,9 @@ configMaps:
         [reflector]
         enable-reflector=no
 
+  services:
+    enabled: true
+    data:
       home-assistant.service: |
         <?xml version="1.0" standalone="no"?>
         <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
