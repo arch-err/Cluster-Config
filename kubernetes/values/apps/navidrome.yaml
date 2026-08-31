@@ -152,14 +152,13 @@ persistence:
     enabled: true
     accessMode: ReadWriteOnce
     size: 5Gi
+    storageClass: local-bulk
     advancedMounts:
       main:
         app:
           - path: /data
-  # Shared kadalu media-library — static RWX PV bound to the existing
-  # `media-library` PVC in the navidrome ns (provisioned by extras.navidrome
-  # block; subvol/ar/lb/media-library on hostvol replica2 — SAME backing
-  # data as jellyfin / metube / audiobookshelf-v2 / arr stack). Mounted
+  # Shared node-local media-library — static RWX alias bound to the existing
+  # `media-library` PVC in the navidrome namespace. Mounted
   # READ-ONLY at /music with subPath=music so navidrome only sees the
   # `music/` subtree of the shared library.
   music:

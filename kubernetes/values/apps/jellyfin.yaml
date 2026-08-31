@@ -91,8 +91,9 @@ persistence:
     enabled: true
     accessMode: ReadWriteOnce
     size: 5Gi
-  # Shared kadalu media-library — static RWX PV (twin of arr/audiobookshelf-v2
-  # PVs, same backing subvol/ar/lb/media-library). REUSED via existingClaim.
+    storageClass: local-bulk
+  # Shared node-local media-library — static RWX PV alias pointing at the
+  # canonical directory on Disk B. REUSED via existingClaim.
   # Mounted RW so Jellyfin can write metadata fanart/.nfo files alongside the
   # media files. Chart maps `persistence.media` → /media inside the container.
   media:

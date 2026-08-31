@@ -1046,8 +1046,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
-# media-library — sixth static kadalu PV/PVC pair pointing at the SAME subvol
-# path the arr / ABS-v2 / metube / jellyfin twin PVs use. Same proven pattern.
+# media-library — static node-local PV/PVC alias pointing at the shared media
+# directory on Disk B. Sibling applications receive their own PV/PVC objects
+# backed by this same path because claims cannot cross namespaces.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -1061,16 +1062,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: navidrome-media-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: subvol/ar/lb/media-library
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: media-library
     namespace: navidrome
@@ -1102,8 +1102,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
-# media-library — fourth static kadalu PV/PVC pair pointing at the SAME subvol
-# path the arr / audiobookshelf-v2 twin PVs use. Same proven pattern.
+# media-library — static node-local PV/PVC alias pointing at the shared media
+# directory on Disk B.
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -1117,16 +1117,15 @@ spec:
     - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
-  csi:
-    driver: kadalu
-    volumeHandle: jellyfin-media-library
-    volumeAttributes:
-      fstype: xfs
-      hostvol: replica2
-      path: subvol/ar/lb/media-library
-      pvtype: subvol
-      single_pv_per_pool: "False"
-      type: Replica2
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
   claimRef:
     name: media-library
     namespace: jellyfin
