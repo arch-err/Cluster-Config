@@ -119,7 +119,6 @@ persistence:
     enabled: true
     accessMode: ReadWriteMany
     size: 1Gi
-    storageClass: local-bulk
     advancedMounts:
       main:
         app:
@@ -130,7 +129,6 @@ persistence:
     enabled: true
     accessMode: ReadWriteMany
     size: 50Gi
-    storageClass: local-bulk
     advancedMounts:
       main:
         app:
