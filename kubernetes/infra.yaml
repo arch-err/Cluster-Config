@@ -300,7 +300,11 @@ components:
       repo: https://bjw-s-labs.github.io/helm-charts
       name: app-template
       version: 4.6.2
-    syncWave: "3"  # after cnpg + infra base; db Cluster rendered by platform chart
+    # Must sync before parent-rendered n8n namespace resources (CNPG Cluster
+    # wave 0, OIDC Role/RoleBinding wave 9, HTTPRoute wave 10). The child app's
+    # CreateNamespace=true creates `n8n`; otherwise Argo can softlock trying to
+    # apply namespace-scoped resources before the namespace exists.
+    syncWave: "-1"
     db:
       enabled: true
       version: "16"
