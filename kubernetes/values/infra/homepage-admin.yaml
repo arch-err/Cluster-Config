@@ -5,7 +5,7 @@
 # Differentiators vs. homepage / homepage-infra:
 #   - widgets: kubernetes cluster overview, resources, prometheus targets
 #   - bookmarks: deep links into argocd / grafana / prometheus / loki UIs
-#   - shows ALL services across both gateways (no instanceName filter)
+#   - shows ALL services across both gateways via gethomepage.dev/instance.admin
 # Lives at admin.infra.home; LAN-gated only (no OIDC v1 — follow-up).
 
 image:
@@ -46,10 +46,10 @@ config:
     gateway: true
     services: true
 
-  # No instance filter — admin homepage shows ALL annotated routes regardless
-  # of which gateway they live on (apps + infra both visible).
-  # NOTE: in homepage v1.12.3 the `instance` filter is broken upstream anyway
-  # (silently drops annotated routes). See homepage-infra.yaml comment block.
+  # Admin uses its own instance filter. The platform chart annotates every
+  # dashboard-visible HTTPRoute with both its gateway instance and
+  # `gethomepage.dev/instance.admin`, so admin sees apps + infra while the
+  # gateway dashboards remain scoped.
   #
   # Live service-card widgets for Grafana + ArgoCD. Credentials come from
   # the homepage-admin-credentials SopsSecret via envFrom (above).
@@ -236,7 +236,7 @@ config:
 
   settings:
     title: Admin
-    # No instanceName key — show everything across both gateways.
+    instanceName: admin
     theme: dark
     color: zinc
     headerStyle: clean

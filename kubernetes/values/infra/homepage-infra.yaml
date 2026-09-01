@@ -1,8 +1,8 @@
 # homepage-infra — chart: jameswynn/homepage v2.1.0 (gethomepage)
 # https://artifacthub.io/packages/helm/jameswynn/homepage
 #
-# Second homepage instance dedicated to infrastructure/admin services.
-# Filters to routes annotated with `gethomepage.dev/instance: infra`.
+# Second homepage instance dedicated to infrastructure services.
+# Filters to routes annotated with `gethomepage.dev/instance.infra`.
 
 # Bump app to current upstream. Chart default v1.2.0 doesn't support `instanceName`
 # filtering (added in later versions); needed to scope each homepage to its gateway.
@@ -35,9 +35,6 @@ config:
     ingress: false   # we don't use classic Ingress — only HTTPRoute
     gateway: true
     services: true   # also discover Service-level annotations as a fallback
-    # NOTE: `instance:` filter dropped — homepage v1.2.0 silently drops routes
-    # carrying the `gethomepage.dev/instance` annotation. Both dashboards now
-    # show ALL routes; cosmetic differentiation only via title + bg + cross-link.
 
   # Layout: groups are auto-built from gethomepage.dev/group annotations on routes.
   # Static entries below are merged with annotation-discovered services.
@@ -61,7 +58,7 @@ config:
 
   settings:
     title: Infrastructure
-    instanceName: infra   # scopes auto-discovery to routes annotated `gethomepage.dev/instance: infra`
+    instanceName: infra   # scopes auto-discovery to `gethomepage.dev/instance.infra`
     theme: dark
     color: slate
     headerStyle: clean
