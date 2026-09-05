@@ -17,7 +17,6 @@ disabledComponents:
   - matrix
   - mattermost
   - mosquitto
-  - ntfy
   - pingvin-share
   - protonmail-bridge
   - qbittorrent
