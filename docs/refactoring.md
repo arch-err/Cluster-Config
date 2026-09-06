@@ -69,7 +69,7 @@ The earlier baseline above is historical: kube-state-metrics drift and Loki's co
 
 ## ArgoCD chart pin (2026-09-06)
 
-J approved pinning the ArgoCD chart to `10.4.2`, matching the chart labels on live resources. The previously omitted version rendered as `*` and resolved `10.8.1`, producing metadata and pod-template differences despite unchanged container images. The service declaration now pins `10.4.2`; the live Application's chart source is updated directly, with auto-sync disabled. This is a source-selection change, not authorization for an ArgoCD workload sync or restart. The earlier wildcard baseline above is historical.
+J approved pinning the ArgoCD chart to `10.4.2`, matching the chart labels on live resources. The previously omitted version rendered as `*` and resolved `10.8.1`, producing metadata and pod-template differences despite unchanged container images. The service declaration now pins `10.4.2`; the live Application's chart source is updated directly, with auto-sync disabled. This is a source-selection change, not authorization for an ArgoCD workload sync or restart. The earlier wildcard baseline above is historical. After the source change, a hard-refresh CLI comparison returned zero diff. All Argo workload specifications and identities remained unchanged; only the approved Application chart revision changed, with no sync operation. `just check` passed.
 
 ## Approved source layout
 
