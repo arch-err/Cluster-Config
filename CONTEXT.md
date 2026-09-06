@@ -11,3 +11,7 @@ Terms used to distinguish repository maintenance from changes to the running sys
 **Legacy archive**: A preserved historical configuration that is kept for reference and recovery, rather than ongoing maintenance.
 
 **Retained service**: A service whose configuration remains available although it is disabled. Retention of configuration does not establish that its data still exists or that it can be safely re-enabled.
+
+**State-preserving refactor**: A change to repository organization that preserves the deployed resource definitions and behavior. Any exception requires J’s explicit approval.
+
+**Zero-diff gate**: A requirement that the proposed configuration has no unapproved differences from the live baseline before any synchronization. Hidden differences and comparison failures do not satisfy the gate.

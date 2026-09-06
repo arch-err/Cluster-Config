@@ -79,7 +79,9 @@ spec:
         - kubectl-rollout
 
   syncPolicy:
+    # Manual sync during repository refactoring; see docs/refactoring.md.
     automated:
+      enabled: false
       prune: true
       selfHeal: true
     {{- if .namespaceLabels }}

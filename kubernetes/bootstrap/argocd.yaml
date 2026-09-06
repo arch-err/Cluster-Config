@@ -85,6 +85,7 @@ extraObjects:
             - .endpoints[].conditions
       syncPolicy:
         automated:
+          enabled: false
           prune: true
           selfHeal: true
         syncOptions:
@@ -132,6 +133,7 @@ extraObjects:
             - /spec
       syncPolicy:
         automated:
+          enabled: false
           prune: true
           selfHeal: true
         syncOptions:
@@ -161,6 +163,7 @@ extraObjects:
         namespace: argocd
       syncPolicy:
         automated:
+          enabled: false
           prune: true
           selfHeal: true
         syncOptions:
@@ -186,6 +189,7 @@ extraObjects:
         namespace: argocd
       syncPolicy:
         automated:
+          enabled: false
           prune: true
           selfHeal: true
         syncOptions:

@@ -36,7 +36,7 @@ The maintained manifests target `main`. Existing cluster roots may still target 
 
 ## Sync behavior
 
-Components may set `syncWave`; otherwise their Application defaults to wave `0`. Supporting templates have their own waves. Child Applications use automated sync/self-heal, with `Prune=confirm` and `Delete=confirm` guards. Root policies are defined separately in bootstrap values. Never infer that every deletion is protected by a child's settings.
+Components may set `syncWave`; otherwise their Application defaults to wave `0`. Supporting templates have their own waves. Automatic sync is explicitly disabled for the refactor on all roots and children. Child Applications retain `Prune=confirm` and `Delete=confirm` guards. Root policies are defined separately in bootstrap values. Never infer that every deletion is protected by a child's settings.
 
 Several Gateway API differences are ignored at the whole-spec level, and child Applications use `RespectIgnoreDifferences=true`. A green sync status alone is therefore insufficient evidence that routes match Git; inspect rendered and live routing resources when changing them.
 
