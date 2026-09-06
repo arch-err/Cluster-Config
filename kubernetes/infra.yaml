@@ -2,7 +2,7 @@
 # This file configures the 'infra' instance of the platform chart
 
 repoURL: https://github.com/arch-err/Cluster-Config.git
-targetRevision: v2
+targetRevision: main
 valuesPath: kubernetes/values/infra
 
 disabledComponents:

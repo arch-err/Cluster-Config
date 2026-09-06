@@ -4,7 +4,7 @@
 {{- $name := .name }}
 {{- $isApps := eq (.route.gateway | default "internal") "apps" }}
 {{- /* Compute whether this route should appear on the gethomepage dashboard.
-       - dashboard omitted (nil)  → default-SHOW on every gateway (apps + infra)
+       - dashboard omitted (nil)  → default-SHOW only on the apps gateway
        - dashboard: false         → always hide
        - dashboard: true          → always show with auto-derived name/icon
        - dashboard: { ... }       → show unless `enabled: false`; map fields override defaults

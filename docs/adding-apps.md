@@ -1,371 +1,75 @@
-# Adding Applications
+# Adding or re-enabling applications
 
-This guide explains how to deploy new applications to the cluster.
+Choose `kubernetes/apps.yaml` for user services or `kubernetes/infra.yaml` for platform services. Each component's upstream chart values live at `kubernetes/values/<scope>/<name>.yaml`.
 
-## Quick Start
+## Component and route
 
-Adding an app is a two-step process:
-
-1. **Add component to `apps.yaml`**
-2. **Create values file in `values/apps/`**
-
-### Example: Adding Grafana
-
-#### Step 1: Add to apps.yaml
+A minimal example (replace the chart coordinates with the selected chart):
 
 ```yaml
-# kubernetes/apps.yaml
 components:
-  - name: grafana
-    namespace: monitoring
+  - name: example
+    namespace: example
     chart:
-      repo: https://grafana.github.io/helm-charts
-      name: grafana
+      repo: https://charts.example.org
+      name: example
+      version: "1.2.3"
     route:
-      hostname: grafana.home
-      port: 3000
+      hostname: example.apps.home
+      gateway: apps
+      service: example
+      port: 8080
 ```
 
-#### Step 2: Create values file
+Create the matching `kubernetes/values/apps/example.yaml` using that chart's schema. Prefer explicit chart revisions. Set `route.gateway` explicitly to `apps` or `infra`; the template's historical default, `internal`, is not one of the currently configured gateways.
+
+The route template also supports `route.grpc` and `route.dashboard`. Dashboard visibility defaults to the apps gateway; infra routes need an explicit dashboard opt-in. Homepage admin discovery has an outstanding fix (PR #4); see [repository state](repository-state.md).
+
+## Storage
+
+Select persistence explicitly. `local-bulk` provisions retained data on NODE-2's external disk. `local-path` provisions node-local data under `/opt/local-path-provisioner` with `Delete` reclaim policy. Neither provides storage replication.
+
+For a CNPG database, add a `db` block to the component and wire the generated `<component>-db-app` Secret into the app's values:
 
 ```yaml
-# kubernetes/values/apps/grafana.yaml
-replicas: 1
-
-persistence:
+db:
   enabled: true
-  size: 1Gi
-
-datasources:
-  datasources.yaml:
-    apiVersion: 1
-    datasources:
-      - name: Prometheus
-        type: prometheus
-        url: http://prometheus-server.monitoring:80
-```
-
-#### Step 3: Commit and push
-
-```bash
-git add kubernetes/apps.yaml kubernetes/values/apps/grafana.yaml
-git commit -m "feat: add grafana"
-git push
-```
-
-ArgoCD will automatically sync and deploy Grafana.
-
-## Component Options
-
-### Minimal Component
-
-```yaml
-- name: my-app
-  chart:
-    repo: https://charts.example.com
-    name: my-chart
-```
-
-This will:
-- Create namespace `my-app`
-- Load values from `values/apps/my-app.yaml`
-- Deploy the Helm chart
-
-### Full Component Options
-
-```yaml
-- name: my-app
-  namespace: custom-namespace    # Override namespace
-  syncWave: "5"                  # Control sync order
-  chart:
-    repo: https://charts.example.com
-    name: my-chart
-    version: "1.2.x"             # Version constraint
-  extraArgs:
-    - "someKey=someValue"        # Extra Helm parameters
-  route:
-    hostname: my-app.home        # Creates HTTPRoute
-    gateway: internal            # Which gateway (default: internal)
-    service: my-app-frontend     # Service name if different
-    port: 8080                   # Service port
-```
-
-## Finding Helm Charts
-
-### Common Chart Repositories
-
-| Repository | URL |
-|------------|-----|
-| Bitnami | https://charts.bitnami.com/bitnami |
-| Grafana | https://grafana.github.io/helm-charts |
-| Prometheus | https://prometheus-community.github.io/helm-charts |
-| Jetstack | https://charts.jetstack.io |
-| Ingress-NGINX | https://kubernetes.github.io/ingress-nginx |
-
-### Searching for Charts
-
-```bash
-# Add repo and search
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm search repo bitnami/
-
-# Get default values
-helm show values bitnami/postgresql > postgresql-values.yaml
-```
-
-## HTTPRoute Configuration
-
-### Basic Route
-
-```yaml
-route:
-  hostname: app.home
-  port: 3000
-```
-
-Creates:
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: my-app
-  namespace: my-app
-spec:
-  parentRefs:
-    - name: internal
-      namespace: gateway-system
-  hostnames:
-    - app.home
-  rules:
-    - backendRefs:
-        - name: my-app
-          port: 3000
-```
-
-### Custom Service Name
-
-Some charts create services with different names:
-
-```yaml
-- name: argocd
-  route:
-    hostname: argocd.home
-    service: argocd-server  # Chart creates "argocd-server" not "argocd"
-    port: 80
-```
-
-### No Route
-
-For backend services that don't need external access:
-
-```yaml
-- name: postgresql
-  chart:
-    repo: https://charts.bitnami.com/bitnami
-    name: postgresql
-  # No route - internal only
-```
-
-## Values Files
-
-### Location
-
-Values files are loaded from the `valuesPath` specified in apps.yaml:
-```
-{valuesPath}/{name}.yaml
-```
-
-For apps (valuesPath: `kubernetes/values/apps`):
-```
-kubernetes/values/apps/{name}.yaml
-```
-
-### Finding Default Values
-
-```bash
-# Get chart's default values
-helm show values grafana/grafana > grafana-defaults.yaml
-
-# Or from ArtifactHub
-# https://artifacthub.io/packages/helm/grafana/grafana
-```
-
-### Common Patterns
-
-#### Persistence
-
-```yaml
-persistence:
-  enabled: true
-  storageClass: ""  # Uses default StorageClass
-  size: 10Gi
-```
-
-#### Resources
-
-```yaml
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    memory: 256Mi
-```
-
-#### Ingress Disabled
-
-Since we use Gateway API, disable chart ingress:
-
-```yaml
-ingress:
-  enabled: false
-```
-
-## Examples
-
-### PostgreSQL Database
-
-```yaml
-# apps.yaml
-- name: postgresql
-  namespace: databases
-  chart:
-    repo: https://charts.bitnami.com/bitnami
-    name: postgresql
-```
-
-```yaml
-# kubernetes/values/apps/postgresql.yaml
-auth:
-  existingSecret: postgresql-credentials  # Reference SopsSecret
-  database: myapp
-
-primary:
-  persistence:
-    enabled: true
+  version: "16"
+  instances: 1
+  storage:
     size: 10Gi
+    storageClass: local-bulk
 ```
 
-For credentials, create a SopsSecret in `kubernetes/secrets/apps/postgresql.yaml`.
+The database template renders `<component>-db` with database/owner named after the component. Its version-to-image map is in `db-postgres.yaml`. The CNPG operator and namespace must exist before the Cluster resource can reconcile. Do not rely on the legacy default StorageClass; see [storage](pvc-reclaim-policy.md).
 
-### Homepage Dashboard
+## Identity
 
-```yaml
-# apps.yaml
-- name: homepage
-  chart:
-    repo: https://jameswynn.github.io/helm-charts
-    name: homepage
-  route:
-    hostname: home.home
-    port: 3000
-```
+For OIDC, first complete [Pocket ID bootstrap](../kubernetes/manual/pocket-id/README.md), then add:
 
 ```yaml
-# values/apps/homepage.yaml
-config:
-  services:
-    - Infrastructure:
-        - ArgoCD:
-            href: https://argocd.home
-            icon: argocd
-        - Hubble:
-            href: https://hubble.home
-            icon: cilium
-```
-
-### Prometheus Stack
-
-```yaml
-# apps.yaml
-- name: kube-prometheus-stack
-  namespace: monitoring
-  chart:
-    repo: https://prometheus-community.github.io/helm-charts
-    name: kube-prometheus-stack
-```
-
-```yaml
-# values/apps/kube-prometheus-stack.yaml
-prometheus:
-  prometheusSpec:
-    retention: 7d
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          resources:
-            requests:
-              storage: 50Gi
-
-grafana:
+oidc:
   enabled: true
-  ingress:
-    enabled: false  # Using Gateway API
+  callbackUrls:
+    - https://example.apps.home/oauth/callback
+  groupRestriction:
+    allowedGroups: [apps_users, administrators]
 ```
 
-Then add a route separately in apps.yaml:
-```yaml
-- name: kube-prometheus-stack
-  # ...
-  route:
-    hostname: grafana.home
-    service: kube-prometheus-stack-grafana
-    port: 80
-```
+Use the application's actual callback path. The job writes `client_id`, `client_secret` (confidential clients), and `issuer_url` to `<component>-oidc-client` by default. `clientId` overrides the registration identity and default Secret prefix; `secretName` overrides the Secret name. Other supported inputs include `public`, `pkceEnabled`, `logoutCallbackUrls`, and `scopes`.
 
-## Debugging
+The job reconciles the Pocket ID client allowlist by group name. Empty or omitted `allowedGroups` makes the client unrestricted at the IDP. App-side permissions and role mappings are separate; configure them in the application's values or manual setup notes.
 
-### Check ArgoCD Status
+## Disabled services
 
-```bash
-# List all applications
-kubectl -n argocd get applications
+A retained values file does not mean an application is deployed. Check both `disabledComponents` and `disabledExtras`. Several disabled services still reference retired Kadalu storage or old integrations. Before re-enabling one, review its storage, secrets, routes, prerequisites, and preserved data. Do not remove disable flags as a bulk cleanup.
 
-# Get app details
-kubectl -n argocd describe application my-app
+## Review and publish
 
-# View in ArgoCD UI
-just argocd-ui
-```
+1. Run `just check` and inspect both rendered configurations.
+2. Validate the upstream chart with the selected version and values; the local chart check only renders the child Application reference.
+3. Review resource deletion, PVC ownership, routing, and authentication changes.
+4. Update the [service inventory](services.md) and relevant manual setup notes.
+5. Commit and publish to the branch the root Applications track. During migration, follow [repository state](repository-state.md).
 
-### Common Issues
-
-#### Values file not found
-
-```
-Error: open values/apps/my-app.yaml: no such file or directory
-```
-
-Create the values file, even if empty:
-```bash
-touch kubernetes/values/apps/my-app.yaml
-```
-
-#### Wrong service name
-
-```
-HTTPRoute stuck in "Accepted: False"
-```
-
-Check what service the chart actually creates:
-```bash
-kubectl -n my-app get svc
-```
-
-Update the route with the correct service name.
-
-#### Sync wave ordering
-
-If an app needs another app to exist first:
-```yaml
-- name: app-depends-on-db
-  syncWave: "10"  # Higher = syncs later
-```
-
-## Best Practices
-
-1. **Always check default values** before creating your values file
-2. **Disable chart ingress** - use Gateway API routes instead
-3. **Use version constraints** like `1.2.x` for stability
-4. **Keep values minimal** - only override what you need
-5. **Use SOPS for secrets** - don't commit passwords in plain text
+Changing desired state is distinct from confirming a successful deployment: inspect ArgoCD status and the affected workloads after reconciliation.

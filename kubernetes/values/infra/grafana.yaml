@@ -80,7 +80,7 @@ extraContainers: |
     image: registry.k8s.io/git-sync/git-sync:v4.4.0
     args:
       - --repo=https://github.com/arch-err/Cluster-Config
-      - --ref=v2
+      - --ref=main
       - --root=/dashboards
       - --period=30s
       - --link=current
@@ -97,7 +97,7 @@ extraInitContainers:
     image: registry.k8s.io/git-sync/git-sync:v4.4.0
     args:
       - --repo=https://github.com/arch-err/Cluster-Config
-      - --ref=v2
+      - --ref=main
       - --root=/dashboards
       - --one-time
       - --link=current

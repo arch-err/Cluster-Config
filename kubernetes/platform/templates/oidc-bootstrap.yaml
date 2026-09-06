@@ -21,7 +21,7 @@ The Job name embeds a sha256 hash of the OIDC inputs so that ArgoCD recreates
 it whenever the spec changes (idempotent re-run). `ttlSecondsAfterFinished`
 auto-cleans the completed Job; ArgoCD prunes stale ones.
 
-The pocket-id admin API token is supplied via the SopsSecret
+The pocket-id admin API token is supplied via a manually created Secret
 `pocket-id-api-token` in the `pocket-id` namespace (key: POCKET_ID_API_TOKEN).
 Pocket-id authenticates that token via the `X-API-Key` request header.
 

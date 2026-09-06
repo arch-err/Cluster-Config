@@ -1,64 +1,41 @@
-# PVC reclaim policy
+# Storage and data retention
 
-**Rule:** every PV whose PVC holds CRITICAL or VALUABLE user data (per `docs/backup-manual.md` tiers) **must** use `persistentVolumeReclaimPolicy: Retain`. The default `kadalu.replica2` StorageClass issues PVs with `Delete` — that means a PVC delete (manual, or ArgoCD prune on app retire) wipes the underlying gluster brick with no recovery. SKIP-tier (caches, prometheus tsdb, redis replicas, model caches, transient scratch) may stay at `Delete`.
+The current configuration uses node-local storage. Kadalu is disabled in `infra.disabledComponents` and `extras.kadalu`; its configuration remains for historical/disabled services.
 
-## Why
+## Configured storage
 
-On 2026-05-10 the ABS v1 app was retired by removing its entry from `apps.yaml`. ArgoCD pruned the v1 `Application`, which deleted its four chart-managed PVCs including `audiobookshelf-library` (100Gi). Reclaim was `Delete` (kadalu default) → gluster brick wiped instantly → audiobooks permanently lost. The user happened to have the source files; next time we won't be lucky. Pair-rule: see `feedback_no_data_destruction_without_explicit_per_pvc_call.md` (the workflow gate); this doc is the storage-layer hardening.
+| Storage | Location | Reclaim policy | Notes |
+| --- | --- | --- | --- |
+| `local-bulk` | NODE-2, `/var/mnt/bulk` on the Talos `bulk` user volume | `Retain` | Explicit opt-in; `WaitForFirstConsumer`; NODE-2 topology restriction |
+| `local-path` | Selected node, `/opt/local-path-provisioner` | `Delete` | Explicit opt-in; `WaitForFirstConsumer`; no replication |
+| Static local PVs | NODE-2, named paths such as `/var/mnt/bulk/media-library` and `/var/mnt/bulk/calibre-library` | Explicitly declared in each PV | Separate PV/PVC bindings expose shared directories to participating apps |
+| `kadalu.replica2*` | Legacy distributed storage configuration | Legacy policy varies | Provisioner disabled; do not select for new workloads |
 
-## Tier reference (verbatim from `docs/backup-manual.md`)
+Sources: [local-bulk values](../kubernetes/values/infra/local-bulk.yaml), [local-path values](../kubernetes/values/infra/local-path-provisioner.yaml), [static resources](../kubernetes/platform/templates/extras.yaml), [Talos disk configuration](../talos/talconfig.yaml).
 
-- **CRITICAL** — irreplaceable user data (vaultwarden, pocket-id, home-assistant, syncthing, paperless/papra, calibre-web, immich-postgres + library, audiobookshelf-v2 config, etc.) → **Retain, no exceptions**
-- **VALUABLE** — annoying to lose but reconstructible (arr configs, navidrome, jellyfin config, abs metadata/backup, excalidash, agent-vault, metube, ntfy, matrix, grafana) → **Retain preferred**
-- **SKIP** — re-downloadable / rebuildable (media-library, downloads, prometheus tsdb, loki storage, immich-machine-learning, immich-valkey, matrix redis replicas, stirling-pdf scratch) → `Delete` is fine
+Local storage does not fail over to another node with its data. Backups provide recovery, not storage availability. Separate PVs referencing one host directory also require coordinating all writers and consumers.
 
-## State as of 2026-05-17
+## Retention policy
 
-A sweep on 2026-05-17 patched every CRITICAL + VALUABLE PV from `Delete` to `Retain` via `kubectl patch pv <name> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'`. Static PVs in `kubernetes/platform/templates/extras.yaml` (`arr-media-library`, `arr-media-downloads`, `*-media-library` twins, etc.) were already declared `Retain` in their manifests — no action needed.
+Irreplaceable user data must have a retained PV and a verified backup/restore procedure. `Retain` prevents automatic backend deletion when a claim is released; it does not protect against disk failure, application deletion of files, or manual cleanup.
 
-## For new apps
+For new valuable persistent data, choose retention declaratively. Do not rely on an after-deployment patch as the normal workflow. The database template still defaults to `kadalu.replica2-retain`; explicitly select the current intended class in every new `db.storage` block.
 
-Pick whichever pattern fits the shape of the app:
+Changing a StorageClass definition does not migrate existing bound PVCs or prove their PV reclaim policy. Inspect the actual objects:
 
-### Pattern A — static PV pre-provisioned (preferred for shared/large/named volumes)
-
-Mirror the `media-library` block in `kubernetes/platform/templates/extras.yaml` (~line 505). The PV manifest sets `persistentVolumeReclaimPolicy: Retain` explicitly, `storageClassName: ""`, and a fixed `claimRef`. The PVC in the app's namespace binds by name. This is what the arr stack uses and is the only way to share a single backing volume across namespaces.
-
-### Pattern B — dynamic PVC + post-install patch (for single-app PVCs)
-
-Let the chart provision its PVC normally (default SC `kadalu.replica2`, dynamic PV name `pvc-<uuid>`). Immediately after the first ArgoCD sync, find the new PV and patch it:
-
-```bash
-PV=$(kubectl -n <ns> get pvc <name> -o jsonpath='{.spec.volumeName}')
-kubectl patch pv "$PV" -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+```sh
+kubectl get pvc -A
+kubectl get pv -o custom-columns=NAME:.metadata.name,NAMESPACE:.spec.claimRef.namespace,CLAIM:.spec.claimRef.name,CLASS:.spec.storageClassName,RECLAIM:.spec.persistentVolumeReclaimPolicy,STATUS:.status.phase
 ```
 
-Document the patch in the values-file header — add a `# RECLAIM:` comment near the `persistence:` block so the next agent knows it was done and doesn't have to wonder. See e.g. `kubernetes/values/apps/vaultwarden.yaml`.
+## Retiring or restoring a service
 
-## One-line audit
+Before removing resources, record each PVC's data disposition, backing PV/path, consumers, and verified backup. Review child and parent ArgoCD deletion policies separately. Preserve disabled configuration until its data dependencies are understood.
 
-Run this any time to confirm only cache PVCs are still at `Delete`:
+A retained, released PV may be rebound after its old claim ownership is resolved. Do not clear claim references or recreate PVCs blindly: first verify the underlying data and that no other workload still owns or writes it. Storage class changes on bound claims are not a file migration.
 
-```bash
-kubectl get pv -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.claimRef.namespace}/{.spec.claimRef.name}{"\t"}{.spec.persistentVolumeReclaimPolicy}{"\n"}{end}' | grep Delete
-```
+## Historical context
 
-Expected output: only `monitoring/prometheus-server`, `monitoring/storage-loki-0`, `immich/immich-machine-learning`, `immich/immich-valkey`, `matrix/redis-data-matrix-redis-replicas-*`, `stirling-pdf/stirling-pdf`. Anything else → patch it.
+The earlier Kadalu setup suffered data loss when an application retirement deleted a claim backed by a `Delete` PV. That incident motivated retained PVs and explicit review of data disposition. The old detailed policy and configuration remain in Git history; their old PVC inventories and claims about live state are not current evidence.
 
-## `kadalu.replica2-retain` storage class (deployed 2026-05-17)
-
-Sibling StorageClass to `kadalu.replica2` — same backing kadalu pool (`replica2`), only `reclaimPolicy: Retain` differs. Lives in `kubernetes/platform/templates/extras.yaml` immediately after the default SC block. It is **not** the cluster default — opt-in only.
-
-**NEW apps**: any PVC holding CRITICAL or VALUABLE data MUST set `storageClassName: kadalu.replica2-retain` in its values file. SKIP-tier (caches, prometheus tsdb, redis replicas, loki storage, ML model caches, scratch) may use the default `kadalu.replica2`. This replaces Pattern B's post-install `kubectl patch pv` dance for new apps — the dynamically-provisioned PV inherits Retain from the SC.
-
-**EXISTING apps**: PVCs already patched to Retain via `kubectl patch pv` on 2026-05-17 are safe — their underlying PVs are Retain regardless of what their PVC's `storageClassName` says. Migration to the new SC is **not required** and is destructive: `storageClassName` is immutable on bound PVCs, so the only way to flip is destroy+recreate the PVC, which detaches and reprovisions storage. Verify current state any time with:
-
-```bash
-kubectl get pv -o custom-columns=NAME:.metadata.name,CLAIM:.spec.claimRef.name,SC:.spec.storageClassName,RECLAIM:.spec.persistentVolumeReclaimPolicy
-```
-
-The natural migration moment is when a PVC is being recreated for some other reason (resize past kadalu's online expansion limits, namespace move, app reinstall) — at that point, swap the values file to the new SC so the freshly provisioned PV gets Retain via the SC default instead of needing a manual patch.
-
-## When retiring an app
-
-With `Retain`, ArgoCD prune of the `Application` will detach the PVC but leave the PV in `Released` state — data preserved. Recovery path: `kubectl patch pv <name> -p '{"spec":{"claimRef":null}}'` to put it back into `Available`, then create a new PVC with `volumeName: <pv>` to re-bind. Still: follow `feedback_no_data_destruction_without_explicit_per_pvc_call.md` and present a per-PVC disposition to the user before any retire commit.
+See [backup status](backup-manual.md) before relying on the existing helper script.

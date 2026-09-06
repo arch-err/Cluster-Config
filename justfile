@@ -68,7 +68,7 @@ install: install-cilium install-argocd deploy-age-key
     @echo "    - sops-secrets-operator (decrypts SopsSecrets)"
     @echo "    - infra-secrets (root CA, etc.)"
     @echo "    - cert-manager, gateways, certificates"
-    @echo "    - kadalu storage"
+    @echo "    - local-path and local-bulk storage"
     @echo "    - user applications"
     @echo ""
     @echo "══════════════════════════════════════════════════════════"
@@ -504,3 +504,7 @@ reset:
         talosctl --talosconfig {{talosconfig}} -e $node -n $node reset --graceful=false --reboot 2>/dev/null || true
     done
     echo "✓ Reset initiated. Nodes will reboot."
+
+# Lint/render the local chart and check Bash syntax without cluster access
+check:
+    @./scripts/check.sh

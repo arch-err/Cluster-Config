@@ -53,7 +53,7 @@ extraObjects:
       project: default
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
-        targetRevision: v2
+        targetRevision: main
         path: kubernetes/platform
         helm:
           valueFiles:
@@ -104,7 +104,7 @@ extraObjects:
       project: default
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
-        targetRevision: v2
+        targetRevision: main
         path: kubernetes/platform
         helm:
           valueFiles:
@@ -154,7 +154,7 @@ extraObjects:
       project: default
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
-        targetRevision: v2
+        targetRevision: main
         path: kubernetes/secrets/infra
       destination:
         server: https://kubernetes.default.svc
@@ -179,7 +179,7 @@ extraObjects:
       project: default
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
-        targetRevision: v2
+        targetRevision: main
         path: kubernetes/secrets/apps
       destination:
         server: https://kubernetes.default.svc

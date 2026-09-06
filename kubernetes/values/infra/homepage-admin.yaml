@@ -247,7 +247,7 @@ config:
     # tiles; max it out. The bg below is dimmed so the light cards pop against it.
     cardBlur: xl
     background:
-      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/v2/kubernetes/assets/glaze_2.png
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/main/kubernetes/assets/glaze_2.png
       # Crisp silk behind the frosted cards; brightness/opacity dialed down so the
       # translucent tiles read with more contrast against the dark silk.
       brightness: 50
