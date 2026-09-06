@@ -18,3 +18,5 @@ The CA is the existing trust root, valid until **2029-08-29**. cert-manager rene
 The approved migration preserves all non-certificate chart resources byte-for-byte at the manifest-object level, including pod templates. It replaces three generated Secret declarations with two Certificate declarations, retaining the live Secrets while transferring management. Leaf certificate issuance/rotation is within J's explicit approval; Cilium software upgrades and unrelated changes are not.
 
 References: [Cilium Hubble TLS](https://docs.cilium.io/en/stable/observability/hubble/configuration/tls/), [cert-manager CA Issuer](https://cert-manager.io/docs/configuration/ca/).
+
+Verified 2026-09-06: the existing CA and both leaf certificates were adopted unchanged. Both Certificates are Ready, Cilium has zero hard-refresh diff, and Hubble Relay reports 3/3 nodes connected. No workload rollout occurred. Leaf renewal is scheduled for 2027-05-01; check live Certificate status for subsequent renewal dates.

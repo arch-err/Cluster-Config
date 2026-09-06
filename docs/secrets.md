@@ -32,3 +32,5 @@ For a new file, follow an existing SopsSecret's shape and keep Kubernetes metada
 The managed CA manifest is [cert-manager/secrets/home-root-ca.yaml](../kubernetes/platform/identity/cert-manager/secrets/home-root-ca.yaml). An old copy is retained under `cert-manager/reference/`; Helm excludes that directory, so it is not added to the managed resource set.
 
 A Git archive does not replace data backups or private-key recovery. See [backup status](backup-manual.md).
+
+The [Cilium CA](../kubernetes/platform/networking/cilium/README.md) is also retained in an encrypted SopsSecret. cert-manager manages Hubble leaf certificates using that existing CA; the CA itself requires a planned rotation before expiry.
