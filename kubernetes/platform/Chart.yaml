@@ -1,5 +1,0 @@
-apiVersion: v2
-name: platform
-description: Meta-chart that generates ArgoCD Applications and platform resources
-type: application
-version: 1.0.0

@@ -43,7 +43,7 @@ gatewayAPI:
   enabled: true
   # Honor Service-port `appProtocol` (`kubernetes.io/h2c` etc.). Needed
   # for GRPCRoute → h2c upstream when the backend cmux/muxes HTTP+gRPC
-  # on a single port. See kubernetes/values/infra/cilium.yaml for the
+  # on a single port. See kubernetes/platform/networking/cilium/values.yaml for the
   # full reasoning.
   enableAppProtocol: true
 
