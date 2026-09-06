@@ -67,6 +67,10 @@ Both syncs used Git commit `ad3d106344012377a38a600c5953de96ccfc542d`, Loki char
 
 The earlier baseline above is historical: kube-state-metrics drift and Loki's comparison error have now been resolved under this explicit exception. Other baseline differences and pending-deletion guards remain in place. Protected verification material is under `~/.local/state/cluster-config/blocker-review/`.
 
+## ArgoCD chart pin (2026-09-06)
+
+J approved pinning the ArgoCD chart to `10.4.2`, matching the chart labels on live resources. The previously omitted version rendered as `*` and resolved `10.8.1`, producing metadata and pod-template differences despite unchanged container images. The service declaration now pins `10.4.2`; the live Application's chart source is updated directly, with auto-sync disabled. This is a source-selection change, not authorization for an ArgoCD workload sync or restart. The earlier wildcard baseline above is historical.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
