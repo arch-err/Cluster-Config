@@ -14,15 +14,17 @@ The annotated tag `archive/main-2026-09-06` preserves the exact old `main`. Brow
 | --- | --- |
 | `main` | Maintained configuration and documentation after promotion |
 | `v2` | Retain until the live cutover below has been completed and verified |
-| `storage-local-bulk` | Redundant: identical to the production baseline; its clean worktree can be detached before deleting the branch |
+| `storage-local-bulk` | Pruned locally: identical to the production baseline. Its existing worktree remains detached at `1688b23`; no worktree files were removed. |
 | `feat/public-isolation-poc` | Keep: worktree has modified `.gitignore`/`justfile` and untracked PoC files, despite no unique committed history |
-| `feat/n8n-infra-oauth` | Redundant after verifying its follow-up fix remains on `fix/n8n-syncwave-namespace`; feature merged through PR #5 |
+| `feat/n8n-infra-oauth` | Pruned remotely: feature merged through PR #5; the identical unapplied follow-up fix remains on `fix/n8n-syncwave-namespace`. |
 | `fix/n8n-syncwave-namespace` | Keep: open PR #6 contains the unapplied n8n namespace-ordering change |
 | `fix/homepage-admin-discovery` | Keep: open PR #4 contains unapplied Homepage instance-discovery changes |
 
 The two open fixes change runtime behavior and are not merged by this documentation cleanup. Rebase/review them against maintained `main` after promotion. The PoC's uncommitted work and the original main worktree's local storage-migration notes/scripts are preserved separately; they are not silently included in production configuration.
 
 ## GitOps cutover
+
+The archive tag and promoted `main` have been published. The live cutover remains pending; publishing the repository did not change the existing `v2` branch.
 
 The maintained manifests point to `main`: both platform value sets, all four bootstrap root Applications, Grafana dashboard Git-sync references, and Homepage asset URLs. Existing root Applications are not automatically changed by editing the bootstrap file. The user reports production follows `v2`; no current kubeconfig was available during this review, so live revisions and health remain unverified.
 
