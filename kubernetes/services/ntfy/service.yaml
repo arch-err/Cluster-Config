@@ -1,0 +1,20 @@
+owner: apps
+enabled: true
+components:
+  - name: ntfy
+    namespace: ntfy
+    chart:
+      repo: https://repo.helmforge.dev
+      name: ntfy
+      version: 1.1.8
+    route:
+      hostname: ntfy.apps.home
+      gateway: apps
+      service: ntfy
+      port: 80
+      dashboard:
+        group: Tools
+        icon: ntfy.svg
+        description: Push notifications
+        app: ntfy
+    valuesFile: values.yaml

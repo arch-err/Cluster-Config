@@ -55,11 +55,15 @@ These are pre-existing blockers. Any workload synchronization remains prohibited
 
 The post-switch hard-refresh comparison against `main` returned the same per-Application classifications: 37 no-diff, 7 diff, 1 comparison error, and 20 blocked pending deletion. All 37 previously clean Applications remained clean. Before/after checks of 60 Deployments, StatefulSets, DaemonSets, and CronJobs found identical specifications and object identities. All 65 Applications were rechecked: repository Git source `main`, auto-sync disabled, no active sync operations. No workload sync was performed.
 
-Private baseline snapshots, raw diffs, and verification records are kept outside Git under `~/.local/state/cluster-config/refactor-P0x6LU2j/` with restricted permissions. They can contain sensitive configuration and must not be copied into public reports. The source layout remains unchanged pending the service-directory decision; this stage established the freeze and comparison baseline.
+Private baseline snapshots, raw diffs, and verification records are kept outside Git under `~/.local/state/cluster-config/refactor-P0x6LU2j/` with restricted permissions. They can contain sensitive configuration and must not be copied into public reports. The approved service layout is being introduced with temporary compatibility paths until live Application source pointers have moved.
 
-## Structural direction to discuss
+## Approved source layout
 
-Keep Helm and ArgoCD. First separate the monolithic extras template into resources with clear owners while preserving the existing Application/resource boundaries. Then group component declarations, values, and supporting resources by service, with shared infrastructure in clearly named locations. Decide the exact directory layout before moving files; changing Application ownership is not required just to improve source organization.
+Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
+
+All four local resource sets were compared by identity and full content: apps 117, infra 76, apps-secrets 22, infra-secrets 5. Only child Application values-file source paths differ. Moved values, encrypted secrets, dashboards, and images retain their original bytes. Disabled services retain their independently owned secrets. Local checks exercise that boundary, owner selection, source references, and missing values files.
+
+The source migration publishes compatibility files first, edits only live source pointers while manual sync remains enforced, verifies Argo comparisons, then removes obsolete paths. This does not authorize any workload synchronization.
 
 ## References
 

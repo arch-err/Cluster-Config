@@ -1,0 +1,21 @@
+owner: apps
+enabled: true
+components:
+  - name: pocket-id
+    namespace: pocket-id
+    chart:
+      repo: https://anza-labs.github.io/charts
+      name: pocket-id
+      version: 2.1.1
+    route:
+      hostname: auth.apps.home
+      gateway: apps
+      service: pocket-id
+      port: 80
+      dashboard:
+        name: Pocket ID
+        group: Tools
+        icon: pocket-id.png
+        description: Passkey-only OIDC provider
+        app: pocket-id
+    valuesFile: values.yaml

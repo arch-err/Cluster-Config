@@ -1,0 +1,55 @@
+{{- if index .Values.extras "audiobookshelf-v2" }}
+{{- $absV2 := index .Values.extras "audiobookshelf-v2" }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — third static kadalu PV/PVC pair pointing at the SAME subvol
+# path the arr stack's twin PVs use (extras.arr → subvol/ar/lb/media-library).
+# Cross-ns sharing via parallel kadalu PVs on one subvol; verified by extras.arr.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: audiobookshelf-v2-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ $absV2.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
+  claimRef:
+    name: media-library
+    namespace: audiobookshelf-v2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: audiobookshelf-v2
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ $absV2.librarySize | default "1500Gi" }}
+  volumeName: audiobookshelf-v2-media-library
+{{- end }}

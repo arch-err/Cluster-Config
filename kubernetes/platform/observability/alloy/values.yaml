@@ -1,0 +1,227 @@
+# Grafana Alloy — unified telemetry agent (metrics + logs + traces)
+# Chart: grafana/alloy
+
+# Run as DaemonSet so we can collect node-level metrics + pod logs
+controller:
+  type: daemonset
+
+alloy:
+  # Mount host log directories
+  mounts:
+    varlog: true
+    dockercontainers: false  # Talos uses containerd, /var/log/pods is enough
+
+  # Alloy config — remote_write to mimir, push logs to loki
+  configMap:
+    create: true
+    content: |-
+      // Discover k8s targets for scraping
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.kubernetes "nodes" {
+        role = "node"
+      }
+
+      // Scrape any pod annotated prometheus.io/scrape=true. Honours
+      // prometheus.io/port (default 9000) + prometheus.io/path (default
+      // /metrics). This is the cluster's annotation-driven app-metrics path —
+      // e.g. the zigbee2mqtt mqtt-exporter sidecar (LQI/battery/availability).
+      discovery.relabel "annotated_pods" {
+        targets = discovery.kubernetes.pods.targets
+        // Keep only pods opting in via the scrape annotation.
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+          regex         = "true"
+          action        = "keep"
+        }
+        // Override the metrics path from the annotation (default /metrics).
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+          regex         = "(.+)"
+          target_label  = "__metrics_path__"
+          action        = "replace"
+        }
+        // Rewrite the scrape address to <pod-ip>:<annotation-port>.
+        rule {
+          source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+          regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+          replacement   = "$1:$2"
+          target_label  = "__address__"
+          action        = "replace"
+        }
+        // Surface namespace + pod as labels for Grafana.
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+          action        = "replace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+          action        = "replace"
+        }
+      }
+
+      prometheus.scrape "annotated_pods" {
+        job_name        = "annotated-pods"
+        targets         = discovery.relabel.annotated_pods.output
+        forward_to      = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval = "30s"
+      }
+
+      // Scrape kube-state-metrics
+      discovery.kubernetes "ksm" {
+        role = "service"
+        namespaces {
+          names = ["monitoring"]
+        }
+        selectors {
+          role  = "service"
+          label = "app.kubernetes.io/name=kube-state-metrics"
+        }
+      }
+
+      // Scrape node-exporter (DaemonSet, hostNetwork)
+      discovery.relabel "node_exporter" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          regex         = "prometheus-node-exporter"
+          action        = "keep"
+        }
+      }
+
+      prometheus.scrape "node_exporter" {
+        job_name        = "node-exporter"
+        targets         = discovery.relabel.node_exporter.output
+        forward_to      = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval = "30s"
+      }
+
+      prometheus.scrape "ksm" {
+        job_name        = "kube-state-metrics"
+        targets         = discovery.kubernetes.ksm.targets
+        forward_to      = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval = "30s"
+      }
+
+      // Scrape kubelet/cAdvisor through the Kubernetes API server node proxy.
+      // Talos does not expose the old insecure kubelet port; using the API
+      // server avoids per-node serving cert/SAN issues and uses Alloy's service
+      // account token + Kubernetes CA. These jobs provide per-container CPU,
+      // memory, filesystem, and network metrics for app dashboards.
+      discovery.relabel "kubelet" {
+        targets = discovery.kubernetes.nodes.targets
+
+        rule {
+          target_label = "__address__"
+          replacement  = "kubernetes.default.svc:443"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      discovery.relabel "kubelet_cadvisor" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics/cadvisor"
+        }
+      }
+
+      prometheus.scrape "kubelet_cadvisor" {
+        job_name          = "kubelet-cadvisor"
+        targets           = discovery.relabel.kubelet_cadvisor.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
+      discovery.relabel "kubelet_resource" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics/resource"
+        }
+      }
+
+      prometheus.scrape "kubelet_resource" {
+        job_name          = "kubelet-resource"
+        targets           = discovery.relabel.kubelet_resource.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
+      discovery.relabel "kubelet_metrics" {
+        targets = discovery.relabel.kubelet.output
+
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "__metrics_path__"
+          replacement   = "/api/v1/nodes/$1/proxy/metrics"
+        }
+      }
+
+      prometheus.scrape "kubelet_metrics" {
+        job_name          = "kubelet"
+        targets           = discovery.relabel.kubelet_metrics.output
+        forward_to        = [prometheus.remote_write.prometheus.receiver]
+        scrape_interval   = "30s"
+        scheme            = "https"
+        bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+      }
+
+      // Send metrics to Prometheus (remote-write receiver enabled in prometheus values)
+      prometheus.remote_write "prometheus" {
+        endpoint {
+          url = "http://prometheus-server.monitoring.svc/api/v1/write"
+        }
+      }
+
+      // Pod logs via kubelet API (k8s log file source)
+      loki.source.kubernetes "pods" {
+        targets    = discovery.kubernetes.pods.targets
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // Send logs to Loki
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+        }
+      }
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+# Tolerate control-plane taint
+tolerations:
+  - effect: NoSchedule
+    operator: Exists

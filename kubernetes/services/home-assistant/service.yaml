@@ -1,0 +1,52 @@
+owner: apps
+enabled: true
+components:
+  - name: home-assistant
+    namespace: home-assistant
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: ha.apps.home
+      gateway: apps
+      service: home-assistant
+      port: 8123
+      dashboard:
+        name: Home Assistant
+        group: Smart Home
+        icon: home-assistant.svg
+        description: Smart-home hub
+        app: home-assistant
+    oidc:
+      enabled: true
+      public: true
+      pkceEnabled: true
+      callbackUrls:
+        - https://ha.apps.home/auth/oidc/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - apps_users
+          - administrators
+    valuesFile: values.yaml
+  - name: home-assistant-mdns
+    namespace: home-assistant-mdns
+    namespaceLabels:
+      pod-security.kubernetes.io/enforce: privileged
+      pod-security.kubernetes.io/audit: privileged
+      pod-security.kubernetes.io/warn: privileged
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    valuesFile: mdns.values.yaml
+extras:
+  home-assistant:
+    enabled: true

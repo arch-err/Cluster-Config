@@ -1,0 +1,16 @@
+owner: apps
+enabled: true
+components:
+  - name: homepage
+    namespace: homepage
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: homepage.apps.home
+      gateway: apps
+      service: homepage
+      port: 3000
+      dashboard: false
+    valuesFile: values.yaml

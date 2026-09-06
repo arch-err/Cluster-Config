@@ -1,0 +1,21 @@
+owner: apps
+enabled: true
+components:
+  - name: cyberchef
+    namespace: cyberchef
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    route:
+      hostname: cyberchef.apps.home
+      gateway: apps
+      service: cyberchef
+      port: 80
+      dashboard:
+        name: CyberChef
+        group: Tools
+        icon: cyberchef.png
+        description: Cyber Swiss Army Knife — encode/decode/crypto
+        app: cyberchef
+    valuesFile: values.yaml

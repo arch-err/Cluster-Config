@@ -1,0 +1,11 @@
+owner: infra
+enabled: true
+components:
+  - name: prometheus-node-exporter
+    namespace: monitoring
+    chart:
+      repo: https://prometheus-community.github.io/helm-charts
+      name: prometheus-node-exporter
+      version: 4.39.x
+    syncWave: "2"
+    valuesFile: values.yaml

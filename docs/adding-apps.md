@@ -1,12 +1,13 @@
-# Adding or re-enabling applications
+# Adding or re-enabling a service
 
-Choose `kubernetes/apps.yaml` for user services or `kubernetes/infra.yaml` for platform services. Each component's upstream chart values live at `kubernetes/values/<scope>/<name>.yaml`.
+Create a directory under `kubernetes/services/<service>/` for an application or under the appropriate `kubernetes/platform/<capability>/` category for a shared capability. Group supporting components, such as an OAuth proxy, with the service they support.
 
-## Component and route
-
-A minimal example (replace the chart coordinates with the selected chart):
+## Declare the service
 
 ```yaml
+# kubernetes/services/example/service.yaml
+owner: apps
+enabled: true
 components:
   - name: example
     namespace: example
@@ -14,6 +15,7 @@ components:
       repo: https://charts.example.org
       name: example
       version: "1.2.3"
+    valuesFile: values.yaml
     route:
       hostname: example.apps.home
       gateway: apps
@@ -21,15 +23,15 @@ components:
       port: 8080
 ```
 
-Create the matching `kubernetes/values/apps/example.yaml` using that chart's schema. Prefer explicit chart revisions. Set `route.gateway` explicitly to `apps` or `infra`; the template's historical default, `internal`, is not one of the currently configured gateways.
+Create `values.yaml` beside the declaration using the selected upstream chart's schema. An additional proxy component can reference `oauth2-proxy.values.yaml` in the same directory. Keep existing component names and owners when reorganizing deployed services.
 
-The route template also supports `route.grpc` and `route.dashboard`. Dashboard visibility defaults to the apps gateway; infra routes need an explicit dashboard opt-in. The proposed Homepage admin discovery fix (PR #4) was discarded; existing behavior is unchanged. See [repository state](repository-state.md).
+Specify route gateways explicitly: `apps` or `infra`. The historical template default, `internal`, is not a configured gateway. Route configuration also supports dashboard annotations and optional gRPC routing. The discarded Homepage discovery fix was not incorporated into this refactor.
 
-## Storage
+## Storage and supporting resources
 
-Select persistence explicitly. `local-bulk` provisions retained data on NODE-2's external disk. `local-path` provisions node-local data under `/opt/local-path-provisioner` with `Delete` reclaim policy. Neither provides storage replication.
+Put additional manifests/templates in `resources/*.yaml`. These render under the service's existing owner when `enabled: true`. The shared renderer supports the current `extras` inputs; follow a neighboring resource-only service or an existing application when extending it.
 
-For a CNPG database, add a `db` block to the component and wire the generated `<component>-db-app` Secret into the app's values:
+Choose storage explicitly. `local-bulk` uses retained NODE-2 storage; `local-path` has Delete reclaim policy and no replication. A database block belongs on the component:
 
 ```yaml
 db:
@@ -41,35 +43,30 @@ db:
     storageClass: local-bulk
 ```
 
-The database template renders `<component>-db` with database/owner named after the component. Its version-to-image map is in `db-postgres.yaml`. The CNPG operator and namespace must exist before the Cluster resource can reconcile. Do not rely on the legacy default StorageClass; see [storage](pvc-reclaim-policy.md).
+The CNPG operator and namespace must exist before the database can reconcile. Wire the `<component>-db-app` Secret into the application's values. Do not inherit the database renderer's legacy Kadalu default for new data. See [storage](pvc-reclaim-policy.md).
 
-## Identity
+## Identity and secrets
 
-For OIDC, first complete [Pocket ID bootstrap](../kubernetes/manual/pocket-id/README.md), then add:
+Complete [Pocket ID setup](../kubernetes/platform/identity/pocket-id/README.md), then add the component's `oidc` declaration:
 
 ```yaml
 oidc:
   enabled: true
-  callbackUrls:
-    - https://example.apps.home/oauth/callback
+  callbackUrls: [https://example.apps.home/oauth/callback]
   groupRestriction:
     allowedGroups: [apps_users, administrators]
 ```
 
-Use the application's actual callback path. The job writes `client_id`, `client_secret` (confidential clients), and `issuer_url` to `<component>-oidc-client` by default. `clientId` overrides the registration identity and default Secret prefix; `secretName` overrides the Secret name. Other supported inputs include `public`, `pkceEnabled`, `logoutCallbackUrls`, and `scopes`.
+Use the real application callback path. The job creates the client and `<component>-oidc-client` Secret by default; `clientId` and `secretName` allow explicit overrides. App-side role mappings remain separate from IDP client restrictions.
 
-The job reconciles the Pocket ID client allowlist by group name. Empty or omitted `allowedGroups` makes the client unrestricted at the IDP. App-side permissions and role mappings are separate; configure them in the application's values or manual setup notes.
+Put SOPS-encrypted manifests in the service's `secrets/` directory. Its secret root is selected by `owner`, independently of whether the service is enabled. See [secrets](secrets.md).
 
 ## Disabled services
 
-A retained values file does not mean an application is deployed. Check both `disabledComponents` and `disabledExtras`. Several disabled services still reference retired Kadalu storage or old integrations. Before re-enabling one, review its storage, secrets, routes, prerequisites, and preserved data. Do not remove disable flags as a bulk cleanup.
+Set the service's `enabled` flag to false to suppress its component and extra-resource output. Retained secrets remain represented. This controls desired output; it is not permission to delete existing resources or data.
 
-## Review and publish
+Before re-enabling a retained service, review its storage, namespaces, secrets, routes, and external dependencies. Some retained services still assume retired Kadalu storage. Shared resources have their own declarations and must be reviewed separately.
 
-1. Run `just check` and inspect both rendered configurations.
-2. Validate the upstream chart with the selected version and values; the local chart check only renders the child Application reference.
-3. Review resource deletion, PVC ownership, routing, and authentication changes.
-4. Update the [service inventory](services.md) and relevant manual setup notes.
-5. Commit and publish to the branch the root Applications track. During migration, follow [repository state](repository-state.md).
+## Review
 
-Changing desired state is distinct from confirming a successful deployment: inspect ArgoCD status and the affected workloads after reconciliation.
+Run `just check`, validate the selected upstream chart, inspect rendered resource identities and ownership, and update the [service inventory](services.md) and service README. During this refactor, follow the [zero-diff gate](refactoring.md); adding or re-enabling a service is a runtime change requiring a separate explicit exception before synchronization.

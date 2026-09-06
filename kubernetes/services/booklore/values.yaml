@@ -1,0 +1,278 @@
+# booklore — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Self-hosted multi-user ebook library w/ smart shelves, OPDS, Kobo+KOReader
+# sync, built-in EPUB/PDF/CBX reader. Spring Boot (eclipse-temurin:25-jre-alpine)
+# behind an Angular SPA. Upstream: https://github.com/booklore-app/booklore
+# Image: ghcr.io/booklore-app/booklore (linuxserver-style USER_ID/GROUP_ID +
+# su-exec drop, like calibre-web).
+#
+# Goal: standalone ebook server pointed at the same per-user folders ABS
+# uses on the shared kadalu `media-library` subvol. Decoupled from calibre
+# — calibre-web stays as J's existing ebook library; booklore is a separate
+# multi-user ebook server reading `/library/books-j/` and `/library/books-e/`
+# (the same tree ABS already mounts at /library).
+#
+# ─── Library mount (2026-05-17 rewire) ────────────────────────────────────────
+# Booklore now mounts the shared `media-library` kadalu subvol (the same one
+# audiobookshelf-v2 / metube / jellyfin / navidrome / readarr already share)
+# via a parallel static PV `booklore-media-library` rendered in
+# platform/templates/extras.yaml. Kadalu supports multi-PV-per-subvol — this
+# is just one more sibling against `subvol/ar/lb/media-library`.
+#
+# Two mounts via subPath, splitting per-user folders:
+#   /books-j  → media-library/books-j   (J's ebooks)
+#   /books-e  → media-library/books-e   (E's ebooks)
+#
+# DISK_TYPE=NETWORK is KEPT — booklore's file-write paths (metadata writing,
+# file renaming, file organization) are still disabled. Per upstream README,
+# NETWORK is the only supported mode for network/non-local storage:
+# "metadata is stored in the database only and your files are never modified."
+#
+# The old `/books` mount (bridged `booklore-calibre-library` PV pointing at
+# calibre-web's subvol) was removed. The PV + PVC declarations in extras.yaml
+# are left in place (Retain reclaim, no data on the booklore side anyway —
+# was read-only into calibre's tree) for now; the PVC becomes orphaned-but-
+# bound. Cleanup deferred — no destructive ops without explicit approval.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# OIDC via pocket-id, fronted by an oauth2-proxy sidecar release
+# (`booklore-oauth2`, see values/apps/booklore-oauth2.yaml). Mirrors the
+# calibre-web pattern exactly — booklore has native OIDC, but native OIDC is
+# configured via the in-app admin UI (no env-var wiring), which means a
+# manual post-deploy step per session. oauth2-proxy + REMOTE_AUTH (booklore's
+# reverse-proxy auth mode via X-Remote-User header) is fully declarative and
+# matches the cluster's existing pattern.
+#
+# REMOTE_AUTH_ENABLED=true makes booklore trust X-Remote-User/X-Remote-Email
+# headers set by oauth2-proxy. REMOTE_AUTH_CREATE_NEW_USERS=true auto-
+# provisions new users on first OIDC login. Native local auth still works as
+# fallback in case OIDC is broken — FORCE_DISABLE_OIDC is left off (default).
+#
+# HTTPRoute in apps.yaml points at the oauth2-booklore service (NOT directly
+# at this workload). API paths (/api/*) are NOT bypass-routed — booklore's
+# OPDS/Kobo endpoints live under /api/v1 and basic-auth + token flows can be
+# wired later if needed.
+#
+# ─── Storage ──────────────────────────────────────────────────────────────────
+# /app/data    — RWO PVC, 2Gi, kadalu.replica2-retain SC (CRITICAL — booklore's
+#                own state: app config, caches, processed files; the MariaDB
+#                in extras holds the actual metadata DB)
+# /books-j     — RWX kadalu static PV `booklore-media-library`, subPath=books-j
+#                (J's per-user ebook folder on the shared media-library subvol).
+# /books-e     — same PV, subPath=books-e (E's per-user ebook folder).
+# /bookdrop    — NOT mounted (booklore-only feature; user uploads via UI).
+#
+# ─── DB ───────────────────────────────────────────────────────────────────────
+# Booklore requires MariaDB (won't fall back to sqlite — checked
+# application.yaml). Bundled subchart would be the path of least resistance
+# but there's no shared cluster MariaDB and we want PSS + PVC control, so
+# we render a plain MariaDB Deployment + Service + PVC via extras.booklore
+# (mirrors the immich-postgres pattern in platform/templates/extras.yaml).
+# Image: docker.io/library/mariadb:11.4 (matches LSIO version used in the
+# upstream docker-compose).
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label — booklore image is alpine + su-exec, starts as root,
+# drops to USER_ID:GROUP_ID via su-exec which needs SETUID/SETGID. Restricted
+# PSS rejects that init flow; same trade as calibre-web/prowlarr/readarr.
+# MariaDB Deployment in extras runs uid 999 non-root with chown init container
+# (same pattern as immich-postgres).
+
+controllers:
+  main:
+    # Java app w/ JDBC pool, but only one replica should write to the data
+    # dir at a time. Recreate avoids old/new pod racing on /app/data during
+    # rollouts (same posture as calibre-web).
+    strategy: Recreate
+    # ─── home-ca trust bootstrap (2026-05-18) ─────────────────────────────────
+    # Booklore's Spring/Java OIDC client (configured manually in UI Settings)
+    # needs to fetch pocket-id's discovery doc from https://id.infra.home over
+    # TLS. The home-ca-bundle PEM (mounted into many other apps) is NOT
+    # readable by the JVM directly — Java's TLS stack only consumes a JKS/
+    # PKCS12 truststore. This init container copies the temurin default
+    # `cacerts` to an emptyDir, imports the home-ca root via keytool, and the
+    # main container points at it via JAVA_TOOL_OPTIONS (set in env: below).
+    # Pattern mirrors readarr's ca-bundle init (concat PEM) but for JKS.
+    # Image matches the booklore final stage (temurin:25-jre-alpine) so
+    # `keytool` is present and the default cacerts path is identical.
+    initContainers:
+      home-ca-truststore:
+        image:
+          repository: docker.io/library/eclipse-temurin
+          tag: "25-jre-alpine"
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            cp /opt/java/openjdk/lib/security/cacerts /work/cacerts
+            chmod 644 /work/cacerts
+            keytool -importcert -trustcacerts -noprompt \
+              -alias home-ca \
+              -file /ca/ca.crt \
+              -keystore /work/cacerts \
+              -storepass changeit
+            echo "[home-ca-truststore] imported home-ca into /work/cacerts"
+        # NOT readOnlyRootFilesystem — keytool may write to $HOME or scratch
+        # paths in the JRE config tree. Tight-enough already with non-root +
+        # caps dropped.
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop: [ALL]
+    containers:
+      app:
+        image:
+          repository: ghcr.io/booklore-app/booklore
+          tag: "v2.3.0"  # latest release as of 2026-04-29
+        env:
+          # linuxserver-style user-drop. uid 1000 matches the shared
+          # media-library tree's expected ownership and other consumers
+          # (ABS, jellyfin, metube, navidrome) all read/write as 1000.
+          USER_ID: "1000"
+          GROUP_ID: "1000"
+          TZ: "Europe/Amsterdam"
+          BOOKLORE_PORT: "6060"
+          # JVM trust store override — picks up the home-ca-augmented cacerts
+          # built by the `home-ca-truststore` init container above. Lets the
+          # native OIDC client (configured via UI Settings) reach pocket-id at
+          # https://id.infra.home without a TLS error on discovery fetch.
+          # JAVA_TOOL_OPTIONS (not JAVA_OPTS) so the JVM picks it up
+          # universally without depending on booklore's entrypoint cooperating.
+          JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=/truststore/cacerts -Djavax.net.ssl.trustStorePassword=changeit"
+          # NETWORK mode — disables file-write paths (metadata writing, file
+          # renaming, file organization). The /books-j + /books-e mounts
+          # are on the shared kadalu media-library subvol; other apps (ABS)
+          # read the same tree, so booklore must not rearrange files there.
+          # README explicitly says NETWORK is the only supported mode for
+          # non-local fs. Pure-reader on the shared tree.
+          DISK_TYPE: "NETWORK"
+          # MariaDB connection — host/port resolved via in-ns Service
+          # `booklore-mariadb` (rendered by extras.booklore).
+          DATABASE_URL: "jdbc:mariadb://booklore-mariadb:3306/booklore?createDatabaseIfNotExist=true&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true"
+          DATABASE_USERNAME: "booklore"
+          DATABASE_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: booklore-db
+                key: DB_PASSWORD
+          # Trust oauth2-proxy's reverse-proxy auth headers — see auth notes
+          # in file header. Booklore reads X-Remote-User on each request and
+          # auto-creates the user record on first sight.
+          REMOTE_AUTH_ENABLED: "true"
+          REMOTE_AUTH_CREATE_NEW_USERS: "true"
+          REMOTE_AUTH_HEADER_USER: "X-Remote-User"
+          REMOTE_AUTH_HEADER_EMAIL: "X-Remote-Email"
+          REMOTE_AUTH_HEADER_GROUPS: "X-Remote-Groups"
+          REMOTE_AUTH_HEADER_NAME: "X-Remote-Name"
+          # admins-group bootstrap — first user in this pocket-id group lands
+          # as a booklore admin. Matches pocket-id's `administrators` group.
+          REMOTE_AUTH_ADMIN_GROUP: "administrators"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v1/healthcheck
+                port: 6060
+              # JVM cold-start + Flyway migration on first boot; give it room.
+              initialDelaySeconds: 90
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/v1/healthcheck
+                port: 6060
+              initialDelaySeconds: 30
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi   # Spring Boot baseline; JVM uses MaxRAMPercentage=75
+          limits:
+            memory: 1536Mi  # bumped vs calibre-web — Spring Boot+Tomcat heavier than CWA's Python
+        # alpine + su-exec needs SETUID/SETGID/CHOWN to drop from root to
+        # USER_ID:GROUP_ID. Dropping ALL caps breaks the privilege drop —
+        # baseline PSS leaves default caps. Same posture as calibre-web.
+        securityContext:
+          allowPrivilegeEscalation: false
+
+defaultPodOptions:
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 6060
+        targetPort: 6060
+
+persistence:
+  # Booklore app state — settings, caches, application-level scratch. The
+  # actual metadata DB lives in MariaDB (extras.booklore), not here.
+  # PVC `booklore-data` is pre-rendered in extras.booklore (kadalu.replica2-
+  # retain SC) instead of chart-provisioned because the bjw-s app-template
+  # persistence schema rejects storageClassName at the top level.
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: booklore-data
+    advancedMounts:
+      main:
+        app:
+          - path: /app/data
+  # Shared media-library — parallel static PV `booklore-media-library`
+  # rendered by extras.booklore. Same subvol the rest of the media apps
+  # share (subvol/ar/lb/media-library on hostvol replica2). Three mount
+  # points via subPath: two per-user folders + one cross-user shared folder.
+  # DISK_TYPE=NETWORK is still set so booklore cannot rename/reorganize
+  # files on the shared tree.
+  media-library:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: booklore-media-library
+    advancedMounts:
+      main:
+        app:
+          - path: /books-j
+            subPath: books-j
+          - path: /books-e
+            subPath: books-e
+          - path: /books-shared
+            subPath: books-shared
+  # home-ca trust-bundle, broadcast by trust-manager into every ns as the
+  # `home-ca-bundle` ConfigMap (key: ca.crt). Mounted on the init container
+  # ONLY — the main container reads the rendered JKS truststore via the
+  # `truststore` volume below, not the raw PEM.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        home-ca-truststore:
+          - path: /ca
+            readOnly: true
+  # Shared scratch volume for the home-ca-augmented JKS truststore. Init
+  # writes /work/cacerts, main reads /truststore/cacerts. emptyDir is fine —
+  # rebuilt on every pod start, no persistence semantics needed.
+  truststore:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        home-ca-truststore:
+          - path: /work
+        app:
+          - path: /truststore
+            readOnly: true

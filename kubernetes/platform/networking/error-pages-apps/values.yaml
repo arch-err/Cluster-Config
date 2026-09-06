@@ -1,0 +1,56 @@
+# error-pages — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Image: ghcr.io/tarampampam/error-pages:3 (latest 3.x)
+# https://github.com/tarampampam/error-pages
+#
+# Catch-all backend for *.apps.home — any hostname that doesn't match a more
+# specific HTTPRoute (e.g. immich.apps.home) falls through to this pod.
+# Gateway API spec: more-specific hostname always wins, so existing apps are
+# unaffected.
+
+controllers:
+  main:
+    strategy: RollingUpdate
+    containers:
+      main:
+        image:
+          repository: ghcr.io/tarampampam/error-pages
+          tag: "3"
+        env:
+          TEMPLATE_NAME: l7
+          DEFAULT_HTTP_CODE: "404"
+          SHOW_DETAILS: "true"   # show requested host/path on the page
+          LISTEN_PORT: "8080"
+        probes:
+          liveness:
+            enabled: true
+          readiness:
+            enabled: true
+          startup:
+            enabled: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 8080

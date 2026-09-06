@@ -1,0 +1,36 @@
+owner: apps
+enabled: true
+components:
+  - name: immich
+    namespace: immich
+    chart:
+      repo: https://immich-app.github.io/immich-charts
+      name: immich
+      version: 0.11.1
+    syncWave: "3"
+    route:
+      hostname: immich.apps.home
+      gateway: apps
+      service: immich-server
+      port: 2283
+      timeout: 30m
+      dashboard:
+        group: Media
+        description: Photos + memories
+        app: immich-server
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://immich.apps.home/auth/login
+        - https://immich.apps.home/user-settings
+        - app.immich:///oauth-callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+    valuesFile: values.yaml
+extras:
+  immich:
+    librarySize: 1Ti
+    postgresSize: 20Gi

@@ -1,0 +1,37 @@
+owner: infra
+enabled: true
+components:
+  - name: grafana
+    namespace: monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: grafana
+      version: 8.7.x
+    syncWave: "3"
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: local-bulk
+    route:
+      hostname: grafana.infra.home
+      gateway: infra
+      service: grafana
+      port: 80
+      dashboard:
+        enabled: true
+        group: Observability
+        icon: grafana.svg
+        app: grafana
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://grafana.infra.home/login/generic_oauth
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+    valuesFile: values.yaml

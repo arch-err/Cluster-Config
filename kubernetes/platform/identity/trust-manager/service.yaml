@@ -1,0 +1,13 @@
+owner: infra
+enabled: true
+components:
+  - name: trust-manager
+    namespace: cert-manager
+    chart:
+      repo: https://charts.jetstack.io
+      name: trust-manager
+      version: v0.22.x
+    syncWave: "1"
+    valuesFile: values.yaml
+extras:
+  trustManagerBundle: true

@@ -1,0 +1,10 @@
+owner: infra
+enabled: true
+components:
+  - name: cnpg
+    namespace: cnpg-system
+    chart:
+      repo: https://cloudnative-pg.github.io/charts
+      name: cloudnative-pg
+      version: 0.28.2
+    valuesFile: values.yaml

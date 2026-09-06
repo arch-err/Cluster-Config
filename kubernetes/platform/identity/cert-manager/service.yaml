@@ -1,0 +1,14 @@
+owner: infra
+enabled: true
+components:
+  - name: cert-manager
+    namespace: cert-manager
+    chart:
+      repo: https://charts.jetstack.io
+      name: cert-manager
+      version: 1.16.x
+    extraArgs:
+      - installCRDs=true
+    valuesFile: values.yaml
+extras:
+  certIssuers: true

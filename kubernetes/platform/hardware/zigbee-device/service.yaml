@@ -1,0 +1,8 @@
+owner: infra
+enabled: true
+extras:
+  genericDevicePlugin:
+    enabled: true
+    image: ghcr.io/squat/generic-device-plugin:0.2.0
+    node: node-1
+    deviceGlob: /dev/serial/by-id/usb-dresden_elektronik_ingenieurtechnik_GmbH_ConBee_II_DE2694940-if00

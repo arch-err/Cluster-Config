@@ -1,0 +1,6 @@
+owner: apps
+enabled: false
+extras:
+  arr:
+    downloadsSize: 200Gi
+    librarySize: 1500Gi

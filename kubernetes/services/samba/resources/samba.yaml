@@ -1,0 +1,33 @@
+{{- if .Values.extras.samba }}
+{{- $sm := .Values.extras.samba }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: samba
+  labels:
+    # baseline — smbd needs runAsUser=0 + cap NET_BIND_SERVICE for :445.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# SMB share backing volume. RWX preserves the option of scaling out
+# later without a PVC recreate. Retain SC so an ArgoCD prune
+# (component-removed-from-apps.yaml) does NOT wipe the underlying brick.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: samba-data
+  namespace: samba
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: kadalu.replica2-retain
+  resources:
+    requests:
+      storage: {{ $sm.dataSize | default "100Gi" }}
+{{- end }}

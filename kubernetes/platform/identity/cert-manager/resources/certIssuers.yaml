@@ -1,0 +1,60 @@
+{{- if .Values.extras.certIssuers }}
+---
+# CA Issuer using pre-existing root CA secret
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: home-ca
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  ca:
+    secretName: home-root-ca
+{{- if .Values.gateway.infra }}
+---
+# Wildcard certificate for *.infra.home
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-infra-home
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretName: {{ .Values.gateway.infra.tlsSecret }}
+  duration: 8760h
+  renewBefore: 720h
+  commonName: "*.{{ .Values.gateway.infra.domain }}"
+  dnsNames:
+    - "*.{{ .Values.gateway.infra.domain }}"
+    - "{{ .Values.gateway.infra.domain }}"
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer
+{{- end }}
+{{- if .Values.gateway.apps }}
+---
+# Wildcard certificate for *.apps.home
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-apps-home
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretName: {{ .Values.gateway.apps.tlsSecret }}
+  duration: 8760h
+  renewBefore: 720h
+  commonName: "*.{{ .Values.gateway.apps.domain }}"
+  dnsNames:
+    - "*.{{ .Values.gateway.apps.domain }}"
+    - "{{ .Values.gateway.apps.domain }}"
+  issuerRef:
+    name: home-ca
+    kind: ClusterIssuer
+{{- end }}
+{{- end }}

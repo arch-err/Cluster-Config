@@ -157,8 +157,8 @@ install-argocd:
     echo "✓ ArgoCD installed with root applications"
     echo ""
     echo "  ArgoCD will sync:"
-    echo "    - infra: platform chart with infra.yaml values"
-    echo "    - apps: platform chart with apps.yaml values"
+    echo "    - infra: source chart with releases/infra.yaml"
+    echo "    - apps: source chart with releases/apps.yaml"
     echo ""
     echo "  Get admin password:"
     echo "    just argocd-password"
@@ -223,33 +223,6 @@ deploy-age-key:
         --dry-run=client -o yaml | kubectl apply -f -
 
     echo "✓ Age key deployed to sops-secrets-operator namespace"
-
-# [DEPRECATED] Manual secret deployment - secrets are now managed by ArgoCD via SopsSecrets
-# Use this only for debugging or if you need to manually apply a secret
-deploy-secrets-manual:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "══ Manually deploying SOPS-encrypted secrets..."
-    echo "   NOTE: Secrets are normally managed by ArgoCD + sops-secrets-operator"
-    export KUBECONFIG={{cluster_dir}}/kubeconfig
-    source .envrc 2>/dev/null || true
-
-    # Apply SopsSecrets from infra
-    cd kubernetes
-    for secret in secrets/infra/*.yaml; do
-        if [ -f "$secret" ] && [ "$(basename $secret)" != ".gitkeep" ]; then
-            echo "   Applying $(basename $secret)..."
-            kubectl apply -f "$secret"
-        fi
-    done
-    # Apply SopsSecrets from apps
-    for secret in secrets/apps/*.yaml; do
-        if [ -f "$secret" ] && [ "$(basename $secret)" != ".gitkeep" ]; then
-            echo "   Applying $(basename $secret)..."
-            kubectl apply -f "$secret"
-        fi
-    done
-    echo "✓ SopsSecrets applied (operator will decrypt them)"
 
 # Get ArgoCD admin password
 argocd-password:
@@ -462,7 +435,7 @@ install-ca:
     echo "══ Installing home-root CA to system trust store..."
 
     # Extract CA cert from SOPS-encrypted secret
-    CA_CERT=$(cd kubernetes && sops -d secrets/infra/home-root-ca.yaml | yq '.spec.secretTemplates[0].stringData["tls.crt"]')
+    CA_CERT=$(cd kubernetes && sops -d platform/identity/cert-manager/secrets/home-root-ca.yaml | yq '.spec.secretTemplates[0].stringData["tls.crt"]')
 
     if [[ -z "$CA_CERT" || "$CA_CERT" == "null" ]]; then
         echo "Error: Could not extract CA certificate"

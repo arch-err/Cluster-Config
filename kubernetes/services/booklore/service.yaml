@@ -1,0 +1,50 @@
+owner: apps
+enabled: true
+components:
+  - name: booklore
+    namespace: booklore
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: booklore.apps.home
+      gateway: apps
+      service: oauth2-booklore
+      port: 80
+      timeout: 30m
+      dashboard:
+        name: Booklore
+        group: Media
+        icon: si-bookstack.svg
+        description: Ebook library (booklore — evaluating alongside calibre-web)
+        app: booklore
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://booklore.apps.home/oauth2/callback
+        - https://booklore.apps.home/oauth2-callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - apps_users
+          - administrators
+    valuesFile: values.yaml
+  - name: booklore-oauth2
+    namespace: booklore
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    valuesFile: oauth2-proxy.values.yaml
+extras:
+  booklore:
+    librarySize: 50Gi
+    mariadbSize: 5Gi
+    calibreLibrarySubvolPath: subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1

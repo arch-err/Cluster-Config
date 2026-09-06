@@ -1,0 +1,23 @@
+owner: apps
+enabled: false
+components:
+  - name: stirling-pdf
+    namespace: stirling-pdf
+    chart:
+      repo: https://stirling-tools.github.io/Stirling-PDF-chart
+      name: stirling-pdf-chart
+      version: 3.1.0
+    route:
+      hostname: stirling-pdf.apps.home
+      gateway: apps
+      service: stirling-pdf
+      port: 8080
+      dashboard:
+        name: Stirling PDF
+        group: Tools
+        icon: stirling-pdf.png
+        description: Web PDF toolbox
+    valuesFile: values.yaml
+extras:
+  stirling-pdf:
+    enabled: true

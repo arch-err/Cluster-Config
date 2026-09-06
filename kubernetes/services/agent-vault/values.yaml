@@ -1,0 +1,51 @@
+# agent-vault — chart: arch-err/agent-vault v0.1.0
+# https://github.com/Infisical/agent-vault (research preview)
+#
+# Two ports: 14321 (UI/API) + 14322 (TLS forward proxy, AV mints per-host certs).
+# UI is exposed via the platform chart's HTTPRoute on agent-vault.apps.home.
+# Proxy is exposed via the chart's TLSRoute → infra gateway passthrough listener
+# on agent-vault-proxy.home:443. Keeping it outside *.infra.home avoids overlap
+# with the infra gateway's terminating HTTPS listener.
+
+image:
+  tag: "0.14.0"
+
+externalAddr: "https://agent-vault.apps.home"
+
+env:
+  AGENT_VAULT_LOG_LEVEL: info
+  # Required so AV will proxy to RFC1918 upstreams when we test from-cluster.
+  AGENT_VAULT_ALLOW_PRIVATE_RANGES: "true"
+  # 90 day audit retention
+  AGENT_VAULT_LOGS_MAX_AGE_HOURS: "2160"
+
+# Master password sourced from sops-encrypted SopsSecret in
+# kubernetes/secrets/apps/agent-vault-master.yaml. To rotate: edit that file
+# (sops will re-encrypt on save), commit, push.
+masterPassword:
+  existingSecret: agent-vault-master
+  secretKey: AGENT_VAULT_MASTER_PASSWORD
+
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
+persistence:
+  enabled: true
+  size: 2Gi
+  # storageClass empty → cluster default (kadalu.replica2)
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+# Expose proxy port via Gateway API TLS passthrough on the infra gateway.
+# The passthrough listener `passthrough-agent-vault-proxy` is defined in
+# kubernetes/infra.yaml under gateway.infra.passthroughs.
+tlsRoute:
+  enabled: true
+  hostname: agent-vault-proxy.home
+  parentRef:
+    name: infra
+    namespace: gateway-system
+    sectionName: passthrough-agent-vault-proxy

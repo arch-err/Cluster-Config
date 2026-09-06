@@ -4,7 +4,7 @@ Talos provides Kubernetes and etcd on three control-plane nodes that also run wo
 
 ## Network
 
-Values below come from [talconfig.yaml](../talos/talconfig.yaml) and [infra.yaml](../kubernetes/infra.yaml).
+Values below come from [talconfig.yaml](../talos/talconfig.yaml) and [infra root settings](../kubernetes/releases/infra.yaml).
 
 | Endpoint | Address |
 | --- | --- |
@@ -15,9 +15,9 @@ Values below come from [talconfig.yaml](../talos/talconfig.yaml) and [infra.yaml
 | Infra gateway, `*.infra.home` | `10.10.10.201` |
 | External Docker host | `10.10.10.160` |
 
-The gateways terminate HTTPS with separate wildcard certificates issued by the internal `home-ca` ClusterIssuer. External `*.home` services use TLS passthrough to the Docker host; see `external.services` in `infra.yaml` for the actual names. `rocky.infra.home` is a separate HTTPS-to-HTTP route to `10.10.10.160:3030`.
+The gateways terminate HTTPS with separate wildcard certificates issued by the internal `home-ca` ClusterIssuer. External `*.home` services use TLS passthrough to the Docker host; see `external.services` in `kubernetes/releases/infra.yaml` for the actual names. `rocky.infra.home` is a separate HTTPS-to-HTTP route to `10.10.10.160:3030`.
 
-The platform chart owns the CoreDNS ConfigMap and synthesizes internal apps/infra DNS answers. LAN-client DNS and the external Docker host are outside this repository's Kubernetes reconciliation. See [CoreDNS](../kubernetes/manual/coredns/README.md).
+The platform chart owns the CoreDNS ConfigMap and synthesizes internal apps/infra DNS answers. LAN-client DNS and the external Docker host are outside this repository's Kubernetes reconciliation. See [CoreDNS](../kubernetes/platform/networking/coredns/README.md).
 
 ## GitOps ownership
 
@@ -25,12 +25,12 @@ The platform chart owns the CoreDNS ConfigMap and synthesizes internal apps/infr
 
 | Root | Source |
 | --- | --- |
-| `infra` | Local platform chart with `kubernetes/infra.yaml` |
-| `apps` | Local platform chart with `kubernetes/apps.yaml` |
-| `infra-secrets` | `kubernetes/secrets/infra/` |
-| `apps-secrets` | `kubernetes/secrets/apps/` |
+| `infra` | Source chart with `kubernetes/releases/infra.yaml` |
+| `apps` | Source chart with `kubernetes/releases/apps.yaml` |
+| `infra-secrets` | Source chart with `kubernetes/releases/infra-secrets.yaml` |
+| `apps-secrets` | Source chart with `kubernetes/releases/apps-secrets.yaml` |
 
-Each enabled component generates a child Application with an upstream Helm chart and values from this repository. Parent renders also contain routes, storage resources, OIDC bootstrap jobs, and database Cluster resources. ArgoCD's own runtime settings live in [its component values](../kubernetes/values/infra/argocd.yaml); editing bootstrap values alone does not update existing roots automatically.
+Each enabled component generates a child Application with an upstream Helm chart and values from this repository. Parent renders also contain routes, storage resources, OIDC bootstrap jobs, and database Cluster resources. ArgoCD's own runtime settings live in [its component values](../kubernetes/platform/argocd/values.yaml); editing bootstrap values alone does not update existing roots automatically.
 
 The maintained manifests and all 65 live Applications target `main` for this repository, with auto-sync disabled. Keep `v2` while deployed Grafana and Homepage consumers still reference it; see the [refactoring protocol](refactoring.md).
 
@@ -61,4 +61,4 @@ kubectl get pvc -A
 kubectl get pv
 ```
 
-ArgoCD is at `https://argocd.infra.home`; Pocket ID is at `https://auth.apps.home`. Local ArgoCD admin login remains available for SSO recovery. See [manual ArgoCD setup](../kubernetes/manual/argocd/README.md).
+ArgoCD is at `https://argocd.infra.home`; Pocket ID is at `https://auth.apps.home`. Local ArgoCD admin login remains available for SSO recovery. See [manual ArgoCD setup](../kubernetes/platform/argocd/README.md).

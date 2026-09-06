@@ -1,0 +1,4 @@
+owner: apps
+enabled: false
+extras:
+  paperless-ngx: true

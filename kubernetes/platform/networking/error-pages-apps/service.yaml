@@ -1,0 +1,17 @@
+owner: apps
+enabled: true
+components:
+  - name: error-pages
+    namespace: error-pages
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "5"
+    route:
+      hostname: '*.apps.home'
+      gateway: apps
+      service: error-pages
+      port: 80
+      dashboard: false
+    valuesFile: values.yaml

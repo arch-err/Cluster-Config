@@ -14,6 +14,6 @@ The documents describe committed configuration, not a live cluster inventory. Th
 | [Backup status](backup-manual.md) | Existing script limitations and recovery requirements |
 | [Refactoring protocol](refactoring.md) | Manual-sync freeze and zero-diff rules for reorganizing source |
 | [Repository state](repository-state.md) | Archive, branch dispositions, cutover, and known gaps |
-| [Manual setup](../kubernetes/manual/README.md) | Pocket ID, ArgoCD, Jellyfin, and CoreDNS notes |
+| [Manual setup](manual-setup.md) | Pocket ID, ArgoCD, Jellyfin, and CoreDNS notes |
 
 Keep operational details next to the YAML that owns them. Link to configuration instead of copying large manifests into documentation; update this index when adding a runbook.

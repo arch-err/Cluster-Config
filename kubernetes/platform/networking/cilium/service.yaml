@@ -1,0 +1,23 @@
+owner: infra
+enabled: true
+components:
+  - name: cilium
+    namespace: kube-system
+    chart:
+      repo: https://helm.cilium.io
+      name: cilium
+      version: 1.19.x
+    route:
+      hostname: hubble.infra.home
+      service: hubble-auth
+      port: 8080
+      gateway: infra
+      dashboard:
+        enabled: true
+        name: Hubble
+        group: Network
+        icon: cilium.svg
+        app: hubble-ui
+    valuesFile: values.yaml
+extras:
+  hubbleAuth: true

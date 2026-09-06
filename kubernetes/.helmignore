@@ -1,0 +1,15 @@
+# Static assets are served from Git, not rendered by Helm.
+services/homepage/assets/
+platform/observability/homepage/assets/
+platform/observability/grafana/dashboards/
+# This retained CA copy is deliberately outside the managed secret set.
+platform/identity/cert-manager/reference/
+# Temporary compatibility sources retained until live Application paths are switched.
+/assets/
+/extras/
+/manual/
+/secrets/
+/values/
+platform/templates/
+platform/Chart.yaml
+platform/values.yaml

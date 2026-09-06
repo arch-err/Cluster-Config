@@ -1,0 +1,154 @@
+{{- if .Values.extras.gateways }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway-system
+---
+# L2 Announcement Policy
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  interfaces:
+    - ^eth[0-9]+
+    - ^en[a-z0-9]+
+  loadBalancerIPs: true
+  externalIPs: true
+---
+# LoadBalancer IP Pool
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: default-pool
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  blocks:
+    - start: {{ .Values.gateway.pool.start }}
+      stop: {{ .Values.gateway.pool.stop }}
+---
+# ReferenceGrant for cert access
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-certs
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      namespace: gateway-system
+  to:
+    - group: ""
+      kind: Secret
+{{- if .Values.gateway.infra }}
+---
+# Infra Gateway (*.infra.home) with TLS termination + non-overlapping passthroughs
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: infra
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.infra.ip }}
+  listeners:
+    # HTTPS listener for TLS termination (wildcard)
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.infra.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.infra.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- if .Values.extras.externalServices }}
+    # TLS passthrough listeners for external services (SNI-based routing)
+{{- range .Values.external.services }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- end }}
+    # TLS passthrough listeners for in-cluster services. Their hostnames must
+    # not overlap the terminating *.infra.home listener above.
+{{- range .Values.gateway.infra.passthroughs }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- end }}
+{{- if .Values.gateway.apps }}
+---
+# Apps Gateway (*.apps.home) with TLS termination
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: apps
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.apps.ip }}
+  listeners:
+    # HTTPS listener for TLS termination (wildcard)
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.{{ .Values.gateway.apps.domain }}"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.gateway.apps.tlsSecret }}
+            namespace: cert-manager
+      allowedRoutes:
+        namespaces:
+          from: All
+    # TLS passthrough listeners (SNI-routed, share port 443 with the terminate listener)
+{{- range .Values.gateway.apps.passthroughs }}
+    - name: passthrough-{{ .name }}
+      port: 443
+      protocol: TLS
+      hostname: {{ .hostname }}
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}
+{{- end }}
+{{- end }}

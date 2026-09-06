@@ -1,0 +1,23 @@
+# SOPS Secrets Operator configuration
+# Decrypts SopsSecret CRs and creates regular Secrets
+
+gpg:
+  enabled: false
+
+# Mount the age key secret as a file
+# Secret created by: just deploy-age-key
+secretsAsFiles:
+  - name: sops-age-key
+    mountPath: /home/nonroot/.config/sops/age
+    secretName: sops-age-key
+
+# Resource limits
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+# Single replica is fine for home lab
+replicaCount: 1

@@ -1,45 +1,54 @@
-# Platform chart
+# Source layout and Helm rendering
 
-The local chart in [kubernetes/platform](../kubernetes/platform/) renders the desired GitOps resources from two value sets: [infra.yaml](../kubernetes/infra.yaml) and [apps.yaml](../kubernetes/apps.yaml).
+The repository uses one source Helm chart at [kubernetes/](../kubernetes/README.md). That chart describes the existing ArgoCD Applications and supporting resources; upstream application charts remain separate child sources.
 
-## Inputs
+## Service directories
 
-- `repoURL`, `targetRevision`, `valuesPath`: Git source and the per-component values directory.
-- `components`: upstream Helm charts with optional namespace, sync wave, route, database, and OIDC configuration.
-- `disabledComponents`: suppresses a component's Application, routes, database, and OIDC bootstrap resources.
-- `extras`: switches and settings for supporting platform resources.
-- `disabledExtras`: masks named extras separately from component enablement.
+```text
+kubernetes/services/booklore/
+├── service.yaml
+├── values.yaml
+├── oauth2-proxy.values.yaml
+├── resources/
+│   └── booklore.yaml
+└── secrets/
+    ├── booklore-db.yaml
+    └── booklore-oauth2-cookie.yaml
+```
 
-Values are loaded as `$repo/{valuesPath}/{component.name}.yaml`. Namespace defaults to component name. Upstream chart revision defaults to `*` if omitted; preserve existing revisions during this cleanup and make revision choices explicit for new components.
+`service.yaml` contains:
 
-## Templates
+- `owner`: `apps` or `infra`, preserving the current Argo parent regardless of folder location.
+- `enabled`: explicit boolean controlling all components and supporting resources in this directory.
+- `components`: the existing component declarations, including chart coordinates, routes, database/OIDC blocks, and a relative `valuesFile` per component.
+- `extras`: service-specific resource inputs retained from the previous meta-chart. Their templates now live in the service's `resources/` directory.
 
-| Template | Responsibility |
-| --- | --- |
-| `applications.yaml` | Child Applications, chart/value sources, sync options, diff exclusions |
-| `httproutes.yaml` | HTTPRoutes, optional GRPCRoutes, dashboard annotations |
-| `extras.yaml` | Gateways, certificates, CoreDNS, static storage, namespaces, and app-specific supporting resources |
-| `db-postgres.yaml` | CloudNativePG Cluster declarations for enabled `db` blocks |
-| `oidc-bootstrap.yaml` | Pocket ID registration jobs and cross-namespace credential access |
+A service may contain only supporting resources, with no upstream Helm component. Related charts share a service directory. Shared namespaces, gateways, and storage have explicit platform homes.
 
-For route, database, and OIDC usage, see [adding applications](adding-apps.md). Keep app-specific Helm settings in their values files instead of expanding the meta-chart unnecessarily.
+## Rendering
 
-## Important boundaries
+The root value files in `kubernetes/releases/` select `owner` and either `render: resources` or `render: secrets`. They also retain small owner-wide network/storage settings. Common repository URL and revision defaults live in `kubernetes/values.yaml`.
 
-Disabling a component and disabling its extras are separate operations. Existing data can remain after resources stop rendering. Review every affected resource and PVC when retiring or re-enabling a service.
+`templates/_context.tpl` validates declarations and assembles the input expected by the shared renderers. It rejects duplicate component names, invalid owners/enablement, duplicate extra keys for an owner, and missing values files. Component values paths resolve relative to `service.yaml` and become `$repo/kubernetes/<service-directory>/<values-file>` in the child Application.
 
-The database template still defaults to the retired `kadalu.replica2-retain` StorageClass. Active Grafana and n8n explicitly select `local-bulk`; new database declarations must select an appropriate class rather than inherit that legacy default.
+`templates/render.yaml` invokes shared Application, route, database, and OIDC renderers, then renders each enabled service's resource files through Helm `tpl`. These files can use the existing `.Values.extras` and root-wide settings without moving resource ownership. Document order is not resource identity; sync waves remain explicit in manifests.
 
-OIDC registration depends on a manually supplied Pocket ID API token. Group restrictions are declarative through `oidc.groupRestriction.allowedGroups`; manual changes to the corresponding client allowlist are overwritten when the job runs. App-side role mappings remain in each app's configuration.
+**Disabled services retain their secrets.** Secret-root rendering copies `secrets/*.yaml` unchanged for the selected owner, independently of `enabled`. This preserves the old separate secret-root behavior. It does not prove that a retained namespace or PVC currently exists.
 
-See [Kubernetes](kubernetes.md) for reconciliation limitations and [repository state](repository-state.md) for deferred fixes.
+`reference/` files and static assets are excluded from Helm. The historical CA copy is deliberately under a `reference/` directory rather than a managed `secrets/` directory.
+
+## Boundaries preserved by the refactor
+
+Application names, Helm release names, namespaces, resource identities, chart/image versions, and root ownership stay unchanged. Moving a service under `platform/` does not transfer it between `apps` and `infra`. Both old root Applications and both secret roots remain in use.
+
+The database renderer retains its historical default StorageClass; new declarations should select storage explicitly. Runtime behavior changes, ownership transfers, re-enablement, and policy changes are separate work subject to the [zero-diff rule](refactoring.md).
 
 ## Validation
 
 ```sh
 just check
-helm template infra kubernetes/platform -f kubernetes/infra.yaml
-helm template apps kubernetes/platform -f kubernetes/apps.yaml
+helm template apps kubernetes -f kubernetes/releases/apps.yaml
+helm template infra kubernetes -f kubernetes/releases/infra.yaml
 ```
 
-These render the local chart only. Upstream chart values/schema checks, live API validation, sync ordering, and rebuild testing are separate checks.
+The local check also renders both secret roots and tests enablement behavior. It does not validate upstream chart schemas, live API behavior, or a clean cluster rebuild. Before a workload sync, use the complete live comparison process in the refactoring protocol.

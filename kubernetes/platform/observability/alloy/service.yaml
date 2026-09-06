@@ -1,0 +1,11 @@
+owner: infra
+enabled: true
+components:
+  - name: alloy
+    namespace: monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: alloy
+      version: 0.10.x
+    syncWave: "3"
+    valuesFile: values.yaml

@@ -1,0 +1,63 @@
+{{- if index .Values.extras "calibre-web" }}
+---
+# calibre-web namespace — baseline PSS. CWA image is linuxserver-style
+# s6-overlay (starts as root, drops to PUID:PGID via s6-applyuidgid which
+# needs SETUID/SETGID/CHOWN). Restricted PSS rejects that init flow; same
+# trade-off as prowlarr/readarr. oauth2-calibre-web sidecar release lives
+# in this same ns so the OIDC-client Secret + HTTPRoute backendRef are
+# co-located.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: calibre-web
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Calibre library — shared with BookLore via a sibling static local PV in its
+# namespace. The canonical directory is created/restored on Disk B.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: calibre-web-calibre-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  local:
+    path: /var/mnt/bulk/calibre-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
+  claimRef:
+    name: calibre-library
+    namespace: calibre-web
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: calibre-library
+  namespace: calibre-web
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: calibre-web-calibre-library
+{{- end }}

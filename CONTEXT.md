@@ -15,3 +15,7 @@ Terms used to distinguish repository maintenance from changes to the running sys
 **State-preserving refactor**: A change to repository organization that preserves the deployed resource definitions and behavior. Any exception requires J’s explicit approval.
 
 **Zero-diff gate**: A requirement that the proposed configuration has no unapproved differences from the live baseline before any synchronization. Hidden differences and comparison failures do not satisfy the gate.
+
+**Service**: A directory grouping a logical service's declarations, values, resources, and encrypted secrets. It can contain several Helm components and retains its existing Argo root owner regardless of directory placement.
+
+**Component**: One upstream Helm chart represented by an existing Argo Application, such as a service's OAuth2 proxy. Grouping components does not merge their Applications.

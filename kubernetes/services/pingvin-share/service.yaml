@@ -1,0 +1,38 @@
+owner: apps
+enabled: false
+components:
+  - name: pingvin-share
+    namespace: pingvin-share
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: pingvin.apps.home
+      gateway: apps
+      service: pingvin-share
+      port: 3000
+      timeout: 30m
+      dashboard:
+        name: Pingvin Share
+        group: Files
+        icon: pingvin-share.png
+        description: File sharing / transfer links
+        app: pingvin-share
+    oidc:
+      enabled: true
+      clientId: pingvin-share
+      pkceEnabled: false
+      callbackUrls:
+        - https://pingvin.apps.home/api/oauth/callback/oidc
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - apps_users
+          - administrators
+    valuesFile: values.yaml

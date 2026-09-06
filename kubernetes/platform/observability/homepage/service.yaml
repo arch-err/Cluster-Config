@@ -1,0 +1,29 @@
+owner: infra
+enabled: true
+components:
+  - name: homepage-infra
+    namespace: homepage-infra
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: homepage.infra.home
+      gateway: infra
+      service: homepage-infra
+      port: 3000
+      dashboard: false
+    valuesFile: values.yaml
+  - name: homepage-admin
+    namespace: homepage-admin
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: admin.infra.home
+      gateway: infra
+      service: homepage-admin
+      port: 3000
+      dashboard: false
+    valuesFile: admin.values.yaml

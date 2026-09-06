@@ -1,0 +1,34 @@
+owner: infra
+enabled: true
+components:
+  - name: argocd
+    namespace: argocd
+    chart:
+      repo: https://argoproj.github.io/argo-helm
+      name: argo-cd
+    syncWave: "-1"
+    route:
+      hostname: argocd.infra.home
+      service: argocd-server
+      port: 80
+      gateway: infra
+      grpc: true
+      grpcPort: 443
+      dashboard:
+        enabled: true
+        group: GitOps
+        icon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/argo-cd.png
+      annotations:
+        gethomepage.dev/href: https://argocd.infra.home/auth/login
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://argocd.infra.home/auth/callback
+        - https://argocd.infra.home/pkce/verify
+        - http://localhost:8085/auth/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+    valuesFile: values.yaml

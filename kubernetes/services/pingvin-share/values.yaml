@@ -1,0 +1,212 @@
+# pingvin-share — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Pingvin Share X, self-hosted file sharing / WeTransfer alternative.
+# Upstream: https://github.com/smp46/pingvin-share-x
+#
+# Auth: native OIDC against pocket-id. Password login and local registration
+# are disabled; OAuth registration remains enabled so first/allowed pocket-id
+# users can create accounts. Access is restricted IDP-side by the oidc:* block
+# in apps.yaml (apps_users + administrators). First OIDC-created user becomes
+# admin via Pingvin's normal first-user rule.
+#
+# Storage: a Retain PVC rendered by app-template rawResources and then mounted
+# via existingClaim. Holds sqlite DB + uploaded files + customized frontend
+# images. Recreate strategy avoids concurrent sqlite writers during rollouts.
+
+controllers:
+  main:
+    strategy: Recreate
+    initContainers:
+      render-config:
+        image:
+          repository: docker.io/library/busybox
+          tag: 1.37.0
+          pullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -eu
+            : "${OIDC_CLIENT_ID:?missing}"
+            : "${OIDC_CLIENT_SECRET:?missing}"
+            cat > /config-rendered/config.yaml <<EOF
+            general:
+              appName: Pingvin Share
+              appUrl: https://pingvin.apps.home
+              secureCookies: "true"
+              showHomePage: "true"
+              sessionDuration: 3 months
+            share:
+              allowRegistration: "false"
+              allowUnauthenticatedShares: "false"
+              maxExpiration: 30 days
+              maxSize: "10000000000"
+              chunkSize: "10000000"
+            oauth:
+              allowRegistration: "true"
+              ignoreTotp: "true"
+              disablePassword: "true"
+              oidc-enabled: "true"
+              oidc-discoveryUri: https://auth.apps.home/.well-known/openid-configuration
+              oidc-signOut: "true"
+              oidc-scope: openid email profile groups
+              oidc-usernameClaim: preferred_username
+              oidc-rolePath: ""
+              oidc-roleGeneralAccess: ""
+              oidc-roleAdminAccess: ""
+              oidc-clientId: ${OIDC_CLIENT_ID}
+              oidc-clientSecret: ${OIDC_CLIENT_SECRET}
+            initUser:
+              enabled: false
+              email: ""
+              username: ""
+              password: ""
+              isAdmin: false
+            EOF
+        env:
+          OIDC_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: pingvin-share-oidc-client
+                key: client_id
+          OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: pingvin-share-oidc-client
+                key: client_secret
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+    containers:
+      app:
+        image:
+          repository: ghcr.io/smp46/pingvin-share-x
+          tag: v1.19.1
+        env:
+          TRUST_PROXY: "true"
+          CONFIG_FILE: /opt/app/config.yaml
+          DATA_DIRECTORY: /opt/app/backend/data
+          NODE_EXTRA_CA_CERTS: /etc/ssl/home-ca/ca.crt
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/health
+                port: 3000
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /api/health
+                port: 3000
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
+
+defaultPodOptions:
+  automountServiceAccountToken: false
+  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 3000
+        targetPort: 3000
+
+persistence:
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    existingClaim: pingvin-share-data
+    advancedMounts:
+      main:
+        app:
+          - path: /opt/app/backend/data
+          - path: /opt/app/frontend/public/img
+            subPath: images
+  config-rendered:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        render-config:
+          - path: /config-rendered
+        app:
+          - path: /opt/app/config.yaml
+            subPath: config.yaml
+            readOnly: true
+  caddy-config:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+  caddy-data:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /data
+  tmp:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true
+
+rawResources:
+  data-pvc:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    forceRename: pingvin-share-data
+    spec:
+      spec:
+        accessModes: [ReadWriteMany]
+        storageClassName: kadalu.replica2-retain
+        resources:
+          requests:
+            storage: 20Gi

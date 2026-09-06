@@ -1,0 +1,26 @@
+{{- $values := include "platform.context" . | fromYaml -}}
+{{- $context := deepCopy . -}}
+{{- $_ := set $context "Values" $values -}}
+{{- if eq .Values.render "resources" }}
+{{ include "platform.applications" $context }}
+{{ include "platform.httproutes" $context }}
+{{ include "platform.db-postgres" $context }}
+{{ include "platform.oidc-bootstrap" $context }}
+{{- end }}
+{{- range $path, $_ := .Files.Glob "**/service.yaml" }}
+{{- $service := $.Files.Get $path | fromYaml }}
+{{- if eq $service.owner $.Values.owner }}
+{{- if eq $.Values.render "secrets" }}
+{{/* Secrets retain their existing independent root ownership, including disabled services. */}}
+{{- range $file, $_ := $.Files.Glob (printf "%s/secrets/*.yaml" (dir $path)) }}
+---
+{{ $.Files.Get $file }}
+{{- end }}
+{{- else if $service.enabled }}
+{{- range $file, $_ := $.Files.Glob (printf "%s/resources/*.yaml" (dir $path)) }}
+---
+{{ tpl ($.Files.Get $file) $context }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

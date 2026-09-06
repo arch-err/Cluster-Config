@@ -1,0 +1,11 @@
+owner: infra
+enabled: true
+components:
+  - name: prometheus
+    namespace: monitoring
+    chart:
+      repo: https://prometheus-community.github.io/helm-charts
+      name: prometheus
+      version: 27.x
+    syncWave: "2"
+    valuesFile: values.yaml

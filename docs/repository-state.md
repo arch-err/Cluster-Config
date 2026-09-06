@@ -13,7 +13,7 @@ The annotated tag `archive/main-2026-09-06` preserves the exact old `main`. Brow
 | Branch | Disposition |
 | --- | --- |
 | `main` | Maintained configuration and documentation after promotion |
-| `v2` | Retain until the live cutover below has been completed and verified |
+| `v2` | Retain: deployed Grafana/Homepage still fetch files from this branch |
 | `storage-local-bulk` | Pruned locally: identical to the production baseline. Its existing worktree remains detached at `1688b23`; no worktree files were removed. |
 | `feat/public-isolation-poc` | Keep: worktree has modified `.gitignore`/`justfile` and untracked PoC files, despite no unique committed history |
 | `feat/n8n-infra-oauth` | Pruned remotely: feature merged through PR #5; the unapplied follow-up fix was subsequently discarded with PR #6. |
@@ -28,19 +28,11 @@ The user chose to discard both fixes and retain the public-isolation PoC. PRs #4
 
 The archive tag and promoted `main` have been published. The live Git sources now point to `main`, with all 65 Applications held in manual-sync mode. No workload sync was performed. The `v2` branch remains unchanged and is still referenced by deployed Grafana/Homepage consumers.
 
-The maintained ArgoCD source manifests point to `main`: both platform value sets and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs retain `v2` to match the live runtime configuration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
+The maintained ArgoCD source manifests point to `main`: the source chart defaults and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs retain `v2` to match the live runtime configuration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
 
-Before changing live roots:
+The freeze and Git-source cutover are complete. Source layout migration follows the refactoring protocol using direct Application source-pointer edits, with automatic sync disabled. Keep `v2` until its running dashboard and asset consumers are explicitly migrated and verified; that runtime change is outside this cleanup.
 
-1. Publish the archive tag and prepared `main`, and confirm both remote tips. Keep `v2` intact.
-2. Inspect all four live root Application specs, current source revisions, sync policies, and health. Save their non-secret specifications and resolved commit IDs outside the repository for rollback.
-3. Render the old and new local platform charts. The intended semantic difference is the repository revision; there must be no component or storage-resource removals. Inspect upstream desired-versus-live resources too: existing chart version ranges can resolve differently even though no version constraint was edited.
-4. Verify current backups for affected stateful services. The retained backup helper is not adequate evidence by itself.
-5. Change the existing root Applications' Git source revisions to the promoted main commit first if an immutable cutover is wanted, then to `main` for normal tracking. Inspect child revisions as they reconcile. Do not reinstall ArgoCD or re-run cluster bootstrap to accomplish this.
-6. Verify all four roots and child Applications, workload health, routes, OIDC login, Grafana dashboard files, and Homepage asset loading. Grafana Git-sync and Homepage URL changes may cause their workloads to roll even though images are unchanged.
-7. Only after successful verification, retire `v2` and retarget remaining development PRs to `main`.
-
-Rollback requires checking both root and child source revisions: merely switching a root back to `v2` may not immediately replace every child revision or workload. Use the captured baseline, review the resulting diff, and verify reconciliation; never use the unrelated legacy-main archive as the production rollback target.
+Rollback requires checking both root and child source paths and revisions against the captured baseline. Never use the unrelated legacy-main archive as the production rollback target, or sync roots just to propagate a pointer change.
 
 ## Known gaps retained explicitly
 
@@ -54,7 +46,7 @@ Rollback requires checking both root and child source revisions: merely switchin
 | Identity | Grafana checks `Administrators`, while other declarations use lowercase group names. Verify actual claims before editing policy. |
 | n8n SSRF | `N8N_SSRF_PROTECTION_ENABLED` is currently `false`; a documented temporary exception remains in values. |
 | GitOps drift | Whole-spec route ignores can mask differences; green status alone is insufficient. |
-| CA source | `kubernetes/secrets/home-root-ca.yaml` is outside both managed secret directories; retain pending provenance review. |
+| CA source | `kubernetes/platform/identity/cert-manager/reference/home-root-ca.yaml` is excluded from Helm under the service’s reference directory; retain pending provenance review. |
 | Validation | `just check` covers local Helm rendering and shell syntax. It does not validate upstream charts, live health, or a fresh rebuild. No CI workflow is configured. |
 
 ## Maintenance routine

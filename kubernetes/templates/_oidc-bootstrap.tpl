@@ -1,0 +1,457 @@
+{{- define "platform.oidc-bootstrap" -}}
+{{- /*
+══════════════════════════════════════════════════════════════════════════════
+OIDC CLIENT BOOTSTRAP — declarative pocket-id client registration
+══════════════════════════════════════════════════════════════════════════════
+
+For every component with `oidc.enabled: true`, this template renders:
+
+  - In `pocket-id` ns:
+      * ServiceAccount   `oidc-bootstrap-<app>`
+      * ConfigMap        `oidc-bootstrap-<app>` (the bash script)
+      * Job              `oidc-bootstrap-<app>-<hash>` — talks to pocket-id REST
+                         API (via in-cluster service), upserts the OIDC client,
+                         then creates/updates a Secret in the app's namespace
+                         with `client_id` + `client_secret`.
+
+  - In the app's namespace (`<app-ns>`):
+      * Role             `oidc-bootstrap-<app>`  (write only the one Secret)
+      * RoleBinding      `oidc-bootstrap-<app>`  (binds the cross-ns SA)
+
+The Job name embeds a sha256 hash of the OIDC inputs so that ArgoCD recreates
+it whenever the spec changes (idempotent re-run). `ttlSecondsAfterFinished`
+auto-cleans the completed Job; ArgoCD prunes stale ones.
+
+The pocket-id admin API token is supplied via a manually created Secret
+`pocket-id-api-token` in the `pocket-id` namespace (key: POCKET_ID_API_TOKEN).
+Pocket-id authenticates that token via the `X-API-Key` request header.
+
+  REST contract (verified against pocket-id source @ v2.6.2):
+    GET    /api/oidc/clients/<id>        → 200 if exists, 404 otherwise
+    POST   /api/oidc/clients             { id, name, callbackURLs, ... }
+    PUT    /api/oidc/clients/<id>        { name, callbackURLs, ... }
+    POST   /api/oidc/clients/<id>/secret → { "secret": "..." }
+
+  Note: the create/update responses do NOT include the client_secret. To get
+  one (or rotate it) we must POST to /clients/<id>/secret separately. The
+  bootstrap only does that on first create OR when the local Secret is empty.
+
+══════════════════════════════════════════════════════════════════════════════
+*/}}
+{{- range $component := .Values.components }}
+{{- if not (has $component.name ($.Values.disabledComponents | default (list))) }}
+{{- if and $component.oidc $component.oidc.enabled }}
+{{- $app := $component.name }}
+{{- $appNs := $component.namespace | default $component.name }}
+{{- /* clientId override — decouples the pocket-id client id (+ derived
+       resource names) from the component name. Defaults to $app for
+       backwards-compat. Use when the k8s-side component is locked to an
+       awkward legacy name (e.g. `audiobookshelf-v2`) but the OIDC client
+       should carry a clean prod name. Driving the SA/Role/CM/Job names
+       off $clientId means ArgoCD prunes the old bootstrap resources when
+       the clientId changes (the pocket-id-side client itself is external
+       state — delete that out-of-band via the API/UI). */}}
+{{- $clientId := default $app $component.oidc.clientId }}
+{{- $secretName := default (printf "%s-oidc-client" $clientId) $component.oidc.secretName }}
+{{- $callbackUrls := $component.oidc.callbackUrls | default (list) }}
+{{- $scopes := $component.oidc.scopes | default (list "openid" "profile" "email") }}
+{{- $isPublic := $component.oidc.public | default false }}
+{{- /* `default true x` returns true when x is bool false (Sprig zero-value
+       gotcha), so explicit `pkceEnabled: false` would silently flip back to
+       true. Use hasKey so a present-but-false value is honoured. */}}
+{{- $pkceEnabled := true }}
+{{- if hasKey $component.oidc "pkceEnabled" }}
+{{- $pkceEnabled = $component.oidc.pkceEnabled }}
+{{- end }}
+{{- $logoutCallbackUrls := $component.oidc.logoutCallbackUrls | default (list) }}
+{{- /*
+  Group-restriction (optional). Two shapes accepted:
+    oidc.groupRestriction.allowedGroups: [administrators, apps_users]
+  …declares the allowlist by group `name` (NOT friendlyName, NOT UUID — the
+  bootstrap resolves names→UUIDs at apply time via GET /api/user-groups so
+  the repo stays UUID-free and survives pocket-id rebuilds).
+
+  Empty/omitted list ⇒ unrestricted (isGroupRestricted=false, allow-list cleared).
+  Non-empty list      ⇒ isGroupRestricted=true + PUT /allowed-user-groups.
+
+  This is the single source of truth: any out-of-band UI/API edits to a
+  client's group restriction will be reconciled away on the next Job run.
+  That's the point — declare here, don't pet by hand.
+*/}}
+{{- $allowedGroups := list }}
+{{- if and $component.oidc.groupRestriction $component.oidc.groupRestriction.allowedGroups }}
+{{- $allowedGroups = $component.oidc.groupRestriction.allowedGroups }}
+{{- end }}
+{{- /* hash inputs so the Job is recreated when the spec changes */}}
+{{- $specBlob := printf "%s|%s|%s|%s|%v|%v|%s|%s|%s" $clientId $app $appNs (join "," $callbackUrls) $isPublic $pkceEnabled (join "," $scopes) (join "," $logoutCallbackUrls) (join "," $allowedGroups) }}
+{{- $specHash := $specBlob | sha256sum | trunc 10 }}
+---
+# ─────────── ServiceAccount (lives in pocket-id ns) ───────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oidc-bootstrap-{{ $clientId }}
+  namespace: pocket-id
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: oidc-bootstrap
+    oidc-bootstrap/app: {{ $clientId | quote }}
+---
+# ─────────── Cross-ns RBAC (Role + Binding in app's ns) ───────────
+# Tightest possible: only the one Secret, only the verbs we need.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oidc-bootstrap-{{ $clientId }}
+  namespace: {{ $appNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: oidc-bootstrap
+    oidc-bootstrap/app: {{ $clientId | quote }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get", "update", "patch"]
+  # `create` cannot use resourceNames (admission rejects it) — narrow by scope:
+  # SA only has Role in this single ns, on the secrets resource.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oidc-bootstrap-{{ $clientId }}
+  namespace: {{ $appNs }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: oidc-bootstrap
+    oidc-bootstrap/app: {{ $clientId | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: oidc-bootstrap-{{ $clientId }}
+subjects:
+  - kind: ServiceAccount
+    name: oidc-bootstrap-{{ $clientId }}
+    namespace: pocket-id
+---
+# ─────────── Bootstrap script (ConfigMap in pocket-id ns) ───────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-bootstrap-{{ $clientId }}
+  namespace: pocket-id
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: oidc-bootstrap
+    oidc-bootstrap/app: {{ $clientId | quote }}
+data:
+  bootstrap.sh: |
+    #!/usr/bin/env bash
+    # Idempotent OIDC client registration in pocket-id, called by the platform
+    # chart's per-app Job. Exits non-zero on any error so backoffLimit retries.
+    set -euo pipefail
+
+    : "${APP_NAME:?required}"
+    : "${APP_NS:?required}"
+    : "${POCKET_ID_BASE_URL:?required}"
+    : "${POCKET_ID_API_TOKEN:?required}"
+    : "${SECRET_NAME:?required}"
+    : "${CALLBACK_URLS:?required}"   # JSON array string, e.g. ["https://x/cb"]
+    : "${LOGOUT_CALLBACK_URLS:=[]}"
+    : "${IS_PUBLIC:=false}"
+    : "${PKCE_ENABLED:=true}"
+    # JSON array of group *names* (NOT UUIDs). Empty array ⇒ unrestricted.
+    # We resolve names→UUIDs against /api/user-groups at apply time.
+    : "${ALLOWED_GROUPS:=[]}"
+
+    # isGroupRestricted derives from the allowlist: non-empty ⇒ restricted.
+    # The repo never carries a separate enable flag — list IS the toggle.
+    if [ "$(jq 'length' <<<"$ALLOWED_GROUPS")" -gt 0 ]; then
+      IS_GROUP_RESTRICTED=true
+    else
+      IS_GROUP_RESTRICTED=false
+    fi
+    echo "[oidc-bootstrap] isGroupRestricted=${IS_GROUP_RESTRICTED} allowedGroups=${ALLOWED_GROUPS}"
+
+    echo "[oidc-bootstrap] app=${APP_NAME} ns=${APP_NS} secret=${SECRET_NAME}"
+
+    api() {
+      # api <method> <path> [json-body-file]
+      local method="$1" path="$2" body="${3:-}"
+      local args=(-sS -o /tmp/resp.json -w '%{http_code}')
+      args+=(-X "$method" -H "X-API-Key: ${POCKET_ID_API_TOKEN}")
+      if [ -n "$body" ]; then
+        args+=(-H 'Content-Type: application/json' --data "@$body")
+      fi
+      curl "${args[@]}" "${POCKET_ID_BASE_URL}${path}"
+    }
+
+    # 1. Does the client already exist? (deterministic id == APP_NAME)
+    code=$(api GET "/api/oidc/clients/${APP_NAME}" || true)
+    echo "[oidc-bootstrap] GET /api/oidc/clients/${APP_NAME} → ${code}"
+
+    # Build the desired-state JSON document (PUT body == POST body sans `id`).
+    jq -n \
+      --arg name "$APP_NAME" \
+      --argjson callbacks "$CALLBACK_URLS" \
+      --argjson logouts "$LOGOUT_CALLBACK_URLS" \
+      --argjson isPublic "$IS_PUBLIC" \
+      --argjson pkce "$PKCE_ENABLED" \
+      --argjson groupRestricted "$IS_GROUP_RESTRICTED" \
+      '{
+        name: $name,
+        callbackURLs: $callbacks,
+        logoutCallbackURLs: $logouts,
+        isPublic: $isPublic,
+        pkceEnabled: $pkce,
+        requiresReauthentication: false,
+        credentials: { federatedIdentities: [] },
+        isGroupRestricted: $groupRestricted
+      }' > /tmp/desired.json
+
+    if [ "$code" = "200" ]; then
+      echo "[oidc-bootstrap] client exists — PUT update"
+      put_code=$(api PUT "/api/oidc/clients/${APP_NAME}" /tmp/desired.json)
+      if [ "$put_code" != "200" ]; then
+        echo "[oidc-bootstrap] PUT failed (${put_code}):" >&2
+        cat /tmp/resp.json >&2 || true
+        exit 1
+      fi
+    elif [ "$code" = "404" ]; then
+      echo "[oidc-bootstrap] client missing — POST create"
+      jq --arg id "$APP_NAME" '. + { id: $id }' /tmp/desired.json > /tmp/create.json
+      post_code=$(api POST "/api/oidc/clients" /tmp/create.json)
+      if [ "$post_code" != "201" ] && [ "$post_code" != "200" ]; then
+        echo "[oidc-bootstrap] POST failed (${post_code}):" >&2
+        cat /tmp/resp.json >&2 || true
+        exit 1
+      fi
+    else
+      echo "[oidc-bootstrap] unexpected GET status (${code}):" >&2
+      cat /tmp/resp.json >&2 || true
+      exit 1
+    fi
+
+    # 2. Decide whether we need to mint a fresh client_secret.
+    #    Skip secret rotation for public clients (they don't have one).
+    EXISTING_SECRET=""
+    if kubectl -n "$APP_NS" get secret "$SECRET_NAME" -o jsonpath='{.data.client_secret}' >/dev/null 2>&1; then
+      EXISTING_SECRET=$(kubectl -n "$APP_NS" get secret "$SECRET_NAME" \
+        -o jsonpath='{.data.client_secret}' | base64 -d || true)
+    fi
+
+    CLIENT_SECRET=""
+    if [ "$IS_PUBLIC" = "true" ]; then
+      echo "[oidc-bootstrap] public client — no client_secret"
+    elif [ -n "$EXISTING_SECRET" ]; then
+      echo "[oidc-bootstrap] reusing existing client_secret from ${APP_NS}/${SECRET_NAME}"
+      CLIENT_SECRET="$EXISTING_SECRET"
+    else
+      echo "[oidc-bootstrap] minting fresh client_secret"
+      sec_code=$(api POST "/api/oidc/clients/${APP_NAME}/secret")
+      if [ "$sec_code" != "200" ]; then
+        echo "[oidc-bootstrap] POST .../secret failed (${sec_code}):" >&2
+        cat /tmp/resp.json >&2 || true
+        exit 1
+      fi
+      CLIENT_SECRET=$(jq -r '.secret' < /tmp/resp.json)
+      if [ -z "$CLIENT_SECRET" ] || [ "$CLIENT_SECRET" = "null" ]; then
+        echo "[oidc-bootstrap] empty secret in response" >&2
+        exit 1
+      fi
+    fi
+
+    # 3. Apply the Secret in the app's namespace. We write the manifest to a
+    #    tmpfile (kubectl apply -f) rather than stdin-heredoc so we don't have
+    #    to fight bash + YAML indentation rules. Overwrites cleanly via apply.
+    {
+      printf '%s\n' \
+        "apiVersion: v1" \
+        "kind: Secret" \
+        "metadata:" \
+        "  name: ${SECRET_NAME}" \
+        "  namespace: ${APP_NS}" \
+        "  labels:" \
+        "    app.kubernetes.io/managed-by: platform-chart" \
+        "    app.kubernetes.io/component: oidc-bootstrap" \
+        "    oidc-bootstrap/app: ${APP_NAME}" \
+        "type: Opaque" \
+        "stringData:" \
+        "  client_id: ${APP_NAME}" \
+        "  issuer_url: ${POCKET_ID_ISSUER_URL}"
+      if [ -n "$CLIENT_SECRET" ]; then
+        # Quote single-quote any embedded specials. pocket-id secrets are
+        # base64url-ish (alnum + -._~) so quoting is belt-and-suspenders.
+        printf '  client_secret: %s\n' "\"${CLIENT_SECRET}\""
+      fi
+    } > /tmp/secret.yaml
+    kubectl apply -f /tmp/secret.yaml
+
+    # 4. Reconcile the allow-list of user groups.
+    #
+    #    pocket-id splits this off from the main client doc: PUT /clients/<id>
+    #    accepts isGroupRestricted (the toggle) but NOT the group list. The
+    #    list lives at PUT /clients/<id>/allowed-user-groups with body
+    #    {"userGroupIds": ["<uuid>", ...]}.
+    #
+    #    We always issue this PUT (even with empty list) so manual UI edits
+    #    that drift from the declared spec get reconciled away. If you want
+    #    a client unrestricted, leave `groupRestriction.allowedGroups` empty
+    #    in the chart values — that's the single source of truth.
+    echo "[oidc-bootstrap] reconciling allowed-user-groups → ${ALLOWED_GROUPS}"
+    # NB: curl chokes on bare `[` in the URL (range syntax). Skip pagination
+    # params — pocket-id's default page size is plenty for our handful of
+    # groups, and we resolve names locally with jq.
+    grp_code=$(api GET "/api/user-groups")
+    if [ "$grp_code" != "200" ]; then
+      echo "[oidc-bootstrap] GET /api/user-groups failed (${grp_code}):" >&2
+      cat /tmp/resp.json >&2 || true
+      exit 1
+    fi
+    # Build name→id map, then map ALLOWED_GROUPS through it. Unknown names
+    # abort the Job (typo-safe — better than silently allowing nobody).
+    jq --argjson wanted "$ALLOWED_GROUPS" '
+      (.data // .) as $all
+      | ($all | map({key: .name, value: .id}) | from_entries) as $byName
+      | $wanted | map(
+          . as $n
+          | $byName[$n] // (error("unknown user-group name: \($n)"))
+        )
+    ' < /tmp/resp.json > /tmp/group-ids.json
+    jq -n --argjson ids "$(cat /tmp/group-ids.json)" '{userGroupIds: $ids}' \
+      > /tmp/allowed-groups.json
+    aug_code=$(api PUT "/api/oidc/clients/${APP_NAME}/allowed-user-groups" /tmp/allowed-groups.json)
+    if [ "$aug_code" != "200" ]; then
+      echo "[oidc-bootstrap] PUT allowed-user-groups failed (${aug_code}):" >&2
+      cat /tmp/resp.json >&2 || true
+      exit 1
+    fi
+
+    echo "[oidc-bootstrap] done — ${APP_NS}/${SECRET_NAME} populated"
+---
+# ─────────── Job (in pocket-id ns) ───────────
+# Job name embeds a hash of the OIDC spec → ArgoCD recreates it on changes,
+# leaves it untouched on no-op syncs. ttlSecondsAfterFinished cleans up
+# completed Jobs after 10 min so the pocket-id ns doesn't accumulate cruft.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oidc-bootstrap-{{ $clientId }}-{{ $specHash }}
+  namespace: pocket-id
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    # Replace=true was here historically but caused argocd re-syncs to faceplant on
+    # completed Jobs (spec.selector is server-set + immutable post-create). Job names
+    # already include $specHash so any spec change produces a NEW Job — replacement
+    # is unnecessary. Bare apply behavior is correct.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/managed-by: platform-chart
+    app.kubernetes.io/component: oidc-bootstrap
+    oidc-bootstrap/app: {{ $clientId | quote }}
+    oidc-bootstrap/spec-hash: {{ $specHash | quote }}
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: platform-chart
+        app.kubernetes.io/component: oidc-bootstrap
+        oidc-bootstrap/app: {{ $clientId | quote }}
+    spec:
+      serviceAccountName: oidc-bootstrap-{{ $clientId }}
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          # alpine/k8s — multitool image with kubectl, curl, jq, bash. Pinned by
+          # digest so a registry retag can't change the bytes we run.
+          image: docker.io/alpine/k8s:1.32.0@sha256:4c28b0f0c6accfa07fa449493ea936291e4ff1270500571d73f75bb406676c3b
+          command: ["/bin/bash", "/scripts/bootstrap.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: APP_NAME
+              value: {{ $clientId | quote }}
+            - name: APP_NS
+              value: {{ $appNs | quote }}
+            - name: SECRET_NAME
+              value: {{ $secretName | quote }}
+            # In-cluster service URL — bypasses the gateway entirely.
+            - name: POCKET_ID_BASE_URL
+              value: "http://pocket-id.pocket-id.svc.cluster.local"
+            # Issuer URL is the public hostname (clients embed this in token
+            # requests / discovery). The auth.apps.home cert is on the
+            # gateway path, so apps reach pocket-id via this URL.
+            - name: POCKET_ID_ISSUER_URL
+              value: "https://auth.apps.home"
+            - name: CALLBACK_URLS
+              value: {{ toJson $callbackUrls | quote }}
+            - name: LOGOUT_CALLBACK_URLS
+              value: {{ toJson $logoutCallbackUrls | quote }}
+            - name: IS_PUBLIC
+              value: {{ $isPublic | quote }}
+            - name: PKCE_ENABLED
+              value: {{ $pkceEnabled | quote }}
+            - name: ALLOWED_GROUPS
+              value: {{ toJson $allowedGroups | quote }}
+            - name: POCKET_ID_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pocket-id-api-token
+                  key: POCKET_ID_API_TOKEN
+            # alpine/k8s defaults HOME to /root which uid 65532 can't write.
+            # Point HOME at the writable emptyDir mounted below.
+            - name: HOME
+              value: /home/nonroot
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            # kubectl + bash need a writable HOME for cache (~/.kube, ~/.cache).
+            - name: home
+              mountPath: /home/nonroot
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: script
+          configMap:
+            name: oidc-bootstrap-{{ $clientId }}
+            defaultMode: 0755
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: home
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- end -}}

@@ -1,0 +1,39 @@
+owner: apps
+enabled: true
+components:
+  - name: jellyfin
+    namespace: jellyfin
+    chart:
+      repo: https://jellyfin.github.io/jellyfin-helm
+      name: jellyfin
+      version: 3.2.0
+    syncWave: "3"
+    route:
+      hostname: jellyfin.apps.home
+      gateway: apps
+      service: jellyfin
+      port: 8096
+      timeout: 30m
+      dashboard:
+        name: Jellyfin
+        group: Media
+        icon: jellyfin.svg
+        description: Video media server (movies + TV)
+        app: jellyfin
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://jellyfin.apps.home/sso/OID/redirect/PocketID
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - apps_users
+          - administrators
+    valuesFile: values.yaml
+extras:
+  jellyfin:
+    librarySize: 1500Gi

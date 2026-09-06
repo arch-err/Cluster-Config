@@ -1,12 +1,5 @@
-# Platform chart
+# Platform capabilities
 
-This chart generates ArgoCD Applications and supporting resources from the component lists in `kubernetes/infra.yaml` and `kubernetes/apps.yaml`.
+Platform directories group shared capabilities by purpose: GitOps, identity, networking, storage, observability, and hardware integration. Each deployable or retained unit has its own `service.yaml`.
 
-See the maintained guides:
-
-- [Chart inputs and templates](../../docs/platform-chart.md)
-- [Adding applications, OIDC, and databases](../../docs/adding-apps.md)
-- [Storage and retention](../../docs/pvc-reclaim-policy.md)
-- [Pocket ID manual bootstrap](../manual/pocket-id/README.md)
-
-Run `just check` from the repository root to lint and render both configurations.
+This directory is not a separate Helm chart. The source chart is rooted at [kubernetes/](../README.md). Folder placement does not determine Argo ownership; the explicit `owner` field preserves the existing parent Application.

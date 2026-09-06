@@ -1,0 +1,34 @@
+owner: apps
+enabled: false
+components:
+  - name: mattermost
+    namespace: mattermost
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: kadalu.replica2-retain
+    route:
+      hostname: agents.apps.home
+      gateway: apps
+      service: mattermost
+      port: 8065
+      timeout: 1h
+      dashboard:
+        name: Mattermost
+        group: Comms
+        icon: si-mattermost.svg
+        description: Chat UI for the Hermes Agent instances
+        app: mattermost
+    valuesFile: values.yaml
+extras:
+  mattermost:
+    enabled: true
+    dataSize: 20Gi

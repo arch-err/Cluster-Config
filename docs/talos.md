@@ -6,7 +6,7 @@
 
 All three nodes are control-plane nodes with workload scheduling enabled. The API VIP is `10.10.10.170`; NODE-1 through NODE-3 use `10.10.10.171` through `.173`. Install disks are `/dev/nvme0n1`.
 
-NODE-2 also declares the `bulk` UserVolumeConfig. It selects the external disk by its persistent USB by-id identity, provisions an XFS partition, and mounts it at `/var/mnt/bulk`. See [storage](pvc-reclaim-policy.md) before changing disk configuration. The old Kadalu settings and exemptions remain in the repository for historical configurations; Kadalu is disabled in the current infra component list.
+NODE-2 also declares the `bulk` UserVolumeConfig. It selects the external disk by its persistent USB by-id identity, provisions an XFS partition, and mounts it at `/var/mnt/bulk`. See [storage](pvc-reclaim-policy.md) before changing disk configuration. The old Kadalu settings and exemptions remain in the repository for historical configurations; Kadalu is disabled in its service declaration.
 
 Global patches disable kube-proxy and the default CNI, enable kubelet serving-certificate rotation and user namespaces, and configure metrics listeners and restricted Pod Security defaults. Read the YAML for the complete exemptions and node-specific settings.
 

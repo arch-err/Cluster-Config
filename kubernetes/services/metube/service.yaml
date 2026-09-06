@@ -1,0 +1,47 @@
+owner: apps
+enabled: true
+components:
+  - name: metube
+    namespace: metube
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      hostname: metube.apps.home
+      gateway: apps
+      service: oauth2-metube
+      port: 80
+      timeout: 30m
+      dashboard:
+        name: Metube
+        group: Media
+        icon: metube.png
+        description: yt-dlp web UI (YouTube downloader)
+        app: metube
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://metube.apps.home/oauth2/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - apps_users
+          - administrators
+    valuesFile: values.yaml
+  - name: metube-oauth2
+    namespace: metube
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    valuesFile: oauth2-proxy.values.yaml
+extras:
+  metube:
+    librarySize: 1500Gi

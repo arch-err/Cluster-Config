@@ -54,10 +54,10 @@ extraObjects:
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
         targetRevision: main
-        path: kubernetes/platform
+        path: kubernetes
         helm:
           valueFiles:
-            - ../infra.yaml
+            - releases/infra.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
@@ -106,10 +106,10 @@ extraObjects:
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
         targetRevision: main
-        path: kubernetes/platform
+        path: kubernetes
         helm:
           valueFiles:
-            - ../apps.yaml
+            - releases/apps.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
@@ -157,7 +157,10 @@ extraObjects:
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
         targetRevision: main
-        path: kubernetes/secrets/infra
+        path: kubernetes
+        helm:
+          valueFiles:
+            - releases/infra-secrets.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
@@ -183,7 +186,10 @@ extraObjects:
       source:
         repoURL: https://github.com/arch-err/Cluster-Config.git
         targetRevision: main
-        path: kubernetes/secrets/apps
+        path: kubernetes
+        helm:
+          valueFiles:
+            - releases/apps-secrets.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd

@@ -1,0 +1,42 @@
+owner: infra
+render: resources
+gateway:
+  pool:
+    start: 10.10.10.200
+    stop: 10.10.10.220
+  infra:
+    ip: 10.10.10.201
+    domain: infra.home
+    tlsSecret: wildcard-infra-home-tls
+    passthroughs:
+      - name: agent-vault-proxy
+        hostname: agent-vault-proxy.home
+  apps:
+    ip: 10.10.10.200
+    domain: apps.home
+    tlsSecret: wildcard-apps-home-tls
+external:
+  dockerHost: 10.10.10.160
+  services:
+    - name: homeassistant
+      hostname: homeassistant.home
+    - name: vault
+      hostname: vault.home
+    - name: ntfy
+      hostname: ntfy.home
+    - name: happy-api
+      hostname: happy.home
+    - name: happy-app
+      hostname: app.happy.home
+    - name: claude-notify
+      hostname: claude-notify.home
+    - name: matrix
+      hostname: matrix.home
+    - name: syncthing
+      hostname: syncthing.home
+kadalu:
+  device: /dev/sda
+  nodes:
+    primary: node-1
+    secondary: node-2
+    tiebreaker: node-3

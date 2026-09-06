@@ -1,0 +1,55 @@
+{{- if .Values.extras.metube }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metube
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# media-library — additional static kadalu PV/PVC pair pointing at the SAME
+# subvol path the arr stack / ABS-v2 / jellyfin-to-be use. Cross-ns sharing
+# via parallel kadalu PVs on one subvol; subPath=YouTube in the metube values
+# isolates downloads from Movies/ TV/ etc.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: metube-media-library
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  capacity:
+    storage: {{ .Values.extras.metube.librarySize | default "1500Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  local:
+    path: /var/mnt/bulk/media-library
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [node-2]
+  claimRef:
+    name: media-library
+    namespace: metube
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  namespace: metube
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  resources:
+    requests:
+      storage: {{ .Values.extras.metube.librarySize | default "1500Gi" }}
+  volumeName: metube-media-library
+{{- end }}

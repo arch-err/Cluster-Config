@@ -1,0 +1,5 @@
+# Shared source settings. Each root selects an owner and render mode in releases/.
+repoURL: https://github.com/arch-err/Cluster-Config.git
+targetRevision: main
+owner: ""
+render: resources

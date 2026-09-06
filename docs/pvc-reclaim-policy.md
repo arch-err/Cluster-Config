@@ -1,6 +1,6 @@
 # Storage and data retention
 
-The current configuration uses node-local storage. Kadalu is disabled in `infra.disabledComponents` and `extras.kadalu`; its configuration remains for historical/disabled services.
+The current configuration uses node-local storage. Kadalu is disabled in its service declaration (`enabled: false`); its configuration remains for historical/disabled services.
 
 ## Configured storage
 
@@ -11,7 +11,7 @@ The current configuration uses node-local storage. Kadalu is disabled in `infra.
 | Static local PVs | NODE-2, named paths such as `/var/mnt/bulk/media-library` and `/var/mnt/bulk/calibre-library` | Explicitly declared in each PV | Separate PV/PVC bindings expose shared directories to participating apps |
 | `kadalu.replica2*` | Legacy distributed storage configuration | Legacy policy varies | Provisioner disabled; do not select for new workloads |
 
-Sources: [local-bulk values](../kubernetes/values/infra/local-bulk.yaml), [local-path values](../kubernetes/values/infra/local-path-provisioner.yaml), [static resources](../kubernetes/platform/templates/extras.yaml), [Talos disk configuration](../talos/talconfig.yaml).
+Sources: [local-bulk values](../kubernetes/platform/storage/local-bulk/values.yaml), [local-path values](../kubernetes/platform/storage/local-path-provisioner/values.yaml), [service resource layout](platform-chart.md), [Talos disk configuration](../talos/talconfig.yaml).
 
 Local storage does not fail over to another node with its data. Backups provide recovery, not storage availability. Separate PVs referencing one host directory also require coordinating all writers and consumers.
 

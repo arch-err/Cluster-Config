@@ -1,0 +1,15 @@
+owner: infra
+enabled: true
+components:
+  - name: local-bulk
+    namespace: local-bulk-storage
+    namespaceLabels:
+      pod-security.kubernetes.io/enforce: privileged
+      pod-security.kubernetes.io/audit: privileged
+      pod-security.kubernetes.io/warn: privileged
+    chart:
+      repo: https://charts.containeroo.ch
+      name: local-path-provisioner
+      version: 0.0.37
+    syncWave: "1"
+    valuesFile: values.yaml

@@ -1,0 +1,12 @@
+owner: infra
+enabled: true
+components:
+  - name: sops-secrets-operator
+    namespace: sops-secrets-operator
+    chart:
+      repo: https://isindir.github.io/sops-secrets-operator
+      name: sops-secrets-operator
+    syncWave: "-2"
+    valuesFile: values.yaml
+extras:
+  sopsSecretsOperator: true

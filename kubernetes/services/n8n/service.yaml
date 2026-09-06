@@ -1,0 +1,49 @@
+owner: infra
+enabled: true
+components:
+  - name: n8n
+    namespace: n8n
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: local-bulk
+    route:
+      hostname: n8n.infra.home
+      gateway: infra
+      service: oauth2-n8n
+      port: 80
+      timeout: 30m
+      dashboard:
+        enabled: true
+        group: Automation
+        icon: n8n.svg
+        description: Workflow automation
+    oidc:
+      enabled: true
+      callbackUrls:
+        - https://n8n.infra.home/oauth2/callback
+      scopes:
+        - openid
+        - profile
+        - email
+        - groups
+      groupRestriction:
+        allowedGroups:
+          - administrators
+    valuesFile: values.yaml
+  - name: n8n-oauth2
+    namespace: n8n
+    chart:
+      repo: https://oauth2-proxy.github.io/manifests
+      name: oauth2-proxy
+      version: 10.4.3
+    syncWave: "3"
+    valuesFile: oauth2-proxy.values.yaml

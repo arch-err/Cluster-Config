@@ -1,0 +1,16 @@
+{{- if index .Values.extras "paperless-ngx" }}
+---
+# paperless-ngx namespace — baseline PSS. The paperless image's supervisord
+# starts as root then drops to the paperless user, and the bundled bitnami
+# postgres/redis subcharts have init paths that don't pass restricted PSS.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paperless-ngx
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+{{- end }}

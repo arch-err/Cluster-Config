@@ -1,0 +1,14 @@
+owner: apps
+enabled: false
+components:
+  - name: protonmail-bridge
+    namespace: protonmail-bridge
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    valuesFile: values.yaml
+extras:
+  protonmail-bridge:
+    enabled: true

@@ -1,35 +1,37 @@
 # Cluster-Config
 
-Declarative configuration for a three-node Talos Kubernetes cluster, managed with Helm and ArgoCD.
+Talos Kubernetes configuration managed with Helm and ArgoCD. Sources are grouped by service; deployed resource ownership is explicit and independent of the folder layout.
 
-The maintained repository is based on the former `v2` configuration. The previous `main` is preserved at the annotated tag **`archive/main-2026-09-06`** (`a502d0e`), and its history remains reachable through the promotion merge.
+```text
+.
+├── docs/                       # Architecture and cluster-wide runbooks
+├── scripts/                    # Operator commands and validation
+├── talos/                      # Machine configuration and encrypted Talos secrets
+├── justfile
+└── kubernetes/                 # One source Helm chart
+    ├── Chart.yaml
+    ├── values.yaml             # Repository source defaults
+    ├── releases/               # Selectors/settings for the four existing Argo roots
+    ├── templates/              # Shared Applications, routes, database, OIDC rendering
+    ├── bootstrap/              # Initial Cilium and ArgoCD installation
+    ├── services/               # Booklore, Home Assistant, n8n, etc.
+    └── platform/               # GitOps, networking, identity, storage, observability
+```
 
-## Start here
+Each service directory contains a `service.yaml` declaration and, as needed, Helm values, `resources/`, encrypted `secrets/`, assets, and a README. Supporting components such as an OAuth proxy share the service directory. There is no separate chart per service or build-time manifest generator.
 
-- [Documentation index](docs/README.md)
-- [Architecture, networking, and GitOps](docs/kubernetes.md)
-- [Configured services](docs/services.md)
-- [Storage and retention](docs/pvc-reclaim-policy.md)
-- [Adding or re-enabling an application](docs/adding-apps.md)
-- [Repository state and branch migration](docs/repository-state.md)
+Start with the [documentation index](docs/README.md), [source layout](docs/platform-chart.md), [service inventory](docs/services.md), and [adding services](docs/adding-apps.md).
 
-## Layout
+## Validate locally
 
-| Path | Purpose |
-| --- | --- |
-| `talos/` | Talhelper machine configuration and encrypted Talos secrets |
-| `kubernetes/bootstrap/` | Initial Cilium and ArgoCD installation values |
-| `kubernetes/infra.yaml`, `kubernetes/apps.yaml` | Component lists, routes, databases, OIDC clients, and optional resources |
-| `kubernetes/platform/` | Local Helm chart that renders ArgoCD Applications and supporting resources |
-| `kubernetes/values/{infra,apps}/` | Per-component upstream Helm values |
-| `kubernetes/secrets/{infra,apps}/` | SOPS-encrypted SopsSecret manifests |
-| `kubernetes/manual/` | Setup that still requires operator input |
-| `scripts/`, `justfile` | Operator commands; inspect a recipe before running it |
+```sh
+just check
+```
 
-## Working on the repository
+Requires Bash, Helm, yq (Mike Farah's Go implementation), and Python 3's standard library. Checks render all four roots, validate resource identities/source paths/manual-sync policy, exercise service enablement, and check shell syntax. They do not contact the cluster or render upstream charts.
 
-Use `just --list` to discover commands and `just check` for local chart rendering and shell syntax checks. These checks require Bash and Helm; they do not contact the cluster or render upstream charts.
+## Current migration rule
 
-For cluster commands, load `.envrc` with your normal direnv workflow or `source .envrc`. It selects the local generated kubeconfig and the age key path; neither is included in Git. See [secrets](docs/secrets.md) and [Talos](docs/talos.md) for prerequisites.
+All 65 live Applications use this repository's `main` branch with auto-sync off. **No workload sync with unapproved differences.** See [refactoring rules and baseline](docs/refactoring.md). Software versions and runtime behavior are preserved; existing baseline drift remains blocked.
 
-This cleanup changes documentation and repository branch references, **not software versions**. The live ArgoCD Git sources now follow `main` with auto-sync disabled for the [state-preserving refactor](docs/refactoring.md). Existing workload drift remains blocked; no workload sync was performed during the switch. A successful local render does not certify a clean rebuild or live health.
+The old `main` is preserved by `archive/main-2026-09-06`. The `v2` branch remains available because deployed Grafana and Homepage consumers still reference its files. See [repository state](docs/repository-state.md).

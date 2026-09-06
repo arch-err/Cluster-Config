@@ -1,0 +1,23 @@
+owner: apps
+enabled: false
+components:
+  - name: qbittorrent
+    namespace: qbittorrent
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "4"
+    route:
+      hostname: qbittorrent.infra.home
+      gateway: infra
+      service: qbittorrent
+      port: 8080
+      dashboard:
+        enabled: true
+        name: qBittorrent
+        group: Media
+        icon: qbittorrent.svg
+        description: Torrent client (via Mullvad VPN)
+        app: qbittorrent
+    valuesFile: values.yaml

@@ -1,0 +1,11 @@
+owner: infra
+enabled: true
+components:
+  - name: loki
+    namespace: monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: loki
+      version: 6.21.x
+    syncWave: "2"
+    valuesFile: values.yaml

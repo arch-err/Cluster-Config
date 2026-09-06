@@ -1,0 +1,64 @@
+# cyberchef — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# The Cyber Swiss Army Knife — encryption, encoding, compression, data analysis
+# in the browser. Stateless single-container web app, no DB, no persistence.
+# Upstream: https://github.com/gchq/CyberChef
+# Image: mpepping/cyberchef (community multi-arch build, most-pulled).
+
+controllers:
+  main:
+    strategy: RollingUpdate
+    containers:
+      app:
+        image:
+          repository: mpepping/cyberchef
+          tag: "v10.24.0"
+        # Image is nginxinc/nginx-unprivileged:alpine — runs as uid 101 (nginx),
+        # listens on :8000 (sed-patched in upstream Dockerfile).
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8000
+              initialDelaySeconds: 10
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8000
+              initialDelaySeconds: 3
+              periodSeconds: 10
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false   # nginx writes to /var/cache/nginx, /var/run
+          capabilities:
+            drop:
+              - ALL
+
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101    # nginx user in nginx-unprivileged base
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 8000

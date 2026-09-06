@@ -1,0 +1,492 @@
+# home-assistant — chart: bjw-s/app-template v4.6.2 (generic container wrapper)
+# Home Assistant Core. Upstream: https://www.home-assistant.io/
+# Image: ghcr.io/home-assistant/home-assistant — official multi-arch image,
+# s6-overlay (entrypoint /init starts as root, supervises HA python process).
+#
+# ─── Scope (clean install, pure network) ──────────────────────────────────────
+# First step in migrating services off the laptop. NO USB dongles, NO Bluetooth,
+# NO multicast integrations for now. Pure HTTP/network integrations only.
+# Hooks for future host-network / device mounts are commented inline below so
+# enabling them is a values-file delta, not a rewrite.
+#
+# ─── Auth ─────────────────────────────────────────────────────────────────────
+# NATIVE OIDC via the hass-oidc-auth custom integration (christiaangoossens/
+# hass-oidc-auth, pinned v1.1.0, installed onto the /config PVC by the
+# install-oidc init container below). pocket-id is a first-class HA auth
+# provider on HA's own login screen — single SSO, no proxy front-door. The
+# auth_oidc: block (public PKCE client, no client_secret) is appended/migrated
+# into configuration.yaml by the seed-config init. The built-in `homeassistant`
+# username/password provider stays enabled as the break-glass local admin.
+#
+# HA still sits behind the cilium gateway, so it trusts X-Forwarded-* via
+# `trusted_proxies` + `use_x_forwarded_for` (configuration.yaml seed below).
+#
+# After first deploy HA shows its onboarding/owner-account screen — create the
+# local owner account once (break-glass admin); pocket-id logins then come in
+# via the native OIDC provider. Binding the user's pocket-id identity to their
+# admin account is a one-time automatic_user_linking flip done after cutover.
+#
+# ─── PSS ──────────────────────────────────────────────────────────────────────
+# Baseline ns label (extras renders it). HA's image is s6-overlay; /init runs
+# as root then supervises HA. Restricted PSS rejects that init flow (same
+# trade-off as calibre-web / prowlarr / readarr). HA writes everything to
+# /config as root by default — leaving uid at image default (0) for now.
+
+controllers:
+  main:
+    # sqlite (home-assistant_v2.db) on the /config PVC — Recreate avoids
+    # old/new pod racing on the db file during rollout (mirrors abs-v2 /
+    # calibre-web / grafana fix).
+    strategy: Recreate
+    # Init container drops our managed configuration.yaml snippet into
+    # /config on first boot (and tops it up on rollout if missing). HA reads
+    # configuration.yaml at startup; we need `http.use_x_forwarded_for: true`
+    # + `http.trusted_proxies` for the oauth2-proxy front-door to work.
+    # Idempotent: only writes if the target file is absent — never clobbers
+    # user edits made later in the UI / via the File editor add-on.
+    initContainers:
+      seed-config:
+        image:
+          repository: docker.io/library/busybox
+          tag: "1.37.0"
+        # Phase 2: the pocket-id client is PUBLIC — no client_secret. The
+        # native hass-oidc-auth integration uses PKCE and sends no secret, so
+        # this init no longer references the (now-absent) client_secret key.
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            if [ ! -f /config/configuration.yaml ]; then
+              echo "[seed-config] /config/configuration.yaml missing; seeding from configmap"
+              cp /seed/configuration.yaml /config/configuration.yaml
+            else
+              echo "[seed-config] /config/configuration.yaml exists; leaving alone"
+            fi
+
+            # ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────────
+            # Public PKCE client → NO client_secret. Drop any stale
+            # oidc_client_secret line left over from the confidential Phase-1
+            # seeding so secrets.yaml doesn't carry a dangling secret.
+            if [ -f /config/secrets.yaml ] && grep -q '^oidc_client_secret:' /config/secrets.yaml; then
+              echo "[seed-config] removing stale oidc_client_secret from secrets.yaml"
+              # `grep -v` exits 1 if it filters out every line (e.g. the file
+              # held only that one secret) — `|| true` keeps `set -e` happy.
+              grep -v '^oidc_client_secret:' /config/secrets.yaml > /config/secrets.yaml.tmp || true
+              mv /config/secrets.yaml.tmp /config/secrets.yaml
+            fi
+
+            # Migrate an EXISTING confidential auth_oidc: block to public mode.
+            # The Phase-1 block has a `client_secret: !secret oidc_client_secret`
+            # line; a public client must NOT send one. Strip exactly that line
+            # in-place (idempotent — no-op once gone), leaving the rest of the
+            # hand-owned configuration.yaml untouched.
+            if grep -q '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml; then
+              echo "[seed-config] stripping client_secret from auth_oidc (public-mode migration)"
+              # `|| true` for the same reason as above (configuration.yaml will
+              # never be single-line, but keep the idiom consistent + safe).
+              grep -v '^  client_secret: !secret oidc_client_secret$' /config/configuration.yaml > /config/configuration.yaml.tmp || true
+              mv /config/configuration.yaml.tmp /config/configuration.yaml
+            fi
+
+            # Idempotently enable OIDC auto-redirect on an EXISTING auth_oidc:
+            # block (fresh PVCs get it via the heredoc below). hass-oidc-auth's
+            # `features.default_redirect: true` skips the provider-selection
+            # screen and sends users straight to pocket-id. Break-glass stays
+            # reachable via the built-in `?skip_oidc_redirect=true` query param.
+            # We only patch when the block exists but the line is absent — the
+            # insert anchors on `disable_rfc7636: false` (the last line of the
+            # GitOps-managed features: block, 4-space indent) and appends the
+            # new key right after it, matching that exact indentation. No-op
+            # once present, so this is safe to run on every boot.
+            if grep -q '^auth_oidc:' /config/configuration.yaml \
+               && ! grep -q '^    default_redirect:' /config/configuration.yaml; then
+              echo "[seed-config] enabling default_redirect on existing auth_oidc.features"
+              awk '
+                { print }
+                /^    disable_rfc7636: false$/ { print "    default_redirect: true" }
+              ' /config/configuration.yaml > /config/configuration.yaml.tmp
+              mv /config/configuration.yaml.tmp /config/configuration.yaml
+            fi
+
+            # Append the auth_oidc: block once (grep-guarded) for a fresh PVC
+            # so we never clobber the user's hand-owned configuration.yaml.
+            if ! grep -q '^auth_oidc:' /config/configuration.yaml; then
+              echo "[seed-config] appending auth_oidc block to configuration.yaml"
+              # Each heredoc line is prefixed with a `|` sentinel marking the
+              # intended column-0 of the emitted HA YAML. sed strips everything
+              # up to and including that `|`, so HA's indentation-sensitive
+              # config is exact regardless of helm/container indentation.
+              sed 's/^[[:space:]]*|//' >> /config/configuration.yaml <<'EOF'
+              |
+              |# ── Native OIDC (hass-oidc-auth) — managed by GitOps ──────────
+              |# Public PKCE client — no client_secret (hass-oidc-auth default).
+              |# tls_ca_path points at the Home Lab Root CA for auth.apps.home.
+              |# The built-in `homeassistant` username/password provider stays
+              |# enabled via default_config above as the break-glass local admin.
+              |auth_oidc:
+              |  client_id: home-assistant
+              |  discovery_url: https://auth.apps.home/.well-known/openid-configuration
+              |  display_name: "Pocket ID (SSO)"
+              |  claims:
+              |    username: preferred_username
+              |    display_name: name
+              |    groups: groups
+              |  roles:
+              |    admin: administrators
+              |  features:
+              |    automatic_person_creation: true
+              |    disable_rfc7636: false
+              |    # Auto-redirect straight to pocket-id, skipping the provider-
+              |    # selection screen. Break-glass: ?skip_oidc_redirect=true.
+              |    default_redirect: true
+              |  network:
+              |    tls_verify: true
+              |    tls_ca_path: /etc/ssl/home-ca/ca.crt
+            EOF
+            else
+              echo "[seed-config] auth_oidc block already present; leaving alone"
+            fi
+        securityContext:
+          # Baseline-PSS ns; busybox runs as root by default. Explicitly
+          # declare it so PSS audit logs are clean.
+          runAsUser: 0
+          runAsGroup: 0
+      # Downloads the pinned hass-oidc-auth release zip into
+      # /config/custom_components/auth_oidc on the config PVC. Declarative +
+      # idempotent via a .installed_version marker (re-extracts only on a
+      # version bump). Egress to github.com verified working from this ns.
+      install-oidc:
+        image:
+          repository: docker.io/library/alpine
+          tag: "3.21"
+        env:
+          - { name: OIDC_VERSION, value: "v1.1.0" }
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            DEST=/config/custom_components/auth_oidc
+            MARK="$DEST/.installed_version"
+            if [ -f "$MARK" ] && [ "$(cat "$MARK")" = "$OIDC_VERSION" ]; then
+              echo "[install-oidc] $OIDC_VERSION already installed; skip"; exit 0
+            fi
+            apk add --no-cache unzip curl ca-certificates >/dev/null
+            tmp=$(mktemp -d)
+            curl -fsSL -o "$tmp/o.zip" \
+              "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/$OIDC_VERSION/hass-oidc-auth.zip"
+            rm -rf "$DEST"; mkdir -p "$DEST"
+            unzip -q "$tmp/o.zip" -d "$tmp/x"
+            # The v1.1.0 zip root IS the auth_oidc package contents
+            # (__init__.py at root), not nested under custom_components/.
+            if [ -d "$tmp/x/custom_components/auth_oidc" ]; then
+              cp -a "$tmp/x/custom_components/auth_oidc/." "$DEST/"
+            else
+              cp -a "$tmp/x/." "$DEST/"
+            fi
+            echo "$OIDC_VERSION" > "$MARK"
+            echo "[install-oidc] installed $OIDC_VERSION -> $DEST"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+      # ── MQTT broker config entry seed ───────────────────────────────────────
+      # HA 2026 removed the configuration.yaml `mqtt: broker:` option — the
+      # broker connection is a config ENTRY in /config/.storage/core.config_
+      # entries, normally created via the UI. To wire it declaratively we seed
+      # that entry ONCE, before HA starts, IF no mqtt entry already exists.
+      # Idempotent + non-clobbering: if the user later edits the integration in
+      # the UI, this no-ops (it only acts when zero mqtt entries are present).
+      # Points HA at the in-cluster mosquitto Service with the `homeassistant`
+      # broker creds (from the home-assistant-mqtt-client Secret) and turns on
+      # MQTT discovery so Z2M's homeassistant:true auto-creates entities.
+      seed-mqtt:
+        image:
+          repository: docker.io/library/python
+          tag: "3.12-alpine"
+        env:
+          - { name: MQTT_BROKER, value: "mosquitto.mqtt.svc.cluster.local" }
+          - { name: MQTT_PORT, value: "1883" }
+          - name: MQTT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: home-assistant-mqtt-client
+                key: username
+          - name: MQTT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: home-assistant-mqtt-client
+                key: password
+        command:
+          - /bin/sh
+          - -c
+          - |
+            set -eu
+            python3 - <<'PY'
+            import json, os, sys, uuid, datetime
+            path = "/config/.storage/core.config_entries"
+            if not os.path.exists(path):
+                # HA hasn't created .storage yet (fresh /config). Skip — HA will
+                # write the store on first boot; re-run on next rollout will seed.
+                print("[seed-mqtt] .storage/core.config_entries absent; skipping (will seed on a later boot)")
+                sys.exit(0)
+            with open(path) as f:
+                store = json.load(f)
+            entries = store.setdefault("data", {}).setdefault("entries", [])
+
+            # HA's loader (this version) reads entry["subentries"] +
+            # entry["discovery_keys"] directly (KeyError if absent — they were
+            # store-migrated in v1.4/v1.5). Every entry we write MUST carry both.
+            def ensure_required(e):
+                changed = False
+                if "subentries" not in e:
+                    e["subentries"] = []; changed = True
+                if "discovery_keys" not in e:
+                    e["discovery_keys"] = {}; changed = True
+                return changed
+
+            mqtt_entries = [e for e in entries if e.get("domain") == "mqtt"]
+            if mqtt_entries:
+                # Self-heal: an earlier seed (or a hand-made entry) may be missing
+                # the required keys. Repair in place, but never touch the user's
+                # broker/creds/options. Idempotent no-op once healthy.
+                fixed = sum(ensure_required(e) for e in mqtt_entries)
+                if fixed:
+                    tmp = path + ".tmp"
+                    with open(tmp, "w") as f:
+                        json.dump(store, f, indent=2)
+                    os.replace(tmp, path)
+                    print("[seed-mqtt] repaired %d existing mqtt entry(ies) missing subentries/discovery_keys" % fixed)
+                else:
+                    print("[seed-mqtt] mqtt config entry already present + valid; leaving alone")
+                sys.exit(0)
+
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            entries.append({
+                "created_at": now,
+                "modified_at": now,
+                "data": {
+                    "broker": os.environ["MQTT_BROKER"],
+                    "port": int(os.environ["MQTT_PORT"]),
+                    "username": os.environ["MQTT_USERNAME"],
+                    "password": os.environ["MQTT_PASSWORD"],
+                },
+                "disabled_by": None,
+                "discovery_keys": {},
+                "subentries": [],
+                "domain": "mqtt",
+                "entry_id": uuid.uuid4().hex,
+                "minor_version": 2,
+                "version": 1,
+                "options": {
+                    "discovery": True,
+                    "discovery_prefix": "homeassistant",
+                },
+                "pref_disable_new_entities": False,
+                "pref_disable_polling": False,
+                "source": "user",
+                "title": "Mosquitto (cluster)",
+                "unique_id": None,
+            })
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(store, f, indent=2)
+            os.replace(tmp, path)
+            print("[seed-mqtt] seeded mqtt config entry -> mosquitto.mqtt.svc:1883")
+            PY
+        securityContext:
+          # /config is owned by root (HA runs root); match it so the JSON edit
+          # has write perms on .storage.
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+    containers:
+      app:
+        image:
+          repository: ghcr.io/home-assistant/home-assistant
+          # Pinned. Latest stable as of 2026-05-14. Bump deliberately via
+          # cluster-upgrade skill.
+          tag: "2026.5.1"
+        env:
+          TZ: "Europe/Amsterdam"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8123
+              # HA cold-start does sqlite init + integration discovery; give
+              # it room. Aligns with abs-v2 / calibre-web pattern.
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              failureThreshold: 6
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 8123
+              initialDelaySeconds: 20
+              periodSeconds: 15
+          startup:
+            enabled: false
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        securityContext:
+          # s6-overlay /init needs root to supervise; we DON'T drop here.
+          # Baseline PSS allows the default cap set.
+          allowPrivilegeEscalation: false
+
+# ─── Future-proofing hooks ────────────────────────────────────────────────────
+# When the user later wants multicast/SSDP discovery (Sonos, Plex, Chromecast,
+# Apple TV, etc.) OR a USB Zigbee/Z-Wave dongle (Conbee, SkyConnect, Aeotec),
+# the changes go HERE — not elsewhere in the file. Switch the ns to privileged
+# PSS in extras.yaml first, then uncomment / fill the relevant block.
+#
+# (1) hostNetwork — required for multicast/mDNS/SSDP. Trade: pod uses node's
+#     network namespace, port 8123 must be free on the node, loses k8s
+#     service-mesh networking (oauth2-proxy upstream becomes 127.0.0.1:8123).
+#     Need to also drop the kube-system dns policy to ClusterFirstWithHostNet.
+#
+# defaultPodOptions:
+#   hostNetwork: true
+#   dnsPolicy: ClusterFirstWithHostNet
+#
+# (2) USB device for Zigbee/Z-Wave — Talos needs the device exposed via the
+#     `extraMounts` config in talconfig (separately), then the pod mounts the
+#     /dev/ttyUSB* path. Easiest is a hostPath; cleaner is the smarter-devices
+#     / generic-device-plugin. Pin the pod to the node with the dongle via
+#     nodeSelector / nodeAffinity.
+#
+# controllers:
+#   main:
+#     containers:
+#       app:
+#         securityContext:
+#           privileged: true     # blunt; tightening to capabilities later
+#         volumeDevices: []      # OR hostPath via persistence: below
+#
+# persistence:
+#   zigbee-dongle:
+#     type: hostPath
+#     hostPath: /dev/serial/by-id/usb-dresden_elektronik_ConBee_II-if00
+#     hostPathType: CharDevice
+#     advancedMounts:
+#       main:
+#         app:
+#           - path: /dev/ttyACM0
+#
+# (3) Bluetooth — needs hostNetwork + /var/run/dbus + bluetoothd on the node.
+#     Talos doesn't ship dbus; this likely won't ever work without a
+#     side-car node running a normal linux distro. Out of scope.
+
+defaultPodOptions:
+  securityContext:
+    # When/if we later drop HA to non-root, set runAsUser: 1000 / runAsGroup:
+    # 1000 + flip the seed-config init container too. For now image runs as
+    # root and writes to /config as root.
+    fsGroup: 0
+    fsGroupChangePolicy: OnRootMismatch
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 8123
+        targetPort: 8123
+
+# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
+persistence:
+  # /config — HA state. sqlite home-assistant_v2.db, configuration.yaml,
+  # secrets.yaml, custom_components, blueprints, .storage/* registry files.
+  # 5Gi is comfortable for a small install; recorder history can grow this
+  # over time. This is node-local bulk storage on node 2; availability comes
+  # from the tested Restic backup rather than a distributed filesystem.
+  config:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    storageClass: local-bulk
+    advancedMounts:
+      main:
+        app:
+          - path: /config
+        seed-config:
+          - path: /config
+        install-oidc:
+          - path: /config
+        seed-mqtt:
+          - path: /config
+  # configuration.yaml seed. Mounted into the init container only; copied
+  # into /config on first boot if absent. HA's own File editor / UI is the
+  # source of truth from then on. The chart renders the ConfigMap inline
+  # from the `configMaps.seed` block below (cross-ref via `identifier`).
+  seed:
+    enabled: true
+    type: configMap
+    identifier: seed
+    advancedMounts:
+      main:
+        seed-config:
+          - path: /seed
+  # Home Lab Root CA bundle (broadcast to every ns by trust-manager). Mounted
+  # read-only into the HA app container so hass-oidc-auth's tls_ca_path can
+  # validate the auth.apps.home cert on OIDC discovery/jwks calls.
+  home-ca:
+    enabled: true
+    type: configMap
+    name: home-ca-bundle
+    advancedMounts:
+      main:
+        app:
+          - path: /etc/ssl/home-ca
+            readOnly: true
+  # Future-proofing: when the user wants to add a Zigbee dongle hostPath
+  # mount, the second `persistence:` entry goes here (see commented block
+  # above for the shape).
+
+# bjw-s app-template can render a ConfigMap inline. Define it here so the
+# seed file is in this same values file (single-file edit when changing).
+configMaps:
+  seed:
+    enabled: true
+    data:
+      configuration.yaml: |
+        # Managed by GitOps — see kubernetes/values/apps/home-assistant.yaml.
+        # Seeded once by the seed-config init container if /config is empty.
+        # After first boot, edit via HA UI / File editor — this file is NOT
+        # re-templated unless you manually rm /config/configuration.yaml.
+
+        # Default HA setup
+        default_config:
+
+        # Reverse-proxy trust — oauth2-proxy front-door sits in front of HA.
+        # use_x_forwarded_for: HA respects the X-Forwarded-For header for
+        # client IP attribution (banning, logs, etc).
+        # trusted_proxies: HA only accepts forwarded headers from the cluster
+        # pod CIDR (cilium default 10.244.0.0/16). Without this, HA refuses
+        # to honor the headers and the proxy chain fails with
+        # "X-Forwarded-For header from untrusted proxy".
+        http:
+          use_x_forwarded_for: true
+          trusted_proxies:
+            - 10.244.0.0/16    # cilium pod CIDR (cluster)
+            - 10.96.0.0/12     # service CIDR (for completeness)
+            - 127.0.0.1
+
+        # Standard HA frontend / system modules; default_config above pulls
+        # in most of them but listing explicitly keeps the seed self-doc.
+        frontend:
+        config:
+        system_health:
+        mobile_app:
+
+        # Recorder defaults to sqlite at /config/home-assistant_v2.db — fine
+        # for a starter install. Migrate to postgres later if history grows.

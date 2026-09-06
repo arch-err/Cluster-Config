@@ -1,0 +1,57 @@
+{{- if .Values.extras.hermes }}
+{{- $hermes := .Values.extras.hermes }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hermes
+  labels:
+    # restricted — oauth2-proxy runs non-root; the backend is OFF-cluster so
+    # nothing privileged is needed here.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Selectorless Service — no pod backs it; the EndpointSlice below points at the
+# off-cluster box. Named port `http`:9119 (matches the EndpointSlice port).
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-backend
+  namespace: hermes
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9119
+      targetPort: 9119
+      protocol: TCP
+---
+# Manually-managed EndpointSlice for the selectorless Service. Targets the
+# external Hermes box. The label kubernetes.io/service-name MUST equal the
+# Service name; the port name+number MUST match the Service port so the
+# endpoints resolve. conditions.ready:true so kube-proxy/cilium programs it.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: hermes-backend
+  namespace: hermes
+  labels:
+    kubernetes.io/service-name: hermes-backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+addressType: IPv4
+endpoints:
+  - addresses:
+      - {{ $hermes.address | default "10.10.10.160" }}
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: {{ $hermes.port | default 9119 }}
+    protocol: TCP
+{{- end }}
