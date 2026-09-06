@@ -23,7 +23,7 @@ components:
 
 Create the matching `kubernetes/values/apps/example.yaml` using that chart's schema. Prefer explicit chart revisions. Set `route.gateway` explicitly to `apps` or `infra`; the template's historical default, `internal`, is not one of the currently configured gateways.
 
-The route template also supports `route.grpc` and `route.dashboard`. Dashboard visibility defaults to the apps gateway; infra routes need an explicit dashboard opt-in. Homepage admin discovery has an outstanding fix (PR #4); see [repository state](repository-state.md).
+The route template also supports `route.grpc` and `route.dashboard`. Dashboard visibility defaults to the apps gateway; infra routes need an explicit dashboard opt-in. The proposed Homepage admin discovery fix (PR #4) was discarded; existing behavior is unchanged. See [repository state](repository-state.md).
 
 ## Storage
 

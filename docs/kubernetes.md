@@ -40,7 +40,7 @@ Components may set `syncWave`; otherwise their Application defaults to wave `0`.
 
 Several Gateway API differences are ignored at the whole-spec level, and child Applications use `RespectIgnoreDifferences=true`. A green sync status alone is therefore insufficient evidence that routes match Git; inspect rendered and live routing resources when changing them.
 
-Fresh bootstrap ordering remains a known limitation: the CNPG Cluster template renders at wave `0`, while the n8n child Application is at wave `3`. PR #6 proposes a namespace-ordering fix; it is not included in this documentation cleanup.
+Fresh bootstrap ordering remains a known limitation: the CNPG Cluster template renders at wave `0`, while the n8n child Application is at wave `3`. PR #6 proposed a namespace-ordering fix but was closed without merging by user decision; the existing behavior is unchanged.
 
 ## Bootstrap status
 
