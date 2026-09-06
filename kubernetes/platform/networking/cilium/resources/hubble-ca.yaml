@@ -1,0 +1,10 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: hubble-ca
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  ca:
+    secretName: cilium-ca

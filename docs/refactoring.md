@@ -71,6 +71,12 @@ The earlier baseline above is historical: kube-state-metrics drift and Loki's co
 
 J approved pinning the ArgoCD chart to `10.4.2`, matching the chart labels on live resources. The previously omitted version rendered as `*` and resolved `10.8.1`, producing metadata and pod-template differences despite unchanged container images. The service declaration now pins `10.4.2`; the live Application's chart source is updated directly, with auto-sync disabled. This is a source-selection change, not authorization for an ArgoCD workload sync or restart. The earlier wildcard baseline above is historical. After the source change, a hard-refresh CLI comparison returned zero diff. All Argo workload specifications and identities remained unchanged; only the approved Application chart revision changed, with no sync operation. `just check` passed.
 
+## Approved Hubble cert-manager migration (2026-09-06)
+
+J approved moving Hubble certificate management to the existing cert-manager, including necessary ownership changes and leaf certificate rotation. The existing Cilium CA and Secret names are preserved. The encrypted CA is managed through `infra-secrets`, a namespaced Issuer through `infra`, and two chart-generated Certificates through `cilium`. Only these selected resources are synchronized; the old direct Argo tracking on the three Secrets is removed as ownership transfers, without deleting or pruning the Secrets. Auto-sync remains disabled.
+
+Local comparison of Cilium chart `1.19.7` before/after the change found no changes to shared resources or pod templates: three generated Secret declarations are replaced by two Certificate declarations. Server-side dry-run accepted the SopsSecret, Issuer, and Certificates. See [Hubble TLS ownership and recovery](../kubernetes/platform/networking/cilium/README.md).
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
