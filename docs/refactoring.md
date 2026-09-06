@@ -57,6 +57,16 @@ The post-switch hard-refresh comparison against `main` returned the same per-App
 
 Private baseline snapshots, raw diffs, and verification records are kept outside Git under `~/.local/state/cluster-config/refactor-P0x6LU2j/` with restricted permissions. They can contain sensitive configuration and must not be copied into public reports. The approved service layout is active. All 65 live Application source pointers use the new paths; obsolete compatibility sources have been removed.
 
+## Approved Loki and kube-state-metrics restart (2026-09-06)
+
+J explicitly authorized restarting/rebuilding **Loki and kube-state-metrics only**, including loss of their old monitoring data. Prometheus, Grafana, and all other blockers remain outside that exception.
+
+Both workloads were scaled to zero while Git requested one replica. Loki's live StatefulSet still used the immutable `kadalu.replica2` claim template; desired state already selected `local-bulk`. No Loki pod or PVC existed in `monitoring`. Server-side dry-run confirmed the immutable-field conflict. The stopped Loki StatefulSet was deleted and recreated through a resource-scoped Argo sync, provisioning a fresh 30 GiB `local-bulk` PVC. KSM's Deployment was synced to one replica. No other resources were selected and pruning was not requested.
+
+Both syncs used Git commit `ad3d106344012377a38a600c5953de96ccfc542d`, Loki chart `6.21.0`, and KSM chart `5.27.1`; no software versions changed. Both operations succeeded and subsequent hard-refresh CLI comparisons returned zero diff. Loki's previous CLI comparison error no longer reproduces. KSM node metrics are arriving in Prometheus for all three nodes. Loki is ready and a log query returned newly ingested log entries. A full workload check confirmed that only Loki and KSM specifications/identities changed; all 65 Application specs and pending-deletion guards remain unchanged. Automatic sync remains disabled.
+
+The earlier baseline above is historical: kube-state-metrics drift and Loki's comparison error have now been resolved under this explicit exception. Other baseline differences and pending-deletion guards remain in place. Protected verification material is under `~/.local/state/cluster-config/blocker-review/`.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
