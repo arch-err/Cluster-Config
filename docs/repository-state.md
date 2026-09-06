@@ -24,9 +24,9 @@ The user chose to discard both fixes and retain the public-isolation PoC. PRs #4
 
 ## GitOps cutover
 
-**Updated constraint:** the user now requires disabling auto-sync before switching live sources and preserving zero unapproved runtime diffs. Follow [the refactoring protocol](refactoring.md); it supersedes the earlier cutover sequence below. The live freeze is verified; source cutover and the baseline diff report are tracked in that protocol.
+**Updated constraint:** the user now requires disabling auto-sync before switching live sources and preserving zero unapproved runtime diffs. Follow [the refactoring protocol](refactoring.md); it supersedes the earlier cutover sequence below. The live freeze and Git-source cutover to `main` are verified; the baseline diff report is tracked in that protocol.
 
-The archive tag and promoted `main` have been published. The live cutover remains pending; publishing the repository did not change the existing `v2` branch.
+The archive tag and promoted `main` have been published. The live Git sources now point to `main`, with all 65 Applications held in manual-sync mode. No workload sync was performed. The `v2` branch remains unchanged and is still referenced by deployed Grafana/Homepage consumers.
 
 The maintained ArgoCD source manifests point to `main`: both platform value sets and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs retain `v2` to match the live runtime configuration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
 

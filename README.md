@@ -32,4 +32,4 @@ Use `just --list` to discover commands and `just check` for local chart renderin
 
 For cluster commands, load `.envrc` with your normal direnv workflow or `source .envrc`. It selects the local generated kubeconfig and the age key path; neither is included in Git. See [secrets](docs/secrets.md) and [Talos](docs/talos.md) for prerequisites.
 
-This cleanup changes documentation and repository branch references, **not software versions**. The running cluster was reported to follow `v2`; switching its root Applications is a separate cutover described in [repository state](docs/repository-state.md). A successful local render does not certify a clean rebuild or live health.
+This cleanup changes documentation and repository branch references, **not software versions**. The live ArgoCD Git sources now follow `main` with auto-sync disabled for the [state-preserving refactor](docs/refactoring.md). Existing workload drift remains blocked; no workload sync was performed during the switch. A successful local render does not certify a clean rebuild or live health.
