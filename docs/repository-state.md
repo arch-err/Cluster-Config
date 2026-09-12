@@ -40,7 +40,7 @@ Rollback requires checking both root and child source paths and revisions agains
 | --- | --- |
 | Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is `1.19.x`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
 | Backup | Inventory is stale; `--quiesce` never calls the scale helpers. See [backup status](backup-manual.md). |
-| Storage | Disabled services and the database template retain Kadalu references. Review before reuse; preserve data independently of code cleanup. |
+| Storage | Kadalu deployment retired; the database template now defaults to local-bulk. Two released n8n/Home Assistant PV records and historical media-storage comments remain for recovery context. |
 | n8n ordering | Discarded PR #6 proposed wave `-1` instead of `3`. Current behavior is unchanged; fresh bootstrap ordering remains unverified. |
 | Homepage | PR #4 was discarded. Existing discovery behavior is unchanged; no fix is pending. |
 | Identity | Grafana checks `Administrators`, while other declarations use lowercase group names. Verify actual claims before editing policy. |
