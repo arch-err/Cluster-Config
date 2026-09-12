@@ -85,6 +85,12 @@ Local render comparison found exactly one removed chart Secret and the removal o
 
 Only the Grafana Deployment checksum changed across the workload-spec audit; other workloads, Application specs/manual-sync policies, and pending-deletion guards were preserved. Pocket ID settings, database configuration, and dashboard sources were unchanged. See [credential recovery and rotation](../kubernetes/platform/observability/grafana/README.md). Private verification records are under `~/.local/state/cluster-config/grafana-admin/`.
 
+## Agent Vault retirement (2026-09-12)
+
+J explicitly approved retiring Agent Vault. Its namespace was already absent and no PV referenced that namespace. The disabled service declaration, values, encrypted master-password manifest, Homepage tile, dedicated gateway passthrough listener, and backup-script entry are removed. No Agent Vault TLSRoute remained. Historical backups and local migration notes are not removed.
+
+The stale Application was already marked for deletion on 2026-08-31. Completing this specific retirement releases its Argo deletion finalizer only after confirming its namespace and volume claims are gone; other pending-deletion Applications remain frozen. No parent bulk-sync is authorized by this retirement.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).

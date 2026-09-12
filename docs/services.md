@@ -31,7 +31,6 @@ This lists desired source configuration, not live health. Directory placement gr
 | [platform/storage/local-bulk](../kubernetes/platform/storage/local-bulk/service.yaml) | `infra` | yes | `local-bulk` |
 | [platform/storage/local-path-provisioner](../kubernetes/platform/storage/local-path-provisioner/service.yaml) | `infra` | yes | `local-path-provisioner` |
 | [platform/storage/shared-media](../kubernetes/platform/storage/shared-media/service.yaml) | `apps` | no | Supporting resources/settings only |
-| [services/agent-vault](../kubernetes/services/agent-vault/service.yaml) | `apps` | no | `agent-vault` |
 | [services/audiobookshelf](../kubernetes/services/audiobookshelf/service.yaml) | `apps` | yes | `audiobookshelf-v2` |
 | [services/booklore](../kubernetes/services/booklore/service.yaml) | `apps` | yes | `booklore`, `booklore-oauth2` |
 | [services/calibre-web](../kubernetes/services/calibre-web/service.yaml) | `apps` | yes | `calibre-web`, `calibre-web-oauth2` |

@@ -297,7 +297,6 @@ run_valuable() {
 
     # Personal tools.
     backup_pvc excalidash       excalidash                   excalidash
-    backup_pvc agent-vault      agent-vault-data             agent-vault
     backup_pvc metube           metube                       metube-config
     backup_pvc ntfy             ntfy-data                    ntfy
 
