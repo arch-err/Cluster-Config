@@ -19,7 +19,7 @@ Local storage does not fail over to another node with its data. Backups provide 
 
 Irreplaceable user data must have a retained PV and a verified backup/restore procedure. `Retain` prevents automatic backend deletion when a claim is released; it does not protect against disk failure, application deletion of files, or manual cleanup.
 
-For new valuable persistent data, choose retention declaratively. Do not rely on an after-deployment patch as the normal workflow. The database template defaults to `local-bulk`; explicitly select the current intended class in every new `db.storage` block. Two released legacy Kadalu PV records for n8n and Home Assistant remain as recovery metadata; they are not active claims and their underlying disks have not been erased.
+For new valuable persistent data, choose retention declaratively. Do not rely on an after-deployment patch as the normal workflow. The database template defaults to `local-bulk`; explicitly select the current intended class in every new `db.storage` block. The two released legacy Kadalu PV records for n8n and Home Assistant were removed by explicit approval; their current local-bulk replacements and Disk C backups are preserved. See [storage review](storage-review.md).
 
 Changing a StorageClass definition does not migrate existing bound PVCs or prove their PV reclaim policy. Inspect the actual objects:
 

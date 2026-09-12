@@ -109,6 +109,12 @@ J authorized pruning the OIDC Jobs while requesting a cautious review of remaini
 
 The [storage review](storage-review.md) records the 32 bound claims, four released PVs, and shared-library alias. No active PVC uses Kadalu. Storage differences are tracking/sync-wave metadata; Grafana's database CPU quantity has an equivalent formatting difference. Storage was not mutated or pruned. Post-publication hard-refresh comparisons contain no OIDC Job differences. All 36 PV and 32 PVC specifications and identities were rechecked unchanged, with auto-sync still disabled and no operations running. `infra` now differs only on the equivalent Grafana database CPU quantity; `apps` also retains separate Syncthing and Home Assistant mDNS differences outside this review.
 
+## Approved storage metadata cleanup (2026-09-12)
+
+J confirmed August 30 Home Assistant/n8n backups on Disk C and approved removing the old released HA/n8n Kadalu PV records, old released Grafana PV, smoke-test PV, and unused BookLore Calibre claim/PV alias. Current replacement volumes, Disk C backups, and Calibre-Web's shared library must remain. The [storage review](storage-review.md) records exact object names and supersedes the earlier recovery holds above.
+
+All five targeted PVs were verified `Retain`; the BookLore alias had no pod or controller consumers. The obsolete alias declarations were removed from Git, with canonical render comparison proving no other resource changed. The unused claim was deleted first, followed by the five PV API records using UID/resource-version preconditions. No protection finalizers were removed and no storage-file or backup operations were performed. All 31 remaining PVs and 31 PVCs are Bound and retain identical specs/identities. All workload and Application specs are unchanged; auto-sync remains off and no sync operation ran. `just check` passed.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
