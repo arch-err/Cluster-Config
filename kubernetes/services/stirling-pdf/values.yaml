@@ -22,12 +22,18 @@ service:
   externalTrafficPolicy: ""
   externalPort: 8080
 
-# Small writable PVC for tessdata, custom configs, scratch
+# Persist application configuration; uploaded files and bundled OCR assets are ephemeral.
 persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
   storageClass: local-bulk
+
+# This chart declares the PVC volume but requires an explicit mount.
+deployment:
+  extraVolumeMounts:
+    - name: storage-volume
+      mountPath: /configs
 
 # NOTE: no securityContext / containerSecurityContext overrides.
 # The image's entrypoint must start as root to set up tessdata and the
