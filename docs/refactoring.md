@@ -107,7 +107,7 @@ There are 47 Applications, no pending deletions or operations, and auto-sync is 
 
 J authorized pruning the OIDC Jobs while requesting a cautious review of remaining migration storage. Live inspection found no remaining OIDC bootstrap Jobs: TTL cleanup had already deleted them. The source still declared 13 Jobs, causing missing-resource diffs and potential re-execution on root sync. Job rendering is now explicitly opt-in with `oidc.bootstrapJob: true`. Local canonical comparison confirms only those 13 Job declarations are removed; all client settings, scripts, RBAC, Secrets, and workload resources remain unchanged. Tests cover default-off, explicit-on, and explicit-off behavior. No OIDC API call, credential rotation, or Job execution was performed.
 
-The [storage review](storage-review.md) records the 32 bound claims, four released PVs, and shared-library alias. No active PVC uses Kadalu. Storage differences are tracking/sync-wave metadata; Grafana's database CPU quantity has an equivalent formatting difference. Storage was not mutated or pruned.
+The [storage review](storage-review.md) records the 32 bound claims, four released PVs, and shared-library alias. No active PVC uses Kadalu. Storage differences are tracking/sync-wave metadata; Grafana's database CPU quantity has an equivalent formatting difference. Storage was not mutated or pruned. Post-publication hard-refresh comparisons contain no OIDC Job differences. All 36 PV and 32 PVC specifications and identities were rechecked unchanged, with auto-sync still disabled and no operations running. `infra` now differs only on the equivalent Grafana database CPU quantity; `apps` also retains separate Syncthing and Home Assistant mDNS differences outside this review.
 
 ## Approved source layout
 
