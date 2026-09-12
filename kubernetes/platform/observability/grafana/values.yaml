@@ -22,12 +22,12 @@ envValueFrom:
       name: grafana-db-app
       key: password
 
-# Admin: chart auto-generates random 40-char password if adminPassword is unset.
-# Retrieve with:
-#   kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
-# On re-install, argocd preserves the existing Secret (helm only creates if missing),
-# so the password persists across syncs unless the Secret is manually deleted.
-adminUser: admin
+# Stable credentials managed by secrets/grafana-admin.yaml.
+# Reset the database password explicitly when rotating this Secret; see README.md.
+admin:
+  existingSecret: grafana
+  userKey: admin-user
+  passwordKey: admin-password
 
 # Disable the dashboard ConfigMap sidecar — we use git-sync instead
 sidecar:
