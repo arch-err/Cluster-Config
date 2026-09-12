@@ -27,11 +27,8 @@
 # NETWORK is the only supported mode for network/non-local storage:
 # "metadata is stored in the database only and your files are never modified."
 #
-# The old `/books` mount (bridged `booklore-calibre-library` PV pointing at
-# calibre-web's subvol) was removed. The PV + PVC declarations in extras.yaml
-# are left in place (Retain reclaim, no data on the booklore side anyway —
-# was read-only into calibre's tree) for now; the PVC becomes orphaned-but-
-# bound. Cleanup deferred — no destructive ops without explicit approval.
+# The obsolete read-only /books claim/PV alias was retired on 2026-09-12.
+# Calibre-Web still owns and uses the shared Calibre directory; its data is retained.
 #
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 # OIDC via pocket-id, fronted by an oauth2-proxy sidecar release

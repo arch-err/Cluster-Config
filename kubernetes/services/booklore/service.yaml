@@ -45,6 +45,4 @@ components:
     valuesFile: oauth2-proxy.values.yaml
 extras:
   booklore:
-    librarySize: 50Gi
     mariadbSize: 5Gi
-    calibreLibrarySubvolPath: subvol/bc/1c/pvc-152292a5-bf6b-4235-bb85-04f864b1c7d1

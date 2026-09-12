@@ -11,53 +11,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
-# Bridged kadalu PV — points at the same subvol the calibre-web
-# `calibre-library` PVC is bound to. Kadalu's static CSI accepts multiple
-# PVs per subvol so this co-exists with the dynamically-provisioned PV
-# already attached to calibre-web. RWX so the same backing data can be
-# read by both apps' pods on any node.
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: booklore-calibre-library
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-spec:
-  capacity:
-    storage: {{ .Values.extras.booklore.librarySize | default "50Gi" }}
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: ""
-  local:
-    path: /var/mnt/bulk/calibre-library
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values: [node-2]
-  claimRef:
-    name: booklore-calibre-library
-    namespace: booklore
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: booklore-calibre-library
-  namespace: booklore
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: ""
-  resources:
-    requests:
-      storage: {{ .Values.extras.booklore.librarySize | default "50Gi" }}
-  volumeName: booklore-calibre-library
----
 # Booklore app-data PVC — booklore's own state (settings, processed files;
 # the metadata DB lives in MariaDB below, not here). CRITICAL — Retain SC.
 # Pre-rendered here instead of chart-provisioned because bjw-s app-template
