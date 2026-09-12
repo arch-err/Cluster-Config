@@ -42,10 +42,20 @@ yq -i '.enabled = true' "$fixture/services/example/service.yaml"
 [[ $(render_count apps resources) == 2 ]]
 [[ $(render_count infra resources) == 0 ]]
 [[ $(render_count infra secrets) == 0 ]]
+yq -i '.components[0].oidc = {"enabled": true}' "$fixture/services/example/service.yaml"
+job_count() {
+    helm template fixture "$fixture" --set owner=apps \
+        | yq eval-all '[select(.kind == "Job")] | length'
+}
+[[ $(job_count) == 0 ]]
+yq -i '.components[0].oidc.bootstrapJob = true' "$fixture/services/example/service.yaml"
+[[ $(job_count) == 1 ]]
+yq -i '.components[0].oidc.bootstrapJob = false' "$fixture/services/example/service.yaml"
+[[ $(job_count) == 0 ]]
 mv "$fixture/services/example/values.yaml" "$fixture/services/example/missing.yaml"
 if helm template fixture "$fixture" --set owner=apps > /dev/null 2> "$fixture/error"; then
     echo 'Missing values file unexpectedly passed validation' >&2
     exit 1
 fi
 grep -q 'values file missing or empty' "$fixture/error"
-echo 'Service enablement, secret retention, owner selection, and missing-file checks passed.'
+echo 'Service enablement, secret retention, owner selection, explicit OIDC execution, and missing-file checks passed.'

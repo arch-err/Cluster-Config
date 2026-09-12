@@ -103,6 +103,12 @@ Completed verification: all 19 stale Application records are gone; ntfy and Stir
 
 There are 47 Applications, no pending deletions or operations, and auto-sync is disabled everywhere. Workload comparison found only the new ntfy/Stirling Deployments and the approved Homepage checksum change; all other workload specs and identities are unchanged. Both n8n/Home Assistant legacy PV records are unchanged. The remaining `apps`/`infra` root differences concern retained storage/resources and OIDC jobs outside this retirement. `just check` passed. Private audit records are under `~/.local/state/cluster-config/retire-batch/`.
 
+## OIDC Job cleanup and storage review (2026-09-12)
+
+J authorized pruning the OIDC Jobs while requesting a cautious review of remaining migration storage. Live inspection found no remaining OIDC bootstrap Jobs: TTL cleanup had already deleted them. The source still declared 13 Jobs, causing missing-resource diffs and potential re-execution on root sync. Job rendering is now explicitly opt-in with `oidc.bootstrapJob: true`. Local canonical comparison confirms only those 13 Job declarations are removed; all client settings, scripts, RBAC, Secrets, and workload resources remain unchanged. Tests cover default-off, explicit-on, and explicit-off behavior. No OIDC API call, credential rotation, or Job execution was performed.
+
+The [storage review](storage-review.md) records the 32 bound claims, four released PVs, and shared-library alias. No active PVC uses Kadalu. Storage differences are tracking/sync-wave metadata; Grafana's database CPU quantity has an equivalent formatting difference. Storage was not mutated or pruned.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).

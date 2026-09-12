@@ -17,3 +17,5 @@ The documents describe committed configuration, not a live cluster inventory. Th
 | [Manual setup](manual-setup.md) | Pocket ID, ArgoCD, Jellyfin, and CoreDNS notes |
 
 Keep operational details next to the YAML that owns them. Link to configuration instead of copying large manifests into documentation; update this index when adding a runbook.
+
+- [Storage migration review](storage-review.md): current claims, recovery holds, and remaining metadata drift.

@@ -18,9 +18,9 @@ For every component with `oidc.enabled: true`, this template renders:
       * Role             `oidc-bootstrap-<app>`  (write only the one Secret)
       * RoleBinding      `oidc-bootstrap-<app>`  (binds the cross-ns SA)
 
-The Job name embeds a sha256 hash of the OIDC inputs so that ArgoCD recreates
-it whenever the spec changes (idempotent re-run). `ttlSecondsAfterFinished`
-auto-cleans the completed Job; ArgoCD prunes stale ones.
+Job execution is opt-in via oidc.bootstrapJob: true. After successful bootstrap,
+remove that flag so TTL cleanup does not leave a Job continually missing in GitOps.
+The Job name embeds a hash of the OIDC inputs for deliberate re-provisioning.
 
 The pocket-id admin API token is supplied via a manually created Secret
 `pocket-id-api-token` in the `pocket-id` namespace (key: POCKET_ID_API_TOKEN).
@@ -339,11 +339,15 @@ data:
     fi
 
     echo "[oidc-bootstrap] done — ${APP_NS}/${SECRET_NAME} populated"
+{{- if and (hasKey $component.oidc "bootstrapJob") (not (kindIs "bool" $component.oidc.bootstrapJob)) }}
+{{- fail (printf "%s: oidc.bootstrapJob must be a boolean" $app) }}
+{{- end }}
+{{- if $component.oidc.bootstrapJob }}
 ---
 # ─────────── Job (in pocket-id ns) ───────────
 # Job name embeds a hash of the OIDC spec → ArgoCD recreates it on changes,
-# leaves it untouched on no-op syncs. ttlSecondsAfterFinished cleans up
-# completed Jobs after 10 min so the pocket-id ns doesn't accumulate cruft.
+# ttlSecondsAfterFinished cleans up completed Jobs after 10 min. Remove
+# bootstrapJob after successful provisioning to prevent recreation on later syncs.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -450,6 +454,7 @@ spec:
         - name: home
           emptyDir:
             sizeLimit: 16Mi
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

@@ -70,3 +70,7 @@ Before re-enabling a retained service, review its storage, namespaces, secrets, 
 ## Review
 
 Run `just check`, validate the selected upstream chart, inspect rendered resource identities and ownership, and update the [service inventory](services.md) and service README. During this refactor, follow the [zero-diff gate](refactoring.md); adding or re-enabling a service is a runtime change requiring a separate explicit exception before synchronization.
+
+## One-time OIDC provisioning
+
+`oidc.enabled: true` retains the client configuration, bootstrap script, and scoped RBAC. Job execution is separately opt-in: set `oidc.bootstrapJob: true` only for a reviewed provisioning or recovery operation. Sync that specific Job, verify the client and application Secret, then remove the flag. The Job is TTL-cleaned after completion; leaving it declared would otherwise make a later root sync recreate it. Existing clients do not need a continuously declared bootstrap Job.
