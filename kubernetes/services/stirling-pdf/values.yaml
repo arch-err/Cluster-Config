@@ -47,6 +47,14 @@ resources:
   limits:
     memory: 2Gi
 
+# The pinned chart has no startup probe; allow Java/LibreOffice to finish booting.
+probes:
+  liveness:
+    initialDelaySeconds: 180
+    timeoutSeconds: 5
+  readiness:
+    timeoutSeconds: 5
+
 # Branding + sane defaults; login disabled (single-user homelab, behind LAN)
 envs:
   - name: UI_APPNAME
