@@ -89,7 +89,7 @@ Only the Grafana Deployment checksum changed across the workload-spec audit; oth
 
 J explicitly approved retiring Agent Vault. Its namespace was already absent and no PV referenced that namespace. The disabled service declaration, values, encrypted master-password manifest, Homepage tile, dedicated gateway passthrough listener, and backup-script entry are removed. No Agent Vault TLSRoute remained. Historical backups and local migration notes are not removed.
 
-The stale Application was already marked for deletion on 2026-08-31. Completing this specific retirement releases its Argo deletion finalizer only after confirming its namespace and volume claims are gone; other pending-deletion Applications remain frozen. No parent bulk-sync is authorized by this retirement.
+The stale Application was already marked for deletion on 2026-08-31. Completing this specific retirement releases its Argo deletion finalizer only after confirming its namespace and volume claims are gone; other pending-deletion Applications remain frozen. No parent bulk-sync is authorized by this retirement. Retirement is complete: the Application is gone, the gateway changed only by removal of its dedicated listener, and Homepage received only its tile/config checksum change via a scoped sync. Homepage rolled out successfully and returned zero hard-refresh diff. All 64 remaining Application specs and deletion guards are unchanged; 19 Applications remain pending deletion. `just check` passed.
 
 ## Approved source layout
 
