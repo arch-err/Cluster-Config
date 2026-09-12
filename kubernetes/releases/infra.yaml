@@ -27,13 +27,5 @@ external:
       hostname: app.happy.home
     - name: claude-notify
       hostname: claude-notify.home
-    - name: matrix
-      hostname: matrix.home
     - name: syncthing
       hostname: syncthing.home
-kadalu:
-  device: /dev/sda
-  nodes:
-    primary: node-1
-    secondary: node-2
-    tiebreaker: node-3

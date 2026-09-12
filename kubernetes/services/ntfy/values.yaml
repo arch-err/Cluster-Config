@@ -10,13 +10,6 @@ image:
   repository: docker.io/binwiederhier/ntfy
   tag: "v2.22.0"
 
-# Incident restart: topic DB operations began timing out while /v1/health stayed
-# healthy. Changing this annotation safely recreates the single pod without
-# touching its PVC, allowing us to distinguish a stale process/lock from a
-# persistent Kadalu/SQLite problem.
-podAnnotations:
-  ops.home/restarted-at: "2026-07-10T11:16:00+02:00"
-
 # ntfy server config
 ntfy:
   baseUrl: "https://ntfy.apps.home"
@@ -31,10 +24,10 @@ ingress:
 gateway:
   enabled: false
 
-# SQLite db on kadalu.replica2 (cluster default storageClass)
-# RECLAIM: PVs patched to Retain on 2026-05-17 — see docs/pvc-reclaim-policy.md
+# Fresh SQLite storage on the current local provisioner.
 persistence:
   enabled: true
+  storageClass: local-bulk
   size: 5Gi
   accessModes:
     - ReadWriteOnce

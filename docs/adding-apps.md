@@ -43,7 +43,7 @@ db:
     storageClass: local-bulk
 ```
 
-The CNPG operator and namespace must exist before the database can reconcile. Wire the `<component>-db-app` Secret into the application's values. Do not inherit the database renderer's legacy Kadalu default for new data. See [storage](pvc-reclaim-policy.md).
+The CNPG operator and namespace must exist before the database can reconcile. Wire the `<component>-db-app` Secret into the application's values. Select storage explicitly; the database renderer defaults to `local-bulk`. See [storage](pvc-reclaim-policy.md).
 
 ## Identity and secrets
 

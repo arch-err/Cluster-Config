@@ -233,7 +233,6 @@ run_critical() {
     log "=== TIER: CRITICAL ==="
 
     # Identity / secrets — losing these locks the user out of everything.
-    backup_pvc vaultwarden      vaultwarden                  vaultwarden
     backup_pvc pocket-id        pocket-id-data-pocket-id-0   pocket-id
 
     # Home automation — non-trivial config + automations.
@@ -285,7 +284,6 @@ run_valuable() {
     # arr stack — configs only (media is on the SKIP-tier shared volume).
     backup_pvc arr              readarr                      readarr-config
     backup_pvc prowlarr         prowlarr                     prowlarr-config
-    backup_pvc qbittorrent      qbittorrent                  qbittorrent-config
 
     # Audio + video player state.
     backup_pvc navidrome        navidrome                    navidrome-config
@@ -301,7 +299,6 @@ run_valuable() {
     backup_pvc ntfy             ntfy-data                    ntfy
 
     # Communication — synapse sqlite + room history.
-    backup_pvc matrix           matrix-synapse               matrix-synapse
 
     # Observability — dashboards + alerting rules (NOT prometheus tsdb or
     # loki chunks; those are regenerable from current state).

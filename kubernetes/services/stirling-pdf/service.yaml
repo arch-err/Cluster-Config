@@ -1,5 +1,5 @@
 owner: apps
-enabled: false
+enabled: true
 components:
   - name: stirling-pdf
     namespace: stirling-pdf

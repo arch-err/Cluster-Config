@@ -101,10 +101,6 @@ config:
             href: https://auth.apps.home
             description: OIDC identity provider
             icon: pocket-id.png
-        - Vaultwarden:
-            href: https://vaultwarden.apps.home
-            description: Password manager
-            icon: vaultwarden.svg
 
     - Media:
         - Jellyfin:
@@ -135,10 +131,6 @@ config:
             href: https://calibre.apps.home
             description: Ebook reader & catalogue
             icon: calibre-web.svg
-        - qBittorrent:
-            href: https://qbittorrent.infra.home
-            description: Torrent client
-            icon: qbittorrent.png
 
     - Docs & Notes:
         - Papra:
@@ -169,14 +161,6 @@ config:
             icon: stirling-pdf.png
 
     - Comms:
-        - Matrix:
-            href: https://matrix.apps.home
-            description: Matrix homeserver
-            icon: matrix.svg
-        - Hookshot:
-            href: https://hookshot.apps.home
-            description: Matrix bridge / webhooks
-            icon: mdi-bridge
         - ntfy:
             href: https://ntfy.apps.home
             description: Push notifications
@@ -187,10 +171,6 @@ config:
             href: https://ha.apps.home
             description: Home automation
             icon: home-assistant.svg
-        - Zigbee2MQTT:
-            href: https://zigbee2mqtt.infra.home
-            description: Zigbee device gateway
-            icon: zigbee2mqtt.png
 
   bookmarks:
     - Observability:

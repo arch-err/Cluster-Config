@@ -41,7 +41,7 @@ The root value files in `kubernetes/releases/` select `owner` and either `render
 
 Application names, Helm release names, namespaces, resource identities, chart/image versions, and root ownership stay unchanged. Moving a service under `platform/` does not transfer it between `apps` and `infra`. Both old root Applications and both secret roots remain in use.
 
-The database renderer retains its historical default StorageClass; new declarations should select storage explicitly. Runtime behavior changes, ownership transfers, re-enablement, and policy changes are separate work subject to the [zero-diff rule](refactoring.md).
+The database renderer defaults to `local-bulk`; new declarations should select storage explicitly. Runtime behavior changes, ownership transfers, re-enablement, and policy changes are separate work subject to the [zero-diff rule](refactoring.md).
 
 ## Validation
 

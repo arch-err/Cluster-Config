@@ -23,7 +23,7 @@ Schema (under any component in apps.yaml / infra.yaml):
     version: "16"                              # major (default "16")
     storage:
       size: 20Gi                               # required when enabled
-      storageClass: kadalu.replica2-retain     # default kadalu.replica2-retain
+      storageClass: local-bulk     # default local-bulk
     instances: 1                               # default 1
     resources:                                 # optional override
       requests: { cpu: 200m, memory: 512Mi }
@@ -60,7 +60,7 @@ The `<cluster-name>-app` Secret contains:
 {{- fail (printf "component %s: db.enabled=true requires db.storage.size" $app) }}
 {{- end }}
 {{- $storageSize := $component.db.storage.size }}
-{{- $storageClass := default "kadalu.replica2-retain" $component.db.storage.storageClass }}
+{{- $storageClass := default "local-bulk" $component.db.storage.storageClass }}
 {{- /* Image pin — current cnpg-recommended postgres image catalog entries by
        major version. Pinned by digest-less tag for readability; upgrade by
        bumping these strings (verify against cnpg's ClusterImageCatalog). */}}

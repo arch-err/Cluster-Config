@@ -27,15 +27,15 @@ persistence:
   enabled: true
   accessMode: ReadWriteOnce
   size: 2Gi
-  # storageClass empty → cluster default (kadalu.replica2)
+  storageClass: local-bulk
 
 # NOTE: no securityContext / containerSecurityContext overrides.
 # The image's entrypoint must start as root to set up tessdata and the
 # /usr/local/bin/diagnostics symlinks before dropping to uid 1000 (the
 # bundled stirling-pdf user) internally. We rely on the namespace's
-# baseline PSS label (set in platform/templates/extras.yaml) plus the
+# baseline PSS label (set in resources/stirling-pdf.yaml) plus the
 # image's own privilege-drop rather than a forced runAsNonRoot pod-spec.
-# fsGroup still useful so the kadalu PVC is group-writable for uid 1000.
+# fsGroup still useful so the PVC is group-writable for uid 1000.
 securityContext:
   enabled: true
   fsGroup: 1000
