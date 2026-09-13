@@ -1,6 +1,6 @@
 # Repository state and branch migration
 
-Reviewed 2026-09-06. Scope: align repository organization and documentation with the `v2` production baseline. Software versions, application enablement, storage resources, and access policy are not upgraded or redesigned here.
+Reviewed 2026-09-13. Scope: align repository organization and documentation with the `v2` production baseline, with explicitly approved runtime exceptions recorded in [the refactoring protocol](refactoring.md). Software upgrades remain separately scoped.
 
 ## History and archive
 
@@ -26,11 +26,11 @@ The user chose to discard both fixes and retain the public-isolation PoC. PRs #4
 
 **Updated constraint:** the user now requires disabling auto-sync before switching live sources and preserving zero unapproved runtime diffs. Follow [the refactoring protocol](refactoring.md); it supersedes the earlier cutover sequence below. The live freeze and Git-source cutover to `main` are verified; the baseline diff report is tracked in that protocol.
 
-The archive tag and promoted `main` have been published. The live Git sources now point to `main`, with all 65 Applications held in manual-sync mode. No workload sync was performed. The `v2` branch remains unchanged and is still referenced by deployed Grafana/Homepage consumers.
+The archive tag and promoted `main` have been published. All 47 remaining Applications use `main` for their Git sources and have auto-sync explicitly disabled, with no pending Application deletions or operations. After the approved cleanup, all 47 return zero hard-refresh diff under the existing comparison rules. The `v2` branch remains unchanged and is still referenced by deployed Grafana/Homepage consumers.
 
 The maintained ArgoCD source manifests point to `main`: the source chart defaults and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs retain `v2` to match the live runtime configuration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
 
-The freeze and Git-source cutover are complete. Source layout migration follows the refactoring protocol using direct Application source-pointer edits, with automatic sync disabled. Keep `v2` until its running dashboard and asset consumers are explicitly migrated and verified; that runtime change is outside this cleanup.
+The freeze, Git-source cutover, and source layout migration are complete. Keep `v2` until its running dashboard and asset consumers are explicitly migrated and verified; that runtime change is outside this cleanup.
 
 Rollback requires checking both root and child source paths and revisions against the captured baseline. Never use the unrelated legacy-main archive as the production rollback target, or sync roots just to propagate a pointer change.
 
@@ -41,6 +41,7 @@ Rollback requires checking both root and child source paths and revisions agains
 | Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is `1.19.x`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
 | Backup | Inventory is stale; `--quiesce` never calls the scale helpers. See [backup status](backup-manual.md). |
 | Storage | Kadalu deployment retired; the database template now defaults to local-bulk. Obsolete released PV records were removed by explicit approval; current application storage and Disk C backups remain preserved. |
+| Pending PVC deletion | Excalidash's claim and `n8n/n8n-db-1` retain August 31 deletion requests and PVC protection finalizers. They remain Bound; review before disrupting consumers. See [storage review](storage-review.md). |
 | n8n ordering | Discarded PR #6 proposed wave `-1` instead of `3`. Current behavior is unchanged; fresh bootstrap ordering remains unverified. |
 | Homepage | PR #4 was discarded. Existing discovery behavior is unchanged; no fix is pending. |
 | Identity | Grafana checks `Administrators`, while other declarations use lowercase group names. Verify actual claims before editing policy. |

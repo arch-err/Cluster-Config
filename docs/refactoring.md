@@ -121,6 +121,14 @@ J explicitly approved adding per-resource prune/delete confirmation guards and a
 
 The operation succeeded and a hard-refresh comparison shows no PV/PVC differences. All 31 PV and 31 PVC specs, bindings, identities, protection finalizers, and Bound phases remain unchanged. Workload and Application specs/identities are unchanged; auto-sync remains disabled and no operation remains. `just check` passed. The remaining roots differ only on Syncthing leftovers, Home Assistant mDNS Application configuration, and equivalent Grafana database CPU formatting. Private verification records are under `~/.local/state/cluster-config/storage-adopt/`.
 
+## Final root drift cleanup (2026-09-13)
+
+J approved removing the five stale Syncthing integration objects: the `pocket-id/oidc-bootstrap-syncthing` ConfigMap and ServiceAccount, plus the `syncthing` namespace's obsolete HTTPRoute, bootstrap Role, and RoleBinding. The namespace had no workloads, Services, or PVCs. The objects were already absent from desired manifests and were deleted with UID/resource-version preconditions. The separate external `syncthing.home` route, disabled service source, retained encrypted cookie, and identity-provider client were not changed.
+
+The Home Assistant mDNS Application differed only by a missing parent tracking annotation. Adding that annotation preserved its spec and identity. Grafana's database declaration now explicitly uses the live CPU limit spelling `"1"` instead of the equivalent `1000m`; canonical comparison of all four root renders proved this was the only rendered change. No database or workload sync was needed.
+
+`just check` passed. All 47 Applications returned zero hard-refresh diff with no comparison errors under the existing ignore rules. All 62 workload and 62 storage object specs/identities, all Application specs/manual-sync policies, and all retained HTTPRoute specs/identities were unchanged. No operation or Application deletion remains. Two already-pending PVC deletions are documented separately in [the storage review](storage-review.md); their protection finalizers remain intact. Private snapshots and cleanup records are under `~/.local/state/cluster-config/final-drift/`, with full Argo results under `~/.local/state/cluster-config/refactor-P0x6LU2j/final-cleanup/`.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).

@@ -33,6 +33,8 @@ J approved adopting the six source-declared PVs and ten PVCs into the `apps` App
 
 Local render comparison proved annotation-only changes; server-side dry-run preserved every live spec. After adoption, all 31 PVs and 31 PVCs retain identical specs, bindings, identities, and finalizers, and all remain Bound. Workload and Application specs/identities are unchanged. The refreshed `apps` diff contains no storage differences. Auto-sync remains off.
 
-The remaining `apps` differences concern Syncthing leftovers and the Home Assistant mDNS Application. The `infra` Grafana database diff is the CPU request expressed as `1` versus `1000m`; those quantities are equivalent. Neither is a storage-backend migration.
+The remaining root differences were cleared on 2026-09-13: five stale Syncthing integration objects were removed, Home Assistant mDNS received its missing Argo tracking annotation, and Grafana's database CPU limit is now expressed as `"1"` in Git to match live state. All 47 Applications return zero hard-refresh diff under the configured comparison rules. No workload or storage spec changed.
+
+The final audit also confirmed two pre-existing PVC deletion timestamps, both dated 2026-08-31: `excalidash/excalidash` and `n8n/n8n-db-1`. Both remain Bound with `kubernetes.io/pvc-protection`; their specs, identities, finalizers, and deletion timestamps were unchanged by cleanup. Review these separately before disrupting their consumers; no finalizer removal or replacement is authorized here. Bound phase alone does not mean a claim has no pending deletion request.
 
 Before discarding any old application storage, verify expected records/files in the current application and an independently usable backup. The approved cleanup removed Kubernetes records only; physical storage disposal and backup deletion were not performed.
