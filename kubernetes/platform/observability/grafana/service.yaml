@@ -12,6 +12,10 @@ components:
       enabled: true
       version: "16"
       instances: 1
+      resources:
+        requests: { cpu: 200m, memory: 512Mi }
+        # Match the live API's canonical CPU quantity to avoid formatting drift.
+        limits: { cpu: "1", memory: 1Gi }
       storage:
         size: 10Gi
         storageClass: local-bulk
