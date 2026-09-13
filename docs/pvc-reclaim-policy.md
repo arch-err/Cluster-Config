@@ -39,3 +39,7 @@ A retained, released PV may be rebound after its old claim ownership is resolved
 The earlier Kadalu setup suffered data loss when an application retirement deleted a claim backed by a `Delete` PV. That incident motivated retained PVs and explicit review of data disposition. The old detailed policy and configuration remain in Git history; their old PVC inventories and claims about live state are not current evidence.
 
 See [backup status](backup-manual.md) before relying on the existing helper script.
+
+## Argo storage ownership
+
+The six PVs and ten PVCs declared directly by the `apps` source chart were adopted on 2026-09-13. Their owning service resource templates specify `argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm`. Argo must receive explicit confirmation before pruning/deleting these resources. Do not remove those per-resource guards when editing storage definitions; root Application defaults alone are not the protection used here. See [verified adoption](storage-review.md).

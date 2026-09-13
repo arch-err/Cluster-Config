@@ -27,10 +27,12 @@ The running cluster no longer depends on a Kadalu CSI volume. This establishes t
 
 J confirmed Disk C contains August 30 pre-migration backups: the Home Assistant archive, n8n application archive, and n8n PostgreSQL dump. The current applications use replacement local-bulk PVs. Surviving old Kadalu backing data has not been located; this cleanup does not claim it was recovered or erased. Original PV/claim snapshots are retained privately under `~/.local/state/cluster-config/storage-prune/`. All five removed PVs had `Retain`; the BookLore claim had no pod or controller consumers.
 
-## Why the roots still differ
+## Guarded Argo adoption — 2026-09-13
 
-The reviewed storage diffs under `apps` are missing Argo tracking annotations and, on a few objects, missing sync-wave annotations. The PV/PVC specifications already describe the live local storage. These are ownership/metadata decisions, not requests to migrate bytes or recreate volumes. Adopting tracking would make future Argo prune/deletion policy relevant, so it should be reviewed explicitly rather than treated as cosmetic cleanup.
+J approved adopting the six source-declared PVs and ten PVCs into the `apps` Application with per-resource `Prune=confirm,Delete=confirm` annotations. Those guards are committed in each resource's owning service template. They were installed and verified on all 16 live objects before a resource-scoped Argo sync at commit `3cee0dd`. The sync added Argo tracking and missing sync-wave metadata; no pruning was requested. Confirmation guards cover Argo operations, not direct Kubernetes deletion by an authorized operator.
 
-The `infra` Grafana database diff is the CPU request expressed as `1` versus `1000m`; those quantities are equivalent. It is unrelated to the old released Grafana PV.
+Local render comparison proved annotation-only changes; server-side dry-run preserved every live spec. After adoption, all 31 PVs and 31 PVCs retain identical specs, bindings, identities, and finalizers, and all remain Bound. Workload and Application specs/identities are unchanged. The refreshed `apps` diff contains no storage differences. Auto-sync remains off.
+
+The remaining `apps` differences concern Syncthing leftovers and the Home Assistant mDNS Application. The `infra` Grafana database diff is the CPU request expressed as `1` versus `1000m`; those quantities are equivalent. Neither is a storage-backend migration.
 
 Before discarding any old application storage, verify expected records/files in the current application and an independently usable backup. The approved cleanup removed Kubernetes records only; physical storage disposal and backup deletion were not performed.

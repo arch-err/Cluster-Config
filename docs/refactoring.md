@@ -115,6 +115,12 @@ J confirmed August 30 Home Assistant/n8n backups on Disk C and approved removing
 
 All five targeted PVs were verified `Retain`; the BookLore alias had no pod or controller consumers. The obsolete alias declarations were removed from Git, with canonical render comparison proving no other resource changed. The unused claim was deleted first, followed by the five PV API records using UID/resource-version preconditions. No protection finalizers were removed and no storage-file or backup operations were performed. All 31 remaining PVs and 31 PVCs are Bound and retain identical specs/identities. All workload and Application specs are unchanged; auto-sync remains off and no sync operation ran. `just check` passed.
 
+## Guarded storage adoption (2026-09-13)
+
+J explicitly approved adding per-resource prune/delete confirmation guards and adopting tracking for six PVs and ten PVCs declared by `apps`. The seven owning service templates now include `Prune=confirm,Delete=confirm`. Canonical render comparison showed exactly 16 annotation-only changes; API server-side dry-run preserved all storage specs. Guards were patched and verified on all targets before a resource-scoped Argo sync at commit `3cee0dd`; no pruning was requested and no deletion-approval annotation existed on the root.
+
+The operation succeeded and a hard-refresh comparison shows no PV/PVC differences. All 31 PV and 31 PVC specs, bindings, identities, protection finalizers, and Bound phases remain unchanged. Workload and Application specs/identities are unchanged; auto-sync remains disabled and no operation remains. `just check` passed. The remaining roots differ only on Syncthing leftovers, Home Assistant mDNS Application configuration, and equivalent Grafana database CPU formatting. Private verification records are under `~/.local/state/cluster-config/storage-adopt/`.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).
