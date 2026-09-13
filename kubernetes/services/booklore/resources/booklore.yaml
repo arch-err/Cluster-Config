@@ -21,6 +21,7 @@ metadata:
   name: booklore-data
   namespace: booklore
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
@@ -38,6 +39,7 @@ metadata:
   name: booklore-mariadb
   namespace: booklore
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
@@ -170,6 +172,7 @@ kind: PersistentVolume
 metadata:
   name: booklore-media-library
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   capacity:
@@ -197,6 +200,7 @@ metadata:
   name: booklore-media-library
   namespace: booklore
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:

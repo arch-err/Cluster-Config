@@ -24,6 +24,7 @@ kind: PersistentVolume
 metadata:
   name: calibre-web-calibre-library
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   capacity:
@@ -51,6 +52,7 @@ metadata:
   name: calibre-library
   namespace: calibre-web
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:

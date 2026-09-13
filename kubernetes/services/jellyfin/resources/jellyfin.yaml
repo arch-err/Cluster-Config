@@ -15,6 +15,7 @@ kind: PersistentVolume
 metadata:
   name: jellyfin-media-library
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   capacity:
@@ -42,6 +43,7 @@ metadata:
   name: media-library
   namespace: jellyfin
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:

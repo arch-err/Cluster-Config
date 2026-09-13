@@ -16,6 +16,7 @@ kind: PersistentVolume
 metadata:
   name: audiobookshelf-v2-media-library
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   capacity:
@@ -43,6 +44,7 @@ metadata:
   name: media-library
   namespace: audiobookshelf-v2
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:

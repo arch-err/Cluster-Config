@@ -20,6 +20,7 @@ metadata:
   name: immich-library
   namespace: immich
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
@@ -36,6 +37,7 @@ metadata:
   name: immich-postgres-recovered
   namespace: immich
   annotations:
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
     argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
