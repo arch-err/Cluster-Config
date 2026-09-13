@@ -4,7 +4,7 @@ The initial review was read-only. J subsequently authorized the metadata cleanup
 
 ## Current deployment
 
-After cleanup, all 31 PVCs and 31 PVs are Bound, and none uses Kadalu: 22 claims use `local-bulk`, 3 use `local-path`, and 6 use explicitly bound static local PVs with an empty StorageClass. Every retained storage specification and object identity is unchanged. No released PV remains.
+After cleanup and the approved claim repair, all 31 PVCs and 31 PVs are Bound, with no pending storage deletions, and none uses Kadalu: 22 claims use `local-bulk`, 3 use `local-path`, and 6 use explicitly bound static local PVs with an empty StorageClass. All PV identities and backing directories are preserved. Only the Excalidash and n8n database claim identities and their PV binding references changed during repair. No released PV remains.
 
 The running cluster no longer depends on a Kadalu CSI volume. This establishes the current storage backend, not completion of every historical data transfer or recovery check.
 
@@ -35,6 +35,14 @@ Local render comparison proved annotation-only changes; server-side dry-run pres
 
 The remaining root differences were cleared on 2026-09-13: five stale Syncthing integration objects were removed, Home Assistant mDNS received its missing Argo tracking annotation, and Grafana's database CPU limit is now expressed as `"1"` in Git to match live state. All 47 Applications return zero hard-refresh diff under the configured comparison rules. No workload or storage spec changed.
 
-The final audit also confirmed two pre-existing PVC deletion timestamps, both dated 2026-08-31: `excalidash/excalidash` and `n8n/n8n-db-1`. Both remain Bound with `kubernetes.io/pvc-protection`; their specs, identities, finalizers, and deletion timestamps were unchanged by cleanup. Review these separately before disrupting their consumers; no finalizer removal or replacement is authorized here. Bound phase alone does not mean a claim has no pending deletion request.
+The final audit found two pre-existing PVC deletion timestamps, both dated 2026-08-31: `excalidash/excalidash` and `n8n/n8n-db-1`. J subsequently approved backups, downtime, and repair while preserving the correct data. Both claims were recreated with identical specs and rebound explicitly to their original retained PVs. Neither claim has a pending deletion now. Bound phase alone does not mean a claim has no pending deletion request.
+
+## Approved claim repair — 2026-09-13
+
+Excalidash was stopped before a full-volume archive and SQLite backup. The old claim completed deletion naturally once its consumer stopped; no protection finalizer was forced. The replacement claim names the same PV, and the PV was reserved directly for the new claim UID. After restart, SQLite integrity passed and all 16 tables matched the backup by count and full row-content hashes.
+
+n8n received an initial live logical backup and app-file archive, followed by a final PostgreSQL dump after stopping application writers. Only `n8n-db` reconciliation was temporarily paused with `cnpg.io/reconciliationLoop=disabled` while gracefully shutting down PostgreSQL and repairing its claim. A cold physical archive confirmed clean shutdown and system ID `7679883272937959444`. The replacement retained CNPG ownership/labels and bound to the same original PV and directory. Reconciliation resumed after binding; the annotation was removed. Before restarting n8n, all 108 database table counts/content fingerprints matched, and an isolated PostgreSQL restore of the logical backup matched the same fingerprints.
+
+Both services returned healthy with unchanged configuration and Secret values, including n8n's encryption key. The two Deployment replica counts and all final workload/Cluster specs match their pre-maintenance state. All 31 PVs and 31 PVCs are Bound without deletion timestamps. Backup locations and contents are recorded in [backup status](backup-manual.md). Temporary backup/restore pods were removed; the backup directories remain.
 
 Before discarding any old application storage, verify expected records/files in the current application and an independently usable backup. The approved cleanup removed Kubernetes records only; physical storage disposal and backup deletion were not performed.

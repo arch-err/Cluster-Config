@@ -129,6 +129,14 @@ The Home Assistant mDNS Application differed only by a missing parent tracking a
 
 `just check` passed. All 47 Applications returned zero hard-refresh diff with no comparison errors under the existing ignore rules. All 62 workload and 62 storage object specs/identities, all Application specs/manual-sync policies, and all retained HTTPRoute specs/identities were unchanged. No operation or Application deletion remains. Two already-pending PVC deletions are documented separately in [the storage review](storage-review.md); their protection finalizers remain intact. Private snapshots and cleanup records are under `~/.local/state/cluster-config/final-drift/`, with full Argo results under `~/.local/state/cluster-config/refactor-P0x6LU2j/final-cleanup/`.
 
+## Approved Excalidash/n8n claim repair (2026-09-13)
+
+J approved fresh backups, an extra copy, controlled downtime, and repair of the two active claims carrying August 31 deletion requests. [The storage review](storage-review.md) records the procedure; [backup status](backup-manual.md) records the private laptop/node-2 copies and verification. The claims completed their original deletion after consumers stopped, without forcing finalizers, and replacements bound to the same retained PVs/directories. Excalidash and n8n were restarted individually. The n8n CNPG reconciliation pause was scoped to that Cluster and removed after binding.
+
+Excalidash SQLite integrity and all 16 table-content fingerprints passed. n8n's original system ID and all 108 table-content fingerprints were preserved; restoring its final logical backup into an isolated PostgreSQL instance reproduced those fingerprints. n8n readiness and both application frontends returned HTTP 200 internally; the external n8n gateway returned its expected authentication redirect and Excalidash returned HTTP 200. Secret values and n8n's persistent encryption-key configuration are unchanged.
+
+All final workload, Application, and CNPG Cluster specs match the pre-maintenance snapshot. All 31 PVs and 31 PVCs are Bound without pending deletion, with only the two approved claim UIDs and corresponding PV binding references changed. Fresh Argo comparisons for `excalidash`, `n8n`, `apps`, and `infra` returned zero diff. All 47 Applications retain auto-sync disabled, with no sync operation requested. No software versions or rendered source configuration changed; this maintenance repaired live object lifecycle state to match the existing desired configuration.
+
 ## Approved source layout
 
 Services own their declarations, upstream values, resources, and encrypted secrets under `kubernetes/services/`. Shared cluster infrastructure lives under `kubernetes/platform/` by function. The shared chart at `kubernetes/` renders the existing four roots using `kubernetes/releases/`. Directory placement does not change Application ownership; each service declares its existing `owner` explicitly. See [chart conventions](platform-chart.md).

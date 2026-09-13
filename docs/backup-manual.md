@@ -1,6 +1,28 @@
 # Backup status and recovery
 
-**The existing `scripts/backup.sh` is a legacy helper, not a current verified backup procedure.** The repository cleanup did not run backups or restore tests, and a successful render does not establish data recoverability.
+**The existing `scripts/backup.sh` is a legacy helper, not a current verified backup procedure.** The scoped Excalidash/n8n backups and restore verification below used a separate maintenance procedure. They do not establish backup coverage for other services.
+
+## Verified Excalidash/n8n repair backups — 2026-09-13
+
+J requested fresh backups and an extra copy before repairing the two pending PVC deletions. Copies are retained at:
+
+- Laptop: `/home/j/.local/state/cluster-config/claim-repair-20260913/` (private directory).
+- node-2: `/var/mnt/bulk/claim-repair-backups/20260913/` (private directory, extra copies). This is on the source disk; the laptop copy provides separation from that disk.
+
+Recovery material includes:
+
+| File | Contents / verification |
+| --- | --- |
+| `excalidash-cold.tar.gz` | Entire claim directory after stopping writers, including SQLite, WAL files if present, JWT/CSRF keys and migrations; fully readable archive |
+| `excalidash-consistent.sqlite` | SQLite backup extracted from the cold archive; integrity check passed; all 16 live table counts/content hashes matched after restart |
+| `n8n-live.dump`, `n8n-quiesced.dump` | PostgreSQL custom-format dumps before and after stopping n8n writers; final dump restored into isolated PostgreSQL 16 with all 108 table counts/content fingerprints matching |
+| `n8n-postgres-cold.tar.gz` | Full PostgreSQL claim directory after clean shutdown, preserving original database system ID; fully readable archive |
+| `n8n-app-live.tar.gz` | n8n app directory, including its encryption-key configuration; configuration bytes matched after restart. Captured while live, so it is not a consistency guarantee for every changing app file. The database recovery source is the quiesced dump/cold archive. |
+| `n8n-roles.sql` | PostgreSQL global roles |
+| `n8n-secrets.json`, `excalidash-secrets.json` | Private Kubernetes Secret snapshots; all live values remained unchanged |
+| Metadata snapshots | Original storage/workload/Cluster objects and replacement claim/PV records needed to identify the correct bindings |
+
+Every extra copy was SHA-256 compared with its laptop source. Checksums and table fingerprints are retained in the laptop directory. Backups contain sensitive plaintext and remain outside Git. No existing Disk C backups were removed. Temporary helpers and the isolated restore instance were removed after verification. See [claim repair details](storage-review.md).
 
 ## What the helper implements
 

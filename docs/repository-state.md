@@ -41,7 +41,7 @@ Rollback requires checking both root and child source paths and revisions agains
 | Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is `1.19.x`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
 | Backup | Inventory is stale; `--quiesce` never calls the scale helpers. See [backup status](backup-manual.md). |
 | Storage | Kadalu deployment retired; the database template now defaults to local-bulk. Obsolete released PV records were removed by explicit approval; current application storage and Disk C backups remain preserved. |
-| Pending PVC deletion | Excalidash's claim and `n8n/n8n-db-1` retain August 31 deletion requests and PVC protection finalizers. They remain Bound; review before disrupting consumers. See [storage review](storage-review.md). |
+| Claim recovery | Excalidash and n8n database claims were recreated and rebound to their original retained PVs after verified backups. All storage deletion timestamps are cleared; data checks and the n8n restore test passed. See [storage review](storage-review.md). |
 | n8n ordering | Discarded PR #6 proposed wave `-1` instead of `3`. Current behavior is unchanged; fresh bootstrap ordering remains unverified. |
 | Homepage | PR #4 was discarded. Existing discovery behavior is unchanged; no fix is pending. |
 | Identity | Grafana checks `Administrators`, while other declarations use lowercase group names. Verify actual claims before editing policy. |
