@@ -1,12 +1,26 @@
 # State-preserving repository refactoring
 
-## Rule
+## Current operating policy — 2026-09-14
+
+J approved enabling automatic synchronization after the cleanup safety review. All 47 Applications use `main`, with `automated.enabled: true`, `selfHeal: true`, and `prune: false`. Reviewed commits to `main` can now deploy automatically; uncommitted local work does not. Existing child Application and per-storage `Prune=confirm,Delete=confirm` guards remain. Deletion and pruning require deliberate operator action. Bootstrap root definitions and generated children carry the same policy.
+
+All 11 floating chart constraints were pinned to their already-resolved versions without upgrading software. Broad Gateway API ignore rules were removed. A full-spec server-side dry-run audit of 35 routing resources exposed one hidden Booklore mismatch: the live route uses `booklore:6060`, whereas Git specified `oauth2-booklore:80`. Git now preserves the existing direct route; no live routing or authentication setting was changed. The deployed OAuth proxy remains available, but changing Booklore's authentication arrangement is separately scoped.
+
+The first root activation exposed a CLI/controller discrepancy: CLI server-side comparisons were clean, but the running controller flagged omitted Gateway API defaults and repeated root reconciliations. The two resource roots were paused. Parent-reference group/kind, backend group/kind/weight, default HTTP path/header matching, and certificate-reference defaults are now explicit in Git. All 35 raw routing specs match live exactly, without broad ignores; both controller status and CLI comparison must be clean before enabling automation.
+
+All applications passed hard-refresh comparison before enabling them. Leaf Applications were enabled first, then the four roots. Initial `apps`/`infra` reconciliations reapplied resources; final verification confirmed all 62 workload objects, 62 PV/PVC objects and 35 Gateway API resource specs/identities remain unchanged. No software upgrades or pruning occurred. `just check` now verifies root/child automation settings, disabled automatic pruning, existing child deletion guards, exact upstream chart pins, and absence of broad Gateway API ignores. Existing StatefulSet/field-manager exceptions remain. Backups, CI, and bootstrap rebuild work are deferred separately.
+
+Final verification returned 47/47 Healthy and Synced Applications, zero CLI diffs or comparison errors, and no pending operations. No further reconciliations occurred during the final full comparison window. Private snapshots and comparison records are under `~/.local/state/cluster-config/enable-auto/`.
+
+For another source-only refactor that must not deploy anything, freeze root Applications first, then children, and verify no operation remains. A child's policy is owned by its parent, so pausing only a child is temporary. Disabling automation does not cancel an operation already running. The original freeze procedure and dated audit history below describe the earlier manual-sync phase.
+
+## Original refactoring rule
 
 The user requires preserving deployed resource definitions and behavior while reorganizing their source. Any runtime difference, including a pre-existing difference, blocks synchronization unless J explicitly approves that specific exception. Missing comparison data and comparison errors also block synchronization.
 
 Switching this repository's ArgoCD Git sources to `main` and disabling automatic sync are explicitly authorized administrative changes. That authorization does not permit applying unrelated resources through a parent sync, changing chart/image versions, or applying workload differences incidentally.
 
-## Current status
+## Initial freeze status — historical
 
 Live access is available through `admin@cluster`. All 65 repository Applications now have `spec.syncPolicy.automated.enabled: false`. The outstanding infra sync (started 2026-08-31, waiting for deletion of Kadalu) was terminated, and no operation remained after the freeze. No ApplicationSets were present. Matching explicit freeze settings were published in commit `d0d7f2e`. All 65 live Applications now use `main` for this repository’s Git source, with auto-sync disabled. Verification showed the source patches changed only those Git revision fields, with no active sync operations afterward. Of 41 Applications initially marked `skip-reconcile`, comparison was resumed for the 21 without deletion timestamps; the 20 pending-deletion Applications remain skipped. Their cached Synced status is not evidence of a clean diff.
 
@@ -28,7 +42,7 @@ The freeze, termination, and Git source-switching steps are complete. No workloa
 - Preserve Application names, Helm release names, destination namespaces, resource names, tracking/ownership, and desired resource sets while moving files.
 - Compare complete renders keyed by resource identity, not YAML file order. Include upstream chart renders; local platform-chart output alone does not include child workloads.
 - Hard-refresh and inspect ArgoCD diffs for every affected parent and child against the exact candidate commit. A green root does not establish that its children are unchanged.
-- Audit existing ignore rules and excluded resources. The current whole-spec Gateway API ignores require supplementary comparison; never add ignores to make the gate pass. Separate API-generated bookkeeping from desired configuration explicitly.
+- Audit existing ignore rules and excluded resources. The then-existing whole-spec Gateway API ignores required supplementary comparison; never add ignores to make the gate pass. Separate API-generated bookkeeping from desired configuration explicitly.
 - Do not assume complete Secret coverage from the CLI: its help says Kubernetes Secrets are ignored, but this installed comparison path emitted Cilium/Grafana Secret-data differences. Inspect protected manifests/data separately where needed and never print secret payloads in a report.
 - Check all hooks and jobs that could run or be recreated. A zero ordinary-resource diff is necessary but is not sufficient to authorize a sync with side effects.
 - Preserve files fetched directly by workloads and external consumers. A Git push can affect those consumers without an ArgoCD sync.
@@ -37,7 +51,7 @@ The freeze, termination, and Git source-switching steps are complete. No workloa
 
 Use refresh/diff as the normal verification operation. Do not run a no-op sync merely to test the rewrite. If synchronization is needed, repeat the gate against the exact commit immediately beforehand and inspect the complete operation, including hooks. Do not sync a moving branch against a stale diff result.
 
-Auto-sync remains off throughout the refactor. Re-enabling it is a separate explicit decision, not an automatic final step.
+Auto-sync remained off throughout the source refactor. J subsequently made the explicit decision to enable it, as recorded in the current operating policy above.
 
 ## Baseline findings
 

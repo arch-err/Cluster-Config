@@ -24,9 +24,9 @@ The user chose to discard both fixes and retain the public-isolation PoC. PRs #4
 
 ## GitOps cutover
 
-**Updated constraint:** the user now requires disabling auto-sync before switching live sources and preserving zero unapproved runtime diffs. Follow [the refactoring protocol](refactoring.md); it supersedes the earlier cutover sequence below. The live freeze and Git-source cutover to `main` are verified; the baseline diff report is tracked in that protocol.
+The source migration and runtime cleanup are complete. On September 14, J approved enabling auto-sync after safety checks. The [refactoring protocol](refactoring.md) records the current policy and historical freeze; automatic pruning remains disabled.
 
-The archive tag and promoted `main` have been published. All 47 remaining Applications use `main` for their Git sources and have auto-sync explicitly disabled, with no pending Application deletions or operations. After the approved cleanup, all 47 return zero hard-refresh diff under the existing comparison rules. Grafana dashboard Git-sync and all three Homepage background URLs also use `main` and the reorganized paths. The former `v2` baseline is preserved by `archive/v2-2026-09-14`.
+The archive tag and promoted `main` have been published. All 47 remaining Applications use `main` for their Git sources and have auto-sync and self-healing enabled, with automatic pruning disabled, with no pending Application deletions or operations. After the approved cleanup, all 47 return zero hard-refresh diff under the existing comparison rules. Grafana dashboard Git-sync and all three Homepage background URLs also use `main` and the reorganized paths. The former `v2` baseline is preserved by `archive/v2-2026-09-14`.
 
 The maintained ArgoCD source manifests point to `main`: the source chart defaults and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs now use `main`, following an explicitly approved source migration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
 
@@ -38,7 +38,7 @@ Rollback requires checking both root and child source paths and revisions agains
 
 | Area | Finding / follow-up |
 | --- | --- |
-| Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is `1.19.x`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
+| Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is pinned to `1.19.7`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
 | Backup | Inventory is stale; `--quiesce` never calls the scale helpers. See [backup status](backup-manual.md). |
 | Storage | Kadalu deployment retired; the database template now defaults to local-bulk. Obsolete released PV records were removed by explicit approval; current application storage and Disk C backups remain preserved. |
 | Claim recovery | Excalidash and n8n database claims were recreated and rebound to their original retained PVs after verified backups. All storage deletion timestamps are cleared; data checks and the n8n restore test passed. See [storage review](storage-review.md). |
@@ -46,7 +46,7 @@ Rollback requires checking both root and child source paths and revisions agains
 | Homepage | PR #4 was discarded. Existing discovery behavior is unchanged; no fix is pending. |
 | Identity | Grafana checks `Administrators`, while other declarations use lowercase group names. Verify actual claims before editing policy. |
 | n8n SSRF | `N8N_SSRF_PROTECTION_ENABLED` is currently `false`; a documented temporary exception remains in values. |
-| GitOps drift | Whole-spec route ignores can mask differences; green status alone is insufficient. |
+| GitOps drift | Broad Gateway API ignores removed; existing StatefulSet/field-manager exceptions remain. Booklore source now matches the existing direct route; authentication redesign is separate. |
 | CA source | `kubernetes/platform/identity/cert-manager/reference/home-root-ca.yaml` is excluded from Helm under the service’s reference directory; retain pending provenance review. |
 | Validation | `just check` covers local Helm rendering and shell syntax. It does not validate upstream charts, live health, or a fresh rebuild. No CI workflow is configured. |
 

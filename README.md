@@ -28,10 +28,10 @@ Start with the [documentation index](docs/README.md), [source layout](docs/platf
 just check
 ```
 
-Requires Bash, Helm, yq (Mike Farah's Go implementation), and Python 3's standard library. Checks render all four roots, validate resource identities/source paths/manual-sync policy, exercise service enablement, and check shell syntax. They do not contact the cluster or render upstream charts.
+Requires Bash, Helm, yq (Mike Farah's Go implementation), and Python 3's standard library. Checks render all four roots, validate resource identities/source paths, pinned chart versions, and automation/deletion guards, exercise service enablement, and check shell syntax. They do not contact the cluster or render upstream charts.
 
-## Current migration rule
+## Current GitOps policy
 
-All 65 live Applications use this repository's `main` branch with auto-sync off. **No workload sync with unapproved differences.** See [refactoring rules and baseline](docs/refactoring.md). Software versions and runtime behavior are preserved; existing baseline drift remains blocked.
+All 47 live Applications use this repository's `main` branch with auto-sync and self-healing enabled. **Automatic pruning is off; deletion guards remain.** Reviewed changes pushed to `main` can deploy automatically. Chart versions are pinned to the verified deployed versions, and Gateway API specs are visible in diffs. See [operating policy and migration history](docs/refactoring.md).
 
 The old `main` is preserved by `archive/main-2026-09-06`. The former `v2` baseline is preserved by `archive/v2-2026-09-14`; Grafana and Homepage now fetch their files from `main`. See [repository state](docs/repository-state.md).

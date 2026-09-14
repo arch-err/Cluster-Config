@@ -23,7 +23,7 @@ components:
       port: 8080
 ```
 
-Create `values.yaml` beside the declaration using the selected upstream chart's schema. An additional proxy component can reference `oauth2-proxy.values.yaml` in the same directory. Keep existing component names and owners when reorganizing deployed services.
+Create `values.yaml` beside the declaration using the selected upstream chart's schema. Pin an exact chart version; floating ranges fail `just check`. An additional proxy component can reference `oauth2-proxy.values.yaml` in the same directory. Keep existing component names and owners when reorganizing deployed services.
 
 Specify route gateways explicitly: `apps` or `infra`. The historical template default, `internal`, is not a configured gateway. Route configuration also supports dashboard annotations and optional gRPC routing. The discarded Homepage discovery fix was not incorporated into this refactor.
 
@@ -69,8 +69,8 @@ Before re-enabling a retained service, review its storage, namespaces, secrets, 
 
 ## Review
 
-Run `just check`, validate the selected upstream chart, inspect rendered resource identities and ownership, and update the [service inventory](services.md) and service README. During this refactor, follow the [zero-diff gate](refactoring.md); adding or re-enabling a service is a runtime change requiring a separate explicit exception before synchronization.
+Run `just check`, validate the selected upstream chart, inspect rendered resource identities and ownership, and update the [service inventory](services.md) and service README. Root and child auto-sync/self-healing are enabled: publishing an enabled service to `main` can deploy it immediately. Prepare its namespaces, storage and credentials before enabling it, and review intended runtime changes before pushing. Automatic pruning is off, so disabling a declaration does not automatically retire its live resources. See [operating policy](refactoring.md).
 
 ## One-time OIDC provisioning
 
-`oidc.enabled: true` retains the client configuration, bootstrap script, and scoped RBAC. Job execution is separately opt-in: set `oidc.bootstrapJob: true` only for a reviewed provisioning or recovery operation. Sync that specific Job, verify the client and application Secret, then remove the flag. The Job is TTL-cleaned after completion; leaving it declared would otherwise make a later root sync recreate it. Existing clients do not need a continuously declared bootstrap Job.
+`oidc.enabled: true` retains the client configuration, bootstrap script, and scoped RBAC. Job execution is separately opt-in: set `oidc.bootstrapJob: true` only for a reviewed provisioning or recovery operation. With root auto-sync enabled, publishing that flag can execute the Job automatically. Verify the client and application Secret, then promptly remove the flag from Git. The Job is TTL-cleaned after completion; leaving it declared lets self-healing recreate it. For a manually controlled run, pause the owning root first, sync only that Job, and remove the flag before resuming automation. Existing clients do not need a continuously declared bootstrap Job.

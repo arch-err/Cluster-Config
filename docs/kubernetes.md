@@ -32,13 +32,13 @@ The platform chart owns the CoreDNS ConfigMap and synthesizes internal apps/infr
 
 Each enabled component generates a child Application with an upstream Helm chart and values from this repository. Parent renders also contain routes, storage resources, OIDC bootstrap jobs, and database Cluster resources. ArgoCD's own runtime settings live in [its component values](../kubernetes/platform/argocd/values.yaml); editing bootstrap values alone does not update existing roots automatically.
 
-The maintained manifests and all 47 live Applications target `main` for this repository, with auto-sync disabled. Grafana dashboard Git-sync and Homepage assets also use `main`. The former `v2` baseline is archived; see the [refactoring protocol](refactoring.md).
+The maintained manifests and all 47 live Applications target `main` for this repository, with auto-sync/self-healing enabled and automatic pruning disabled. Grafana dashboard Git-sync and Homepage assets also use `main`. The former `v2` baseline is archived; see the [refactoring protocol](refactoring.md).
 
 ## Sync behavior
 
 Components may set `syncWave`; otherwise their Application defaults to wave `0`. Supporting templates have their own waves. Automatic sync is explicitly disabled for the refactor on all roots and children. Child Applications retain `Prune=confirm` and `Delete=confirm` guards. Root policies are defined separately in bootstrap values. Never infer that every deletion is protected by a child's settings.
 
-Several Gateway API differences are ignored at the whole-spec level, and child Applications use `RespectIgnoreDifferences=true`. A green sync status alone is therefore insufficient evidence that routes match Git; inspect rendered and live routing resources when changing them.
+Whole-spec Gateway API ignores were removed before enabling automation. Gateway API defaults are explicit in rendered manifests so both controller and CLI comparisons agree. Child Applications retain the documented StatefulSet/manager exceptions and `RespectIgnoreDifferences=true`; inspect relevant rendered and live resources when changing those fields. Automatic pruning is disabled, while existing child and per-storage deletion confirmation guards remain.
 
 Fresh bootstrap ordering remains a known limitation: the CNPG Cluster template renders at wave `0`, while the n8n child Application is at wave `3`. PR #6 proposed a namespace-ordering fix but was closed without merging by user decision; the existing behavior is unchanged.
 
@@ -46,7 +46,7 @@ Fresh bootstrap ordering remains a known limitation: the CNPG Cluster template r
 
 `just install` runs `install-cilium`, `install-argocd`, then `deploy-age-key`. ArgoCD installation is split into CRD creation and application of bootstrap values.
 
-These are retained operator recipes, **not a verified clean-rebuild procedure**. `install-cilium` still installs Gateway API CRDs at `v1.1.0`, while the GitOps Cilium chart constraint is `1.19.x`. Bootstrap Helm invocations do not pin the same versions as GitOps. Review that mismatch before rebuilding; this cleanup deliberately leaves all versions unchanged.
+These are retained operator recipes, **not a verified clean-rebuild procedure**. `install-cilium` still installs Gateway API CRDs at `v1.1.0`, while the GitOps Cilium chart is pinned to `1.19.7`. Bootstrap Helm invocations do not pin the same versions as GitOps. Review that mismatch before rebuilding; this cleanup deliberately leaves all versions unchanged.
 
 ## Routine inspection
 
