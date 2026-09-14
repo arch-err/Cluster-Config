@@ -5,7 +5,7 @@
 
 server:
   ingress:
-    enabled: false  # Using Gateway API instead
+    enabled: true  # Using Gateway API instead
 
 configs:
   params:
@@ -68,7 +68,7 @@ extraObjects:
             - .endpoints[].conditions
       syncPolicy:
         automated:
-          enabled: false
+          enabled: true
           prune: false
           selfHeal: true
         syncOptions:
@@ -98,7 +98,7 @@ extraObjects:
         namespace: argocd
       syncPolicy:
         automated:
-          enabled: false
+          enabled: true
           prune: false
           selfHeal: true
         syncOptions:
@@ -131,7 +131,7 @@ extraObjects:
         namespace: argocd
       syncPolicy:
         automated:
-          enabled: false
+          enabled: true
           prune: false
           selfHeal: true
         syncOptions:
@@ -160,7 +160,7 @@ extraObjects:
         namespace: argocd
       syncPolicy:
         automated:
-          enabled: false
+          enabled: true
           prune: false
           selfHeal: true
         syncOptions:

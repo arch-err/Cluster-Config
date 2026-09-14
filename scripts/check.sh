@@ -11,6 +11,7 @@ for root in infra apps infra-secrets apps-secrets; do
     helm template "$root" kubernetes -f "kubernetes/releases/${root}.yaml" \
         | yq eval-all -o=json -I=0 '[.]' > "$check_dir/${root}.json"
 done
+yq -o=json kubernetes/bootstrap/argocd.yaml > "$check_dir/bootstrap.json"
 python3 scripts/check-layout.py "$check_dir"
 ./scripts/test-layout.sh
 

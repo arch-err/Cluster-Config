@@ -67,9 +67,9 @@ spec:
         - kubectl-rollout
 
   syncPolicy:
-    # Manual sync during repository refactoring; see docs/refactoring.md.
+    # Apply reviewed Git changes and repair drift; deletions stay manual.
     automated:
-      enabled: false
+      enabled: true
       prune: false
       selfHeal: true
     {{- if .namespaceLabels }}
