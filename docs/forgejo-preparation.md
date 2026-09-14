@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Research checked 2026-09-14. J wants Forgejo in its own `forgejo` namespace, with as many optional features disabled as practical, then a joint review of what to enable. This document records proposals, not an approved deployment. No Application, namespace, credentials, or workload has been created.
+Research checked 2026-09-14. J wants Forgejo in its own `forgejo` namespace, with as many optional features disabled as practical, then a joint review of what to enable. J authorized implementing and deploying the agreed setup. The managed configuration is in `kubernetes/services/forgejo/`; this document preserves the feature explanations and decision context. See the service README for operational access and deployment details.
 
 Start with authenticated Git hosting and the web interface. Preserve account security, TLS, authorization, logging, health checks, and necessary maintenance. Disable optional product capabilities explicitly rather than relying on defaults or hiding tabs.
 

@@ -89,7 +89,7 @@ gitea:
       key: forgejo
       secret: ${FORGEJO_OIDC_SECRET}
       autoDiscoverUrl: https://auth.apps.home/.well-known/openid-configuration
-      scopes: "openid profile email groups"
+      scopes: "openid,profile,email,groups"
       requiredClaimName: sub
       requiredClaimValue: 2c9b02eb-ddba-4fa6-9659-c4c863b7350a
   additionalConfigFromEnvs:

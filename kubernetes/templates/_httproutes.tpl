@@ -44,7 +44,7 @@ metadata:
   name: {{ .name }}
   namespace: {{ .namespace | default .name }}
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-wave: {{ .route.syncWave | default "10" | quote }}
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     {{- if $show }}
     {{- $defaultSiteMonitor := printf "https://%s" .route.hostname }}

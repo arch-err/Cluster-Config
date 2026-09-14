@@ -25,7 +25,7 @@ components:
 
 Create `values.yaml` beside the declaration using the selected upstream chart's schema. Pin an exact chart version; floating ranges fail `just check`. An additional proxy component can reference `oauth2-proxy.values.yaml` in the same directory. Keep existing component names and owners when reorganizing deployed services.
 
-Specify route gateways explicitly: `apps` or `infra`. The historical template default, `internal`, is not a configured gateway. Route configuration also supports dashboard annotations and optional gRPC routing. The discarded Homepage discovery fix was not incorporated into this refactor.
+Specify route gateways explicitly: `apps` or `infra`. The historical template default, `internal`, is not a configured gateway. Route configuration also supports dashboard annotations and optional gRPC routing. Set `route.syncWave` when a backend starts after the default route wave `10`; otherwise a missing backend can block later waves. The discarded Homepage discovery fix was not incorporated into this refactor.
 
 ## Storage and supporting resources
 

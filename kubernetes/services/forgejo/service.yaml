@@ -18,6 +18,7 @@ components:
         size: 10Gi
         storageClass: local-bulk
     route:
+      syncWave: "13"
       hostname: git.apps.home
       gateway: apps
       service: forgejo-http
