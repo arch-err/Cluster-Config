@@ -42,6 +42,6 @@ Feature changes belong in Git. Render the pinned upstream chart, run `just check
 - A Forgejo restart preserved repository commits, both accounts, managed encryption secrets and the SSH host key. Temporary test repositories, tokens and user SSH keys were removed afterward.
 - Local recovery web login and access to its authenticated settings page passed. The test session was logged out.
 - After the startup-probe fix, the first external OIDC request after a cold rollout included S256 PKCE.
-- OIDC discovery, redirect URI, subject restriction, pre-provisioned account mapping and PKCE were checked. J's interactive passkey login requires J's confirmation; no claim of a completed interactive login is made here.
+- OIDC discovery, redirect URI, subject restriction, pre-provisioned account mapping and PKCE were checked. J confirmed that interactive Pocket ID passkey login successfully signs into account J.
 
 Backup implementation and restoration testing were explicitly excluded by J.
