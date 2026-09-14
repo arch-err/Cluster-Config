@@ -79,6 +79,20 @@ deployment:
           name: forgejo-oidc-client
           key: client_secret
 gitea:
+  # Forgejo 16 initializes Goth lazily: its first OIDC call omits PKCE.
+  # Consume that redirect locally, without following it, before readiness.
+  startupProbe:
+    enabled: true
+    tcpSocket: null
+    exec:
+      command:
+        - sh
+        - -ec
+        - 'test "$(curl --silent --show-error --max-time 3 --output /dev/null --write-out "%{http_code}" http://127.0.0.1:3000/user/oauth2/pocket-id)" = 307'
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    timeoutSeconds: 4
+    failureThreshold: 30
   admin:
     existingSecret: forgejo-admin
     email: forgejo-recovery@git.apps.home

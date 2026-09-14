@@ -8,6 +8,8 @@ One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained
 
 Use the **pocket-id** login button. Pocket ID client `forgejo` is restricted to group `forgejo_users`, whose only member is J. Forgejo also requires J's exact Pocket ID subject claim, preventing a later broadening of group membership from granting another identity access. Self-registration, automatic OIDC registration and account linking are disabled. J's Forgejo account is explicitly provisioned against the Pocket ID subject; an identity rebuild requires updating both the subject restriction in values and the account's login name.
 
+Forgejo 16's first OIDC request after a cold start initializes the provider without PKCE. A startup probe consumes that redirect locally without following it; subsequent login requests include S256 PKCE. Recheck whether this workaround is needed on upgrades. Pocket ID still requires PKCE.
+
 Local recovery username: `forgejo-recovery`. Retrieve its generated password privately with:
 
 ```sh
