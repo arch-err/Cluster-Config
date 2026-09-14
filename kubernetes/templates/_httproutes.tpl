@@ -1,4 +1,5 @@
 {{- define "platform.httproutes" -}}
+{{- /* Explicit Gateway API defaults keep controller and CLI comparisons aligned. */ -}}
 {{- range $.Values.components }}
 {{- if not (has .name ($.Values.disabledComponents | default (list))) }}
 {{- if .route }}
@@ -73,7 +74,9 @@ metadata:
 {{- end }}
 spec:
   parentRefs:
-    - name: {{ .route.gateway | default "internal" }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .route.gateway | default "internal" }}
       namespace: gateway-system
   hostnames:
     - {{ .route.hostname | quote }}
@@ -92,26 +95,47 @@ spec:
 {{- $grpcSvc := .route.service | default .name }}
 {{- $grpcPort := .route.grpcPort | default .route.port | default 80 }}
     - matches:
-        - headers:
-            - name: content-type
+        - path:
+            type: PathPrefix
+            value: /
+          headers:
+            - type: Exact
+              name: content-type
               value: application/grpc-web+proto
       backendRefs:
         - name: {{ $grpcSvc }}
           port: {{ $grpcPort }}
+          group: ""
+          kind: Service
+          weight: 1
     - matches:
-        - headers:
-            - name: content-type
+        - path:
+            type: PathPrefix
+            value: /
+          headers:
+            - type: Exact
+              name: content-type
               value: application/grpc-web
       backendRefs:
         - name: {{ $grpcSvc }}
           port: {{ $grpcPort }}
+          group: ""
+          kind: Service
+          weight: 1
     - matches:
-        - headers:
-            - name: content-type
+        - path:
+            type: PathPrefix
+            value: /
+          headers:
+            - type: Exact
+              name: content-type
               value: application/grpc-web-text
       backendRefs:
         - name: {{ $grpcSvc }}
           port: {{ $grpcPort }}
+          group: ""
+          kind: Service
+          weight: 1
 {{- end }}
 {{- /* timeout: optional opt-in. Sets spec.rules[].timeouts.request to override
        the gateway's default request timeout (Cilium/Envoy default is too short
@@ -129,9 +153,15 @@ spec:
       backendRefs:
         - name: {{ .service }}
           port: {{ .port }}
+          group: ""
+          kind: Service
+          weight: 1
 {{- end }}
 {{- else }}
-    -
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
 {{- if .route.timeout }}
       timeouts:
         request: {{ .route.timeout | quote }}
@@ -139,6 +169,9 @@ spec:
       backendRefs:
         - name: {{ .route.service | default .name }}
           port: {{ .route.port | default 80 }}
+          group: ""
+          kind: Service
+          weight: 1
 {{- end }}
 {{- end }}
 {{- end }}

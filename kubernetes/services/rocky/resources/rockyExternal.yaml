@@ -48,12 +48,21 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - name: infra
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: infra
       namespace: gateway-system
   hostnames:
     - {{ $rocky.hostname | default "rocky.infra.home" | quote }}
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         - name: rocky-backend
           port: {{ $rocky.port | default 3030 }}
+          group: ""
+          kind: Service
+          weight: 1
 {{- end }}

@@ -47,7 +47,9 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - name: infra
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: infra
       namespace: gateway-system
       sectionName: passthrough-{{ .name }}
   hostnames:
@@ -56,5 +58,8 @@ spec:
     - backendRefs:
         - name: docker-traefik
           port: 443
+          group: ""
+          kind: Service
+          weight: 1
 {{- end }}
 {{- end }}

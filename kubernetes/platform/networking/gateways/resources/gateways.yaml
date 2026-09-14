@@ -77,6 +77,8 @@ spec:
         certificateRefs:
           - name: {{ .Values.gateway.infra.tlsSecret }}
             namespace: cert-manager
+            group: ""
+            kind: Secret
       allowedRoutes:
         namespaces:
           from: All
@@ -135,6 +137,8 @@ spec:
         certificateRefs:
           - name: {{ .Values.gateway.apps.tlsSecret }}
             namespace: cert-manager
+            group: ""
+            kind: Secret
       allowedRoutes:
         namespaces:
           from: All
