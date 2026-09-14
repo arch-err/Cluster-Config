@@ -6,7 +6,7 @@ components:
     chart:
       repo: https://grafana.github.io/helm-charts
       name: grafana
-      version: 8.7.x
+      version: 8.7.1
     syncWave: "3"
     db:
       enabled: true

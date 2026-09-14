@@ -31,23 +31,12 @@
 # Calibre-Web still owns and uses the shared Calibre directory; its data is retained.
 #
 # ─── Auth ─────────────────────────────────────────────────────────────────────
-# OIDC via pocket-id, fronted by an oauth2-proxy sidecar release
-# (`booklore-oauth2`, see values/apps/booklore-oauth2.yaml). Mirrors the
-# calibre-web pattern exactly — booklore has native OIDC, but native OIDC is
-# configured via the in-app admin UI (no env-var wiring), which means a
-# manual post-deploy step per session. oauth2-proxy + REMOTE_AUTH (booklore's
-# reverse-proxy auth mode via X-Remote-User header) is fully declarative and
-# matches the cluster's existing pattern.
-#
-# REMOTE_AUTH_ENABLED=true makes booklore trust X-Remote-User/X-Remote-Email
-# headers set by oauth2-proxy. REMOTE_AUTH_CREATE_NEW_USERS=true auto-
-# provisions new users on first OIDC login. Native local auth still works as
-# fallback in case OIDC is broken — FORCE_DISABLE_OIDC is left off (default).
-#
-# HTTPRoute in apps.yaml points at the oauth2-booklore service (NOT directly
-# at this workload). API paths (/api/*) are NOT bypass-routed — booklore's
-# OPDS/Kobo endpoints live under /api/v1 and basic-auth + token flows can be
-# wired later if needed.
+# The live HTTPRoute goes directly to booklore:6060. The September 14 audit
+# made service.yaml match that existing route before enabling auto-sync.
+# The booklore-oauth2 release remains deployed but is not on this route.
+# Native OIDC is configured through Booklore's UI; REMOTE_AUTH settings below
+# are retained as deployed. Changing that authentication arrangement requires
+# a separate review, including which proxy headers the application trusts.
 #
 # ─── Storage ──────────────────────────────────────────────────────────────────
 # /app/data    — RWO PVC, 2Gi, kadalu.replica2-retain SC (CRITICAL — booklore's

@@ -61,24 +61,7 @@ extraObjects:
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
-      # Ignore defaulted fields on Gateway API resources (API server adds defaults)
       ignoreDifferences:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          jsonPointers:
-            - /spec/listeners
-        - group: gateway.networking.k8s.io
-          kind: HTTPRoute
-          jsonPointers:
-            - /spec
-        - group: gateway.networking.k8s.io
-          kind: TLSRoute
-          jsonPointers:
-            - /spec
-        - group: gateway.networking.k8s.io
-          kind: ReferenceGrant
-          jsonPointers:
-            - /spec
         - group: discovery.k8s.io
           kind: EndpointSlice
           jqPathExpressions:
@@ -86,7 +69,7 @@ extraObjects:
       syncPolicy:
         automated:
           enabled: false
-          prune: true
+          prune: false
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
@@ -113,28 +96,10 @@ extraObjects:
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd
-      # Ignore defaulted fields on Gateway API resources (API server adds defaults)
-      ignoreDifferences:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          jsonPointers:
-            - /spec/listeners
-        - group: gateway.networking.k8s.io
-          kind: HTTPRoute
-          jsonPointers:
-            - /spec
-        - group: gateway.networking.k8s.io
-          kind: TLSRoute
-          jsonPointers:
-            - /spec
-        - group: gateway.networking.k8s.io
-          kind: ReferenceGrant
-          jsonPointers:
-            - /spec
       syncPolicy:
         automated:
           enabled: false
-          prune: true
+          prune: false
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
@@ -167,7 +132,7 @@ extraObjects:
       syncPolicy:
         automated:
           enabled: false
-          prune: true
+          prune: false
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
@@ -196,7 +161,7 @@ extraObjects:
       syncPolicy:
         automated:
           enabled: false
-          prune: true
+          prune: false
           selfHeal: true
         syncOptions:
           - CreateNamespace=true

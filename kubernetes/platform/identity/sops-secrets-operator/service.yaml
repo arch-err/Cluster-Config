@@ -6,6 +6,7 @@ components:
     chart:
       repo: https://isindir.github.io/sops-secrets-operator
       name: sops-secrets-operator
+      version: 0.28.1
     syncWave: "-2"
     valuesFile: values.yaml
 extras:

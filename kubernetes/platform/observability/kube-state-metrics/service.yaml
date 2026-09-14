@@ -6,6 +6,6 @@ components:
     chart:
       repo: https://prometheus-community.github.io/helm-charts
       name: kube-state-metrics
-      version: 5.27.x
+      version: 5.27.1
     syncWave: "2"
     valuesFile: values.yaml

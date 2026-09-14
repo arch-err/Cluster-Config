@@ -6,7 +6,7 @@ components:
     chart:
       repo: https://charts.jetstack.io
       name: trust-manager
-      version: v0.22.x
+      version: v0.22.1
     syncWave: "1"
     valuesFile: values.yaml
 extras:

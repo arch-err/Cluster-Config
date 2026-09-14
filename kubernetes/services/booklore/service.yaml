@@ -11,8 +11,9 @@ components:
     route:
       hostname: booklore.apps.home
       gateway: apps
-      service: oauth2-booklore
-      port: 80
+      # Preserve the existing direct route; changing authentication is separate.
+      service: booklore
+      port: 6060
       timeout: 30m
       dashboard:
         name: Booklore

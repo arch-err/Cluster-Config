@@ -6,7 +6,7 @@ components:
     chart:
       repo: https://charts.jetstack.io
       name: cert-manager
-      version: 1.16.x
+      version: v1.16.5
     extraArgs:
       - installCRDs=true
     valuesFile: values.yaml

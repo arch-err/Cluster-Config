@@ -6,6 +6,6 @@ components:
     chart:
       repo: https://grafana.github.io/helm-charts
       name: alloy
-      version: 0.10.x
+      version: 0.10.1
     syncWave: "3"
     valuesFile: values.yaml

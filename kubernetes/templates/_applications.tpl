@@ -38,21 +38,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: {{ .namespace | default .name }}
 
-  # Ignore API-server-defaulted fields on Gateway API resources so children
-  # don't perma-OutOfSync when cilium adds defaults (group/kind/weight, etc.).
+  # Server-side diff handles Gateway API defaults; route specs remain visible.
   ignoreDifferences:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      jsonPointers:
-        - /spec
-    - group: gateway.networking.k8s.io
-      kind: TLSRoute
-      jsonPointers:
-        - /spec
-    - group: gateway.networking.k8s.io
-      kind: ReferenceGrant
-      jsonPointers:
-        - /spec
     # MaxUnavailableStatefulSet is alpha + disabled in talos default feature
     # gates → apiserver silently drops the field, charts that set it (e.g.
     # anza-labs/pocket-id) are perma-OutOfSync. Ignore until the gate goes
@@ -83,7 +70,7 @@ spec:
     # Manual sync during repository refactoring; see docs/refactoring.md.
     automated:
       enabled: false
-      prune: true
+      prune: false
       selfHeal: true
     {{- if .namespaceLabels }}
     managedNamespaceMetadata:
