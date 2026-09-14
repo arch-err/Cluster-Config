@@ -32,7 +32,7 @@ The platform chart owns the CoreDNS ConfigMap and synthesizes internal apps/infr
 
 Each enabled component generates a child Application with an upstream Helm chart and values from this repository. Parent renders also contain routes, storage resources, OIDC bootstrap jobs, and database Cluster resources. ArgoCD's own runtime settings live in [its component values](../kubernetes/platform/argocd/values.yaml); editing bootstrap values alone does not update existing roots automatically.
 
-The maintained manifests and all 47 live Applications target `main` for this repository, with auto-sync/self-healing enabled and automatic pruning disabled. Grafana dashboard Git-sync and Homepage assets also use `main`. The former `v2` baseline is archived; see the [refactoring protocol](refactoring.md).
+The maintained manifests and all 48 live Applications target `main` for this repository, with auto-sync/self-healing enabled and automatic pruning disabled. Grafana dashboard Git-sync and Homepage assets also use `main`. The former `v2` baseline is archived; see the [refactoring protocol](refactoring.md).
 
 ## Sync behavior
 

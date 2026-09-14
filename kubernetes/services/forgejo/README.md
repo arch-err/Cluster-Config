@@ -29,3 +29,19 @@ The namespace has sync wave -20; CNPG is wave 0, the optional OIDC bootstrap Job
 The explicit switches are in [values.yaml](values.yaml); the [feature guide](../../../docs/forgejo-preparation.md) explains their effects. Actions/runners, packages, LFS, issues, PRs, wiki, projects, forks, stars, migrations, mirrors, webhooks, attachments, uploads, source archives, code indexing, mail, federation, external avatars, feeds and metrics start disabled. Code and Releases cannot be disabled as repository units. Swagger is disabled but the authenticated API remains available. Ordinary Git, authentication security, logs, probes and necessary maintenance remain functional.
 
 Feature changes belong in Git. Render the pinned upstream chart, run `just check`, and check the running `app.ini` after rollout: upstream chart defaults and persisted secrets affect the final configuration.
+
+
+## Deployment verification — 2026-09-14
+
+- ArgoCD reconciled the pinned OCI chart and the supporting CNPG, OIDC and Gateway resources.
+- All four repository roots passed `just check`; the upstream chart passed server-side validation under the cluster's restricted Pod Security policy.
+- All 94 explicit application settings matched both the Forgejo 16.0.4 example configuration and the running `app.ini`.
+- HTTPS Git clone/push/pull with a temporary access token and SSH clone/push/pull with a temporary key passed. Anonymous access to the private test repository was denied.
+- Issue, pull-request and Actions APIs returned 404. Package publishing returned 404; the general package-list API remains reachable and returns an empty list, so disabling the registry does not remove every related API route.
+- PostgreSQL connections used TLS 1.3 with `verify-full`. Both PVCs have retained PVs with NODE-2 affinity.
+- A Forgejo restart preserved repository commits, both accounts, managed encryption secrets and the SSH host key. Temporary test repositories, tokens and user SSH keys were removed afterward.
+- Local recovery web login and access to its authenticated settings page passed. The test session was logged out.
+- After the startup-probe fix, the first external OIDC request after a cold rollout included S256 PKCE.
+- OIDC discovery, redirect URI, subject restriction, pre-provisioned account mapping and PKCE were checked. J's interactive passkey login requires J's confirmation; no claim of a completed interactive login is made here.
+
+Backup implementation and restoration testing were explicitly excluded by J.

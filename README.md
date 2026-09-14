@@ -32,6 +32,6 @@ Requires Bash, Helm, yq (Mike Farah's Go implementation), and Python 3's standar
 
 ## Current GitOps policy
 
-All 47 live Applications use this repository's `main` branch with auto-sync and self-healing enabled. **Automatic pruning is off; deletion guards remain.** Reviewed changes pushed to `main` can deploy automatically. Chart versions are pinned to the verified deployed versions, and Gateway API specs are visible in diffs. See [operating policy and migration history](docs/refactoring.md).
+All 48 live Applications use this repository's `main` branch with auto-sync and self-healing enabled. **Automatic pruning is off; deletion guards remain.** Reviewed changes pushed to `main` can deploy automatically. Chart versions are pinned to the verified deployed versions, and Gateway API specs are visible in diffs. See [operating policy and migration history](docs/refactoring.md).
 
 The old `main` is preserved by `archive/main-2026-09-06`. The former `v2` baseline is preserved by `archive/v2-2026-09-14`; Grafana and Homepage now fetch their files from `main`. See [repository state](docs/repository-state.md).
