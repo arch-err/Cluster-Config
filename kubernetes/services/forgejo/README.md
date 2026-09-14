@@ -20,7 +20,7 @@ The bootstrap password is encrypted in `secrets/forgejo.yaml`; `initialOnlyNoRes
 
 The apps gateway serves HTTPS on `10.10.10.200:443`. The Forgejo SSH LoadBalancer shares that address on port 22, forwarding to the rootless listener on 2222. Reciprocal Cilium sharing annotations are declared here and in the apps Gateway. SSH routing is by IP/port: other names resolving to the same IP reach the same SSH server.
 
-The namespace has sync wave -20; CNPG is wave 0, the optional OIDC bootstrap Job wave 11, and the application wave 12. OIDC provisioning is a one-time operation: remove `oidc.bootstrapJob: true` after success, retaining its configuration and RBAC. The group must exist in Pocket ID before running that job, following the platform's existing manually managed group convention. CNPG and OIDC generate their respective credential Secrets. The home CA bundle is supplied by trust-manager; CNPG supplies its own CA for verified database TLS.
+The namespace has sync wave -20; CNPG is wave 0, the optional OIDC bootstrap Job wave 11, the application wave 12, and its HTTPRoute wave 13. OIDC provisioning is a one-time operation: remove `oidc.bootstrapJob: true` after success, retaining its configuration and RBAC. The group must exist in Pocket ID before running that job, following the platform's existing manually managed group convention. CNPG and OIDC generate their respective credential Secrets. The home CA bundle is supplied by trust-manager; CNPG supplies its own CA for verified database TLS.
 
 ## Features
 
