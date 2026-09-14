@@ -34,4 +34,4 @@ Requires Bash, Helm, yq (Mike Farah's Go implementation), and Python 3's standar
 
 All 65 live Applications use this repository's `main` branch with auto-sync off. **No workload sync with unapproved differences.** See [refactoring rules and baseline](docs/refactoring.md). Software versions and runtime behavior are preserved; existing baseline drift remains blocked.
 
-The old `main` is preserved by `archive/main-2026-09-06`. The `v2` branch remains available because deployed Grafana and Homepage consumers still reference its files. See [repository state](docs/repository-state.md).
+The old `main` is preserved by `archive/main-2026-09-06`. The former `v2` baseline is preserved by `archive/v2-2026-09-14`; Grafana and Homepage now fetch their files from `main`. See [repository state](docs/repository-state.md).

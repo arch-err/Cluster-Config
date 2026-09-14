@@ -1,6 +1,6 @@
 # Repository state and branch migration
 
-Reviewed 2026-09-13. Scope: align repository organization and documentation with the `v2` production baseline, with explicitly approved runtime exceptions recorded in [the refactoring protocol](refactoring.md). Software upgrades remain separately scoped.
+Reviewed 2026-09-14. Scope: align repository organization and documentation with the `v2` production baseline, with explicitly approved runtime exceptions recorded in [the refactoring protocol](refactoring.md). Software upgrades remain separately scoped.
 
 ## History and archive
 
@@ -13,7 +13,7 @@ The annotated tag `archive/main-2026-09-06` preserves the exact old `main`. Brow
 | Branch | Disposition |
 | --- | --- |
 | `main` | Maintained configuration and documentation after promotion |
-| `v2` | Retain: deployed Grafana/Homepage still fetch files from this branch |
+| `v2` | Retired after migrating Grafana/Homepage consumers to `main`; exact baseline preserved by `archive/v2-2026-09-14` |
 | `storage-local-bulk` | Pruned locally: identical to the production baseline. Its existing worktree remains detached at `1688b23`; no worktree files were removed. |
 | `feat/public-isolation-poc` | Keep: worktree has modified `.gitignore`/`justfile` and untracked PoC files, despite no unique committed history |
 | `feat/n8n-infra-oauth` | Pruned remotely: feature merged through PR #5; the unapplied follow-up fix was subsequently discarded with PR #6. |
@@ -26,11 +26,11 @@ The user chose to discard both fixes and retain the public-isolation PoC. PRs #4
 
 **Updated constraint:** the user now requires disabling auto-sync before switching live sources and preserving zero unapproved runtime diffs. Follow [the refactoring protocol](refactoring.md); it supersedes the earlier cutover sequence below. The live freeze and Git-source cutover to `main` are verified; the baseline diff report is tracked in that protocol.
 
-The archive tag and promoted `main` have been published. All 47 remaining Applications use `main` for their Git sources and have auto-sync explicitly disabled, with no pending Application deletions or operations. After the approved cleanup, all 47 return zero hard-refresh diff under the existing comparison rules. The `v2` branch remains unchanged and is still referenced by deployed Grafana/Homepage consumers.
+The archive tag and promoted `main` have been published. All 47 remaining Applications use `main` for their Git sources and have auto-sync explicitly disabled, with no pending Application deletions or operations. After the approved cleanup, all 47 return zero hard-refresh diff under the existing comparison rules. Grafana dashboard Git-sync and all three Homepage background URLs also use `main` and the reorganized paths. The former `v2` baseline is preserved by `archive/v2-2026-09-14`.
 
-The maintained ArgoCD source manifests point to `main`: the source chart defaults and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs retain `v2` to match the live runtime configuration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
+The maintained ArgoCD source manifests point to `main`: the source chart defaults and all four bootstrap root Applications. Grafana dashboard Git-sync and Homepage asset URLs now use `main`, following an explicitly approved source migration. Existing root Applications are not automatically changed by editing the bootstrap file. Live inspection confirmed the sources followed `v2` before the freeze. The subsequent cutover status is recorded in the refactoring protocol.
 
-The freeze, Git-source cutover, and source layout migration are complete. Keep `v2` until its running dashboard and asset consumers are explicitly migrated and verified; that runtime change is outside this cleanup.
+The freeze, Git-source cutover, and source layout migration are complete. The last dashboard and asset consumers were migrated and verified on 2026-09-14, allowing `v2` to be retired. The public-isolation PoC worktree remains untouched, with its obsolete `origin/v2` upstream association removed.
 
 Rollback requires checking both root and child source paths and revisions against the captured baseline. Never use the unrelated legacy-main archive as the production rollback target, or sync roots just to propagate a pointer change.
 
