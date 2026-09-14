@@ -123,6 +123,10 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/sharing-key: apps-gateway-forgejo
+      lbipam.cilium.io/sharing-cross-namespace: forgejo
   addresses:
     - type: IPAddress
       value: {{ .Values.gateway.apps.ip }}

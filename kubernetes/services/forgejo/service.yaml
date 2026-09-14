@@ -1,0 +1,34 @@
+owner: apps
+enabled: true
+components:
+  - name: forgejo
+    namespace: forgejo
+    chart:
+      repo: code.forgejo.org/forgejo-helm
+      name: forgejo
+      version: "17.1.6"
+    # Database and OIDC credentials must exist before the app initializes.
+    syncWave: "12"
+    valuesFile: values.yaml
+    db:
+      enabled: true
+      version: "16"
+      instances: 1
+      storage:
+        size: 10Gi
+        storageClass: local-bulk
+    route:
+      hostname: git.apps.home
+      gateway: apps
+      service: forgejo-http
+      port: 3000
+      dashboard:
+        enabled: false
+    oidc:
+      enabled: true
+      bootstrapJob: true
+      callbackUrls:
+        - https://git.apps.home/user/oauth2/pocket-id/callback
+      scopes: [openid, profile, email, groups]
+      groupRestriction:
+        allowedGroups: [forgejo_users]

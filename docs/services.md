@@ -34,6 +34,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [services/calibre-web](../kubernetes/services/calibre-web/service.yaml) | `apps` | yes | `calibre-web`, `calibre-web-oauth2` |
 | [services/cyberchef](../kubernetes/services/cyberchef/service.yaml) | `apps` | yes | `cyberchef` |
 | [services/excalidash](../kubernetes/services/excalidash/service.yaml) | `apps` | yes | `excalidash` |
+| [services/forgejo](../kubernetes/services/forgejo/service.yaml) | `apps` | yes | `forgejo` |
 | [services/home-assistant](../kubernetes/services/home-assistant/service.yaml) | `apps` | yes | `home-assistant`, `home-assistant-mdns` |
 | [services/homepage](../kubernetes/services/homepage/service.yaml) | `apps` | yes | `homepage` |
 | [services/immich](../kubernetes/services/immich/service.yaml) | `apps` | yes | `immich` |

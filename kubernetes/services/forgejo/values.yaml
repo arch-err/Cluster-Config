@@ -1,0 +1,238 @@
+image:
+  registry: codeberg.org
+  repository: forgejo/forgejo
+  tag: 16.0.4
+  rootless: true
+replicaCount: 1
+# The upstream test Pod does not satisfy the cluster's restricted policy.
+# Deployment verification uses the actual HTTPS and SSH endpoints instead.
+test:
+  enabled: false
+strategy:
+  type: Recreate
+nodeSelector:
+  kubernetes.io/hostname: node-2
+podSecurityContext:
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+persistence:
+  enabled: true
+  claimName: forgejo-data
+  size: 50Gi
+  storageClass: local-bulk
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+service:
+  ssh:
+    type: LoadBalancer
+    port: 22
+    externalTrafficPolicy: Cluster
+    annotations:
+      lbipam.cilium.io/ips: 10.10.10.200
+      lbipam.cilium.io/sharing-key: apps-gateway-forgejo
+      lbipam.cilium.io/sharing-cross-namespace: gateway-system
+extraVolumes:
+  - name: home-ca
+    configMap:
+      name: home-ca-bundle
+  - name: postgres-ca
+    secret:
+      secretName: forgejo-db-ca
+extraContainerVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/forgejo/home-ca
+    readOnly: true
+  - name: postgres-ca
+    mountPath: /etc/forgejo/postgres-ca
+    readOnly: true
+extraInitVolumeMounts:
+  - name: home-ca
+    mountPath: /etc/forgejo/home-ca
+    readOnly: true
+  - name: postgres-ca
+    mountPath: /etc/forgejo/postgres-ca
+    readOnly: true
+deployment:
+  env:
+    - name: SSL_CERT_FILE
+      value: /etc/forgejo/home-ca/ca.crt
+    - name: PGSSLROOTCERT
+      value: /etc/forgejo/postgres-ca/ca.crt
+    - name: FORGEJO_OIDC_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-oidc-client
+          key: client_secret
+gitea:
+  admin:
+    existingSecret: forgejo-admin
+    email: forgejo-recovery@git.apps.home
+    passwordMode: initialOnlyNoReset
+  oauth:
+    - name: pocket-id
+      provider: openidConnect
+      key: forgejo
+      secret: ${FORGEJO_OIDC_SECRET}
+      autoDiscoverUrl: https://auth.apps.home/.well-known/openid-configuration
+      scopes: "openid profile email groups"
+      requiredClaimName: sub
+      requiredClaimValue: 2c9b02eb-ddba-4fa6-9659-c4c863b7350a
+  additionalConfigFromEnvs:
+    - name: FORGEJO__DATABASE__PASSWD
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-app
+          key: password
+    - name: FORGEJO__SECURITY__SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-security
+          key: secret-key
+    - name: FORGEJO__SECURITY__INTERNAL_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-security
+          key: internal-token
+  config:
+    APP_NAME: Forgejo
+    APP_SLOGAN: ''
+    server:
+      DOMAIN: git.apps.home
+      ROOT_URL: https://git.apps.home/
+      PROTOCOL: http
+      HTTP_PORT: 3000
+      DISABLE_SSH: false
+      START_SSH_SERVER: true
+      SSH_DOMAIN: git.apps.home
+      SSH_PORT: 22
+      SSH_LISTEN_PORT: 2222
+      LFS_START_SERVER: false
+      OFFLINE_MODE: true
+      ENABLE_ACME: false
+      ENABLE_PPROF: false
+    database:
+      DB_TYPE: postgres
+      HOST: forgejo-db-rw.forgejo.svc.cluster.local:5432
+      NAME: forgejo
+      USER: forgejo
+      SSL_MODE: verify-full
+    security:
+      INSTALL_LOCK: true
+      DISABLE_GIT_HOOKS: true
+      DISABLE_WEBHOOKS: true
+      IMPORT_LOCAL_PATHS: false
+      REVERSE_PROXY_LIMIT: 1
+      REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16,10.10.10.171/32,10.10.10.172/32,10.10.10.173/32
+    service:
+      REQUIRE_SIGNIN_VIEW: true
+      DISABLE_REGISTRATION: true
+      SHOW_REGISTRATION_BUTTON: false
+      ENABLE_INTERNAL_SIGNIN: true
+      ENABLE_NOTIFY_MAIL: false
+      REGISTER_EMAIL_CONFIRM: false
+      DEFAULT_ALLOW_CREATE_ORGANIZATION: false
+      ENABLE_TIMETRACKING: false
+      DEFAULT_ENABLE_TIMETRACKING: false
+      ENABLE_USER_HEATMAP: false
+      SHOW_MILESTONES_DASHBOARD_PAGE: false
+      AUTO_WATCH_NEW_REPOS: false
+      AUTO_WATCH_ON_CHANGES: false
+    repository:
+      FORCE_PRIVATE: true
+      DEFAULT_PRIVATE: private
+      DISABLE_HTTP_GIT: false
+      DISABLED_REPO_UNITS: repo.issues,repo.ext_issues,repo.pulls,repo.wiki,repo.ext_wiki,repo.projects,repo.packages,repo.actions
+      DEFAULT_REPO_UNITS: repo.code,repo.releases
+      DEFAULT_FORK_REPO_UNITS: repo.code,repo.releases
+      DEFAULT_MIRROR_REPO_UNITS: repo.code,repo.releases
+      DISABLE_MIGRATIONS: true
+      DISABLE_STARS: true
+      DISABLE_FORKS: true
+      DISABLE_DOWNLOAD_SOURCE_ARCHIVES: true
+      ENABLE_PUSH_CREATE_USER: false
+      ENABLE_PUSH_CREATE_ORG: false
+    repository.upload:
+      ENABLED: false
+    repository.signing:
+      SIGNING_KEY: none
+    admin:
+      DISABLE_REGULAR_ORG_CREATION: true
+      DEFAULT_EMAIL_NOTIFICATIONS: disabled
+    oauth2_client:
+      ENABLE_AUTO_REGISTRATION: false
+      ACCOUNT_LINKING: disabled
+      UPDATE_AVATAR: false
+    oauth2:
+      ENABLED: false
+    openid:
+      ENABLE_OPENID_SIGNIN: false
+      ENABLE_OPENID_SIGNUP: false
+    actions:
+      ENABLED: false
+    packages:
+      ENABLED: false
+    mirror:
+      ENABLED: false
+    f3:
+      ENABLED: false
+    attachment:
+      ENABLED: false
+    indexer:
+      REPO_INDEXER_ENABLED: false
+      ISSUE_INDEXER_TYPE: db
+    mailer:
+      ENABLED: false
+    email.incoming:
+      ENABLED: false
+    federation:
+      ENABLED: false
+      SHARE_USER_STATISTICS: false
+    picture:
+      DISABLE_GRAVATAR: true
+      ENABLE_FEDERATED_AVATAR: false
+    badges:
+      ENABLED: false
+    other:
+      ENABLE_FEED: false
+      ENABLE_SITEMAP: false
+      SHOW_FOOTER_VERSION: false
+      SHOW_FOOTER_TEMPLATE_LOAD_TIME: false
+    authorized_integration:
+      BLOCKED_DOMAINS: '*'
+      ALLOW_LOCALNETWORKS: false
+    metrics:
+      ENABLED: false
+    api:
+      ENABLE_SWAGGER: false
+    cors:
+      ENABLED: false
+    service.explore:
+      DISABLE_USERS_PAGE: true
+      DISABLE_ORGANIZATIONS_PAGE: true
+      DISABLE_CODE_PAGE: true
+    ui.svg:
+      ENABLE_RENDER: false
+    markdown:
+      ENABLE_MATH: false
+    pwa:
+      STANDALONE: false
+    cron.update_checker:
+      ENABLED: false
+    log:
+      MODE: console
+      LEVEL: Info
