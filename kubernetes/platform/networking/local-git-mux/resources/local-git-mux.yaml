@@ -108,7 +108,7 @@ spec:
               protocol: TCP
           rules:
             dns:
-              - matchPattern: "*.cluster.local."
+              - matchName: forgejo-ssh.forgejo.svc.cluster.local
     - toCIDR:
 {{- range $mux.publicResolvers }}
         - {{ .address }}/32

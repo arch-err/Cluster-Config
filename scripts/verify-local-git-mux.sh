@@ -23,7 +23,8 @@ service_json=$(kubectl -n "$NAMESPACE" get service local-git-mux -o json)
 jq -e --arg vip "$VIP" '
   .spec.type == "LoadBalancer" and
   .spec.allocateLoadBalancerNodePorts == false and
-  .spec.loadBalancerSourceRanges == ["10.10.10.0/24"] and
+  (.spec.loadBalancerSourceRanges | sort) ==
+    (["10.10.10.0/24", "10.20.20.0/24", "10.20.21.2/32"] | sort) and
   ([.spec.ports[].nodePort // empty] | length == 0) and
   ([.status.loadBalancer.ingress[].ip] | index($vip) != null) and
   ([.spec.ports[] | [.name, .port, .targetPort]] | sort) ==

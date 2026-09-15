@@ -7,6 +7,8 @@ extras:
     publicHostname: git.3rr.dev
     trustedCIDRs:
       - 10.10.10.0/24
+      - 10.20.20.0/24
+      - 10.20.21.2/32
     publicResolvers:
       - name: cloudflare-primary
         address: 1.1.1.1

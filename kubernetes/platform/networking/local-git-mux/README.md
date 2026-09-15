@@ -13,10 +13,12 @@ Public DNS remains unchanged, so public HTTPS works while public SSH does not.
 HAProxy uses explicit public resolvers for the Cloudflare backend to prevent
 the split-DNS record from creating a proxy loop.
 
-The LoadBalancer and NetworkPolicy admit only `10.10.10.0/24`. Egress is
-default-denied and limited to the declared DNS resolvers, `git.3rr.dev:443`,
-and the Forgejo SSH Service. HAProxy runs non-root with a read-only rootfs and
-without a Kubernetes service-account token.
+The LoadBalancer and NetworkPolicy admit only the cluster LAN
+(`10.10.10.0/24`), trusted client LAN (`10.20.20.0/24`), and J's current Home
+VPN address (`10.20.21.2/32`). Egress is default-denied and limited to the
+declared DNS resolvers, `git.3rr.dev:443`, and the Forgejo SSH Service. HAProxy
+runs non-root with a read-only rootfs and without a Kubernetes service-account
+token.
 
 The router DNS override is intentionally managed separately. Before adding it,
 verify the mux with:
