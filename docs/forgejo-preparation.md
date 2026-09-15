@@ -66,6 +66,12 @@ Earlier advice to select one primary host for all active repositories is superse
 - [v16 configuration documentation](https://forgejo.org/docs/v16.0/admin/config-cheat-sheet/) was checked against the release-specific [16.0.4 example configuration](https://codeberg.org/forgejo/forgejo/src/tag/v16.0.4/custom/conf/app.example.ini) and [15.0.8 example configuration](https://codeberg.org/forgejo/forgejo/src/tag/v15.0.8/custom/conf/app.example.ini). Use the selected release's source when implementing; the documentation warns that its defaults are best-effort. Configuration changes require a restart.
 - Installation references: [installation](https://forgejo.org/docs/v16.0/admin/installation/), [database preparation](https://forgejo.org/docs/v16.0/admin/installation/database-preparation/), [recommended settings](https://forgejo.org/docs/v16.0/admin/setup/recommendations/), [upgrade guide](https://forgejo.org/docs/v16.0/admin/upgrade/).
 
+## Implemented feature rollout — 2026-09-15
+
+J approved the grouped feature recommendations and authorized deployment. The agreed settings are now deployed; see the [service verification record](../kubernetes/services/forgejo/README.md#feature-rollout-verification--2026-09-15) for runtime checks and deferred dependencies. Existing `J/test` remains private with its agreed feature units enabled.
+
+Private-by-default applies to native creation defaults and personal/organization push-to-create. Forgejo's REST repository-creation API instead defaults an omitted `private` field to false, verified against the running release. zgit must explicitly send `"private": true`; no zgit changes were made in this Forgejo-only scope. Code indexing is initialized, but the documented REST API has no code-content search endpoint.
+
 ## Historical minimal feature baseline
 
 Notation: `[section] KEY=value` maps to `gitea.config.section.KEY` in chart values. Dotted sections remain one YAML key. These are proposed values, not upstream defaults. Controls below were checked in the release example configurations linked above.

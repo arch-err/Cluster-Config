@@ -49,3 +49,19 @@ Feature changes belong in Git. Render the pinned upstream chart, run `just check
 - OIDC discovery, redirect URI, subject restriction, pre-provisioned account mapping and PKCE were checked. J confirmed that interactive Pocket ID passkey login successfully signs into account J.
 
 Backup implementation and restoration testing were explicitly excluded by J.
+
+
+## Feature rollout verification — 2026-09-15
+
+The approved feature set was deployed through ArgoCD. All four repository roots passed `just check`; the pinned upstream chart rendered and passed server-side dry-run validation. All 98 configured section settings matched the live `app.ini`. Forgejo and all four roots were Synced/Healthy after rollout.
+
+Runtime checks passed for issue creation and attachments, branch creation and PR merge, Actions API availability, LFS upload/download, generic package publish/download/delete, public anonymous reads and ZIP downloads, private access denial, personal and organization HTTPS push-to-create (both private by default), organization creation, writable forks, GitHub pull-mirror import and fetched commits, and webhook API availability with no configured destinations. All temporary repositories, organization and package versions were removed. Existing `J/test` received issues, PRs, Actions and packages while remaining private.
+
+The Pocket ID provider's persisted required-claim fields are empty, the existing J/recovery accounts and login sources are preserved, the signup page offers Pocket ID without local password signup, and the OIDC redirect retains S256 PKCE. A fresh identity's interactive provisioning was not exercised; it requires an eligible Pocket ID login. The SSH service still answers on port 22 with the same RSA host-key fingerprint as the original deployment.
+
+Two API integration limits matter for zgit:
+
+- Forgejo's create-repository API treats an omitted `private` field as false, even with `DEFAULT_PRIVATE=private`. zgit and other API clients must explicitly send `"private": true` for private creation. Native UI defaults and push-to-create are configured private; enforcing all repositories private would prevent the agreed public-repository support.
+- Forgejo 16's documented REST API has no code-content search endpoint. The code index is enabled and initialized, but that does not supply a REST search integration for zgit.
+
+Actions execution remains untested without a runner; actual user mirrors, publishing services, public routing and the star collector remain deferred.
