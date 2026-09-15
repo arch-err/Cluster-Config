@@ -55,19 +55,22 @@ banner=$(timeout 10 bash -c 'exec 3<>/dev/tcp/"$1"/22; IFS= read -r -t 5 line <&
   && pass "SSH reaches Forgejo through the same hostname VIP" \
   || fail "Unexpected SSH banner: $banner"
 
+forgejo_ip=$(kubectl -n forgejo get service forgejo-ssh -o jsonpath='{.spec.clusterIP}')
 kubectl -n "$NAMESPACE" exec deployment/local-git-mux -- \
-  nc -z -w 5 forgejo-ssh.forgejo.svc.cluster.local 22 >/dev/null \
+  nc -z -w 5 "$forgejo_ip" 22 >/dev/null \
   && pass "proxy can reach only the declared Forgejo SSH service" \
   || fail "proxy cannot reach Forgejo SSH"
 
+pocket_id_ip=$(kubectl -n pocket-id get service pocket-id -o jsonpath='{.spec.clusterIP}')
 if kubectl -n "$NAMESPACE" exec deployment/local-git-mux -- \
-  nc -z -w 3 pocket-id.pocket-id.svc.cluster.local 80 >/dev/null 2>&1; then
+  nc -z -w 3 "$pocket_id_ip" 80 >/dev/null 2>&1; then
   fail "proxy unexpectedly reached Pocket ID"
 fi
 pass "proxy cannot reach an undeclared cluster service"
 
+example_ip=$(getent ahostsv4 example.com | awk 'NR == 1 {print $1}')
 if kubectl -n "$NAMESPACE" exec deployment/local-git-mux -- \
-  wget -q -T 4 -O /dev/null https://example.com >/dev/null 2>&1; then
+  nc -z -w 3 "$example_ip" 443 >/dev/null 2>&1; then
   fail "proxy unexpectedly reached an undeclared Internet host"
 fi
 pass "proxy cannot reach an undeclared Internet host"
