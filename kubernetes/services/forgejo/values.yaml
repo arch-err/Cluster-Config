@@ -104,8 +104,9 @@ gitea:
       secret: ${FORGEJO_OIDC_SECRET}
       autoDiscoverUrl: https://auth.apps.home/.well-known/openid-configuration
       scopes: "openid,profile,email,groups"
-      requiredClaimName: sub
-      requiredClaimValue: 2c9b02eb-ddba-4fa6-9659-c4c863b7350a
+      # Explicit empty flags clear the existing provider restriction on update.
+      requiredClaimName: ""
+      requiredClaimValue: ""
   additionalConfigFromEnvs:
     - name: FORGEJO__DATABASE__PASSWD
       valueFrom:
@@ -135,7 +136,7 @@ gitea:
       SSH_DOMAIN: git.apps.home
       SSH_PORT: 22
       SSH_LISTEN_PORT: 2222
-      LFS_START_SERVER: false
+      LFS_START_SERVER: true
       OFFLINE_MODE: true
       ENABLE_ACME: false
       ENABLE_PPROF: false
@@ -148,18 +149,20 @@ gitea:
     security:
       INSTALL_LOCK: true
       DISABLE_GIT_HOOKS: true
-      DISABLE_WEBHOOKS: true
+      DISABLE_WEBHOOKS: false
       IMPORT_LOCAL_PATHS: false
       REVERSE_PROXY_LIMIT: 1
       REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16,10.10.10.171/32,10.10.10.172/32,10.10.10.173/32
     service:
-      REQUIRE_SIGNIN_VIEW: true
-      DISABLE_REGISTRATION: true
+      REQUIRE_SIGNIN_VIEW: false
+      DISABLE_REGISTRATION: false
+      ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+      REQUIRE_EXTERNAL_REGISTRATION_PASSWORD: false
       SHOW_REGISTRATION_BUTTON: false
       ENABLE_INTERNAL_SIGNIN: true
       ENABLE_NOTIFY_MAIL: false
       REGISTER_EMAIL_CONFIRM: false
-      DEFAULT_ALLOW_CREATE_ORGANIZATION: false
+      DEFAULT_ALLOW_CREATE_ORGANIZATION: true
       ENABLE_TIMETRACKING: false
       DEFAULT_ENABLE_TIMETRACKING: false
       ENABLE_USER_HEATMAP: false
@@ -167,28 +170,29 @@ gitea:
       AUTO_WATCH_NEW_REPOS: false
       AUTO_WATCH_ON_CHANGES: false
     repository:
-      FORCE_PRIVATE: true
+      FORCE_PRIVATE: false
       DEFAULT_PRIVATE: private
+      DEFAULT_PUSH_CREATE_PRIVATE: true
       DISABLE_HTTP_GIT: false
-      DISABLED_REPO_UNITS: repo.issues,repo.ext_issues,repo.pulls,repo.wiki,repo.ext_wiki,repo.projects,repo.packages,repo.actions
-      DEFAULT_REPO_UNITS: repo.code,repo.releases
-      DEFAULT_FORK_REPO_UNITS: repo.code,repo.releases
+      DISABLED_REPO_UNITS: repo.ext_issues,repo.wiki,repo.ext_wiki,repo.projects
+      DEFAULT_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls,repo.packages,repo.actions
+      DEFAULT_FORK_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls,repo.packages,repo.actions
       DEFAULT_MIRROR_REPO_UNITS: repo.code,repo.releases
-      DISABLE_MIGRATIONS: true
+      DISABLE_MIGRATIONS: false
       DISABLE_STARS: true
-      DISABLE_FORKS: true
-      DISABLE_DOWNLOAD_SOURCE_ARCHIVES: true
-      ENABLE_PUSH_CREATE_USER: false
-      ENABLE_PUSH_CREATE_ORG: false
+      DISABLE_FORKS: false
+      DISABLE_DOWNLOAD_SOURCE_ARCHIVES: false
+      ENABLE_PUSH_CREATE_USER: true
+      ENABLE_PUSH_CREATE_ORG: true
     repository.upload:
       ENABLED: false
     repository.signing:
       SIGNING_KEY: none
     admin:
-      DISABLE_REGULAR_ORG_CREATION: true
+      DISABLE_REGULAR_ORG_CREATION: false
       DEFAULT_EMAIL_NOTIFICATIONS: disabled
     oauth2_client:
-      ENABLE_AUTO_REGISTRATION: false
+      ENABLE_AUTO_REGISTRATION: true
       ACCOUNT_LINKING: disabled
       UPDATE_AVATAR: false
     oauth2:
@@ -197,17 +201,20 @@ gitea:
       ENABLE_OPENID_SIGNIN: false
       ENABLE_OPENID_SIGNUP: false
     actions:
-      ENABLED: false
+      ENABLED: true
     packages:
-      ENABLED: false
+      ENABLED: true
     mirror:
-      ENABLED: false
+      ENABLED: true
     f3:
       ENABLED: false
     attachment:
-      ENABLED: false
+      ENABLED: true
     indexer:
-      REPO_INDEXER_ENABLED: false
+      REPO_INDEXER_ENABLED: true
+      REPO_INDEXER_TYPE: bleve
+      REPO_INDEXER_PATH: /data/gitea/indexers/repos.bleve
+      REPO_INDEXER_REPO_TYPES: sources,forks,mirrors,templates
       ISSUE_INDEXER_TYPE: db
     mailer:
       ENABLED: false

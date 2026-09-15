@@ -19,3 +19,5 @@ Terms used to distinguish repository maintenance from changes to the running sys
 **Service**: A directory grouping a logical service's declarations, values, resources, and encrypted secrets. It can contain several Helm components and retains its existing Argo root owner regardless of directory placement.
 
 **Component**: One upstream Helm chart represented by an existing Argo Application, such as a service's OAuth2 proxy. Grouping components does not merge their Applications.
+
+**zgit**: J's frontend for interacting with Forgejo through its API. It is the intended everyday interface for J's forge workflow.

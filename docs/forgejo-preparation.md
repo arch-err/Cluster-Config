@@ -6,6 +6,57 @@ Research checked 2026-09-14. J wants Forgejo in its own `forgejo` namespace, wit
 
 Start with authenticated Git hosting and the web interface. Preserve account security, TLS, authorization, logging, health checks, and necessary maintenance. Disable optional product capabilities explicitly rather than relying on defaults or hiding tabs.
 
+## Revised feature direction — after initial deployment
+
+J uses Forgejo with his agents as an alternative to GitHub, with **zgit**, his own API-based frontend, as the everyday interface. Separate agent user accounts are not currently required. Later, public repositories should be available read-only to Internet visitors, with a separate public-facing Pocket ID managed by J. The scope here remains strictly Forgejo configuration; external exposure, identity-provider deployment, security infrastructure and backups are handled separately. This section supersedes the earlier private-only target; the initial deployment descriptions below remain the historical baseline. J subsequently approved implementation of these choices; the managed values now implement the agreed feature set. Historical deployment checks below describe the original minimal setup.
+
+| Capability | Requested direction |
+| --- | --- |
+| Issues | Enable. |
+| Code search | Confirmed: enable repository code indexing for cross-repository file-content search. Embedded Bleve indexes sources, forks, mirrors and templates. Implementation review found no code-content search endpoint in Forgejo 16's documented REST API; zgit search integration remains separate. |
+| Webhooks | Confirmed: enable the capability. Configure no webhook destinations until a concrete integration needs them. Custom server-side Git hooks remain disabled. |
+| Forks | Confirmed: enable Forgejo repository forks, including writable forks for work on mirrored upstream repositories. |
+| Source archive downloads | Confirmed: enable ZIP/tar source downloads, subject to repository access permissions. |
+| Stars | Confirmed: keep Forgejo stars disabled. The proposed GitHub-star mirror collector does not depend on Forgejo stars. |
+| Time tracking | Keep disabled; J declined it and requested grouped recommendations for the remaining review. |
+| Pull requests | Confirmed: enable; agents should work through PRs on writable Forgejo repositories. Separate agent users are not required. Leave branch protection and required reviews unset initially; this is a workflow expectation, not enforced prevention of direct pushes. |
+| Projects and wikis | Keep disabled for now. |
+| GitHub mirroring | Full native pull/push mirror capability desired. Resolve the authoritative writable location per repository before configuring mirrors. |
+| Public and private repositories | Confirmed: private by default for newly created repositories, including push-to-create in personal and organization namespaces. J explicitly selects when to publish a repository. Allow public repositories rather than forcing all repositories private. |
+| Anonymous browsing | Enable for public content. This does not publish the instance to the Internet by itself. |
+| Pocket ID registration | Confirmed: Pocket ID controls eligibility through access to the Forgejo OIDC client. Automatically provision eligible OIDC users without an additional J-only subject restriction in Forgejo. Keep local password self-registration disabled and retain local administrator recovery. This selects the intended Forgejo behavior; it does not authorize broadening the Pocket ID client audience or making newly provisioned users administrators. |
+| Packages, Actions, LFS and attachments | Enable Forgejo capabilities. Runner execution is a separate dependency from enabling Actions. |
+| Push-to-create | Desired; personal and organization repositories are relevant, including locally originated CTF repositories. |
+| Organizations | Desired for grouping repositories, e.g. one CTF organization. This does not require additional users or enabling project boards. Current restrictions limit regular-user organization creation; they do not disable organizations themselves. |
+| Pages equivalent | Desired, but not a native Forgejo configuration toggle. Track the integration requirement without deploying a separate service under the current scope. |
+| Sitemap | Deferred with public-facing setup; revisit when public frontend URLs are settled. |
+
+API behavior, authentication, pagination and feature permissions matter for zgit; hiding native UI tabs is not a sufficient acceptance test. Confirmed: zgit calls Forgejo's API from both its backend and the browser. J tentatively names `git.3rr.dev` as zgit's production hostname; assume HTTPS, giving the proposed origin `https://git.3rr.dev`. Development origins and the browser-facing Forgejo API origin remain unspecified. CORS is needed for browser calls only when they cross origins; do not enable it solely because browser calls exist. Do not enable broad CORS or Forgejo's OAuth2-provider feature simply because zgit exists. If zgit needs Forgejo-issued delegated tokens, that is a separate concrete requirement from consuming Pocket ID login. This tentative zgit hostname is not a decision to change Forgejo's current `ROOT_URL`, SSH hostname, DNS or routing.
+
+[Native mirroring](https://forgejo.org/docs/v16.0/user/repo-mirror/) synchronizes Git branches, tags and commits; it does not imply continuous bidirectional synchronization of issues, PRs, Actions state, packages or release attachments. Git LFS object transfer also needs explicit verification when testing an actual mirror. A pull mirror rejects writes ([16.0.4 source](https://codeberg.org/forgejo/forgejo/src/tag/v16.0.4/routers/private/serv.go)); a push mirror can overwrite divergent destination changes. Proposed workflow: import active GitHub repositories as ordinary writable Forgejo repositories, work through Forgejo PRs, and optionally push-mirror back to GitHub. Keep GitHub-primary pull mirrors for repositories that remain active there. The per-repository decision below supersedes this original general proposal.
+
+[Actions documentation](https://forgejo.org/docs/v16.0/admin/actions/) distinguishes the Forgejo server from the separately installed runner. [Codeberg Pages](https://docs.codeberg.org/codeberg-pages/) currently uses the separate `git-pages` service, which supports self-hosted Forgejo; deployment can be driven by webhooks or Actions. Pages may therefore introduce a concrete webhook requirement, but enabling Actions does not automatically enable Pages hosting. The Forgejo contributor documentation called “Static pages” describes the project's infrastructure, not a built-in per-repository Pages feature.
+
+Forgejo's `ENABLE_SITEMAP` controls its own sitemap. If zgit is the public canonical frontend, its own route structure determines the useful public sitemap. This remains a later frontend integration decision; no zgit changes are in scope here.
+
+J explicitly deferred public-facing design until public exposure is undertaken. Do not block the current Forgejo feature review on public hostnames, proxy routing, browser API origins, CORS or sitemap decisions. Keep the current hostname/routing and CORS setting unchanged for now; `git.3rr.dev` remains tentative context only.
+
+Review preference: present remaining features in groups with recommendations, allowing J to object rather than requesting yes/no for each toggle. Do not describe recommendations as already deployed.
+
+### Repository ownership and preservation — 2026-09-15
+
+Confirmed rule: every repository J owns, and GitHub repositories J finds interesting, should have a locally held repository in Forgejo, either writable or a read-only mirror. The authoritative writable host is selected per repository. Organizations should help group repositories and inform future automation defaults, with per-repository exceptions; no organization policy automation has been implemented.
+
+CTF repositories originate locally, belong in a dedicated Forgejo organization, and are also pushed to GitHub. J explicitly selects when a repository becomes public. Proposed flow is local → writable Forgejo → GitHub push mirror. Forgejo visibility changes do not themselves change GitHub repository visibility; coordinated publication would require API automation. Internal tools may remain entirely in Forgejo.
+
+For upstream contributions, propose retaining an upstream pull mirror separately from a writable working fork/copy in Forgejo. Contribution branches can be pushed to J's fork on GitHub and used for upstream GitHub PRs. This keeps work in Forgejo while respecting the upstream forge's PR workflow. Do not configure opposing whole-repository mirrors as bidirectional collaboration.
+
+J is considering a separate local scheduled process that discovers GitHub stars and creates Forgejo pull mirrors through the API. This is future external automation, not a requested implementation in the current Forgejo-configuration scope. Suggested design: GitHub repository ID for identity across renames; paginated discovery; idempotent creation; Forgejo handles subsequent scheduled Git synchronization. Recommend retaining local repositories when unstarred or when upstream becomes inaccessible, never interpreting a discovery omission as a deletion request. A successful fetch is required before any content is preserved.
+
+Confirmed by J: keep it simple with normal pull mirrors initially. Preserve the latest successfully fetched copy when upstream disappears or becomes inaccessible; historical retention of revisions subsequently removed or rewritten upstream is deferred. Proposed collector behavior remains to retain local copies on unstar rather than delete them. No additional archival mechanism is required for the initial setup. Git history does not imply preservation of GitHub issues, PR discussions, release assets, LFS objects or submodule repositories. Sources: [Forgejo mirrors](https://forgejo.org/docs/v16.0/user/repo-mirror/), [GitHub stars API](https://docs.github.com/en/rest/activity/starring?apiVersion=2022-11-28), [Git fetch pruning](https://git-scm.com/docs/git-fetch#_pruning).
+
+Earlier advice to select one primary host for all active repositories is superseded by this per-repository direction. The feature rollout enables capabilities; concrete mirrors and scheduled jobs remain separate work.
+
 ## Versions and sources
 
 - [Current releases](https://forgejo.org/releases/): stable **16.0.4**, supported until 2026-10-29; LTS **15.0.8**, supported until 2027-07-15. Both released 2026-09-10. **Confirmed by J: latest stable track.** Recheck the stable release at installation and pin its exact version; do not use a floating image tag. Plan for major upgrades within the stable support windows.
@@ -15,7 +66,7 @@ Start with authenticated Git hosting and the web interface. Preserve account sec
 - [v16 configuration documentation](https://forgejo.org/docs/v16.0/admin/config-cheat-sheet/) was checked against the release-specific [16.0.4 example configuration](https://codeberg.org/forgejo/forgejo/src/tag/v16.0.4/custom/conf/app.example.ini) and [15.0.8 example configuration](https://codeberg.org/forgejo/forgejo/src/tag/v15.0.8/custom/conf/app.example.ini). Use the selected release's source when implementing; the documentation warns that its defaults are best-effort. Configuration changes require a restart.
 - Installation references: [installation](https://forgejo.org/docs/v16.0/admin/installation/), [database preparation](https://forgejo.org/docs/v16.0/admin/installation/database-preparation/), [recommended settings](https://forgejo.org/docs/v16.0/admin/setup/recommendations/), [upgrade guide](https://forgejo.org/docs/v16.0/admin/upgrade/).
 
-## Proposed feature baseline
+## Historical minimal feature baseline
 
 Notation: `[section] KEY=value` maps to `gitea.config.section.KEY` in chart values. Dotted sections remain one YAML key. These are proposed values, not upstream defaults. Controls below were checked in the release example configurations linked above.
 

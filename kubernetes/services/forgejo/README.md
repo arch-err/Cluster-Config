@@ -1,12 +1,12 @@
 # Forgejo
 
-Private Git hosting for J at **https://git.apps.home**, with SSH on the same hostname, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.4-rootless** rather than the chart's LTS default.
+Git hosting for J and his agents at **https://git.apps.home**, with SSH on the same hostname, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.4-rootless** rather than the chart's LTS default.
 
 One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained `local-bulk` storage: 50 GiB for Forgejo and 10 GiB for PostgreSQL. The hostPath provisioner does not enforce these as disk quotas. NODE-2 downtime makes the service unavailable. Backups are managed separately by J and are outside this deployment.
 
 ## Access
 
-Use the **pocket-id** login button. Pocket ID client `forgejo` is restricted to group `forgejo_users`, whose only member is J. Forgejo also requires J's exact Pocket ID subject claim, preventing a later broadening of group membership from granting another identity access. Self-registration, automatic OIDC registration and account linking are disabled. J's Forgejo account is explicitly provisioned against the Pocket ID subject; an identity rebuild requires updating both the subject restriction in values and the account's login name.
+Use the **pocket-id** login button. Pocket ID controls eligibility through access to client `forgejo`, currently restricted to group `forgejo_users`. Eligible identities are automatically provisioned without an additional subject allowlist in Forgejo. Local password self-registration and automatic account linking remain disabled; the existing local recovery account remains usable. J's existing account stays linked to his Pocket ID subject. No Pocket ID group membership is changed by this feature rollout.
 
 Forgejo 16's first OIDC request after a cold start initializes the provider without PKCE. A startup probe consumes that redirect locally without following it; subsequent login requests include S256 PKCE. Recheck whether this workaround is needed on upgrades. Pocket ID still requires PKCE.
 
@@ -26,7 +26,11 @@ The namespace has sync wave -20; CNPG is wave 0, the optional OIDC bootstrap Job
 
 ## Features
 
-The explicit switches are in [values.yaml](values.yaml); the [feature guide](../../../docs/forgejo-preparation.md) explains their effects. Actions/runners, packages, LFS, issues, PRs, wiki, projects, forks, stars, migrations, mirrors, webhooks, attachments, uploads, source archives, code indexing, mail, federation, external avatars, feeds and metrics start disabled. Code and Releases cannot be disabled as repository units. Swagger is disabled but the authenticated API remains available. Ordinary Git, authentication security, logs, probes and necessary maintenance remain functional.
+The explicit switches are in [values.yaml](values.yaml); the [feature guide](../../../docs/forgejo-preparation.md) records the agreed choices. Issues, PRs, forks, imports, pull/push mirrors, personal/organization push-to-create, LFS, attachments, packages, Actions server support, source archives, code indexing and webhooks are enabled. New writable repositories and forks receive issues, PRs, packages and Actions units; read-only mirrors default to Code and Releases. New repositories are private by default, including push-to-create. Public repositories allow anonymous reads. Agents are expected to work through PRs; branch protection is configured separately per repository.
+
+Projects, wikis, stars, time tracking, native file uploads, mail, federation, external avatars, feeds, metrics and other unneeded extras remain disabled. Code indexing uses embedded Bleve on the retained Forgejo volume and includes forks and mirrors. Forgejo 16's documented REST API does not expose code-content search; zgit integration for that capability remains separate. The API remains available with Swagger disabled.
+
+No webhook destinations, mirrors, runners or publishing services are created by enabling these capabilities. Actions execution needs a runner; Pages hosting and the GitHub-star collector remain separate work. Public DNS/routing, CORS and sitemap are deferred. The current HTTPS and SSH hostname remains `git.apps.home`.
 
 Feature changes belong in Git. Render the pinned upstream chart, run `just check`, and check the running `app.ini` after rollout: upstream chart defaults and persisted secrets affect the final configuration.
 
