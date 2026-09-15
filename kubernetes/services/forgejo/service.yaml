@@ -27,7 +27,6 @@ components:
         enabled: false
     oidc:
       enabled: true
-      bootstrapJob: true
       callbackUrls:
         - https://forgejo.3rr.dev/user/oauth2/pocket-id/callback
       scopes: [openid, profile, email, groups]
