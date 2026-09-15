@@ -51,6 +51,10 @@ spec:
     - toEntities:
         - host
         - remote-node
+    - toServices:
+        - k8sService:
+            serviceName: cilium-gateway-public
+            namespace: gateway-system
     - toCIDRSet:
         # Cluster Pod and Service ranges are excluded here and remain governed
         # by identity rules above. Everything else in 10/8 includes the LAN.

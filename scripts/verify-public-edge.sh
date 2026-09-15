@@ -81,12 +81,13 @@ kubectl -n public-test exec public-egress-probe -- curl -4fsS --connect-timeout 
 
 for target in \
   http://pocket-id.pocket-id.svc.cluster.local \
+  https://kubernetes.default.svc \
   https://10.10.10.171:50000 \
   http://10.10.10.1 \
   http://10.20.20.1 \
   http://10.10.10.202; do
   if kubectl -n public-test exec public-egress-probe -- \
-    curl -kfsS --connect-timeout 2 --max-time 4 "$target" >/dev/null 2>&1; then
+    curl -ksS --connect-timeout 2 --max-time 4 -o /dev/null "$target" >/dev/null 2>&1; then
     fail "public namespace unexpectedly reached protected target $target"
   fi
   pass "public namespace cannot reach protected target $target"
@@ -99,7 +100,7 @@ kubectl -n cloudflare-tunnel exec tunnel-egress-probe -- \
   && pass "tunnel namespace can reach the public Gateway and selected backend" \
   || fail "tunnel namespace cannot reach the public Gateway"
 if kubectl -n cloudflare-tunnel exec tunnel-egress-probe -- \
-  curl -fsS --connect-timeout 2 --max-time 4 http://pocket-id.pocket-id.svc.cluster.local >/dev/null 2>&1; then
+  curl -sS --connect-timeout 2 --max-time 4 -o /dev/null http://pocket-id.pocket-id.svc.cluster.local >/dev/null 2>&1; then
   fail "tunnel namespace unexpectedly reached an internal service"
 fi
 pass "tunnel namespace cannot reach internal services"
