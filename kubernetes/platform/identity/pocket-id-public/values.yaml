@@ -15,29 +15,10 @@ config:
     auditLogRetentionDays: 90
     disableRateLimiting: false
   ui:
-    # Keep security-sensitive instance settings declarative and immutable in
-    # the UI. New users are enrolled manually by an administrator.
-    useDefaults: false
-    settings:
-      app:
-        appName: Pocket ID
-        sessionDuration: 60
-        emailsVerified: false
-        allowOwnAccountEdit: true
-        disableAnimations: false
-        homePageUrl: /settings/account
-        allowUserSignups: disabled
-        signupDefaultCustomClaims: []
-        signupDefaultUserGroupIds: []
-        accentColor: default
-      email:
-        loginNotificationEnabled: false
-        oneTimeAccessAsAdminEnabled: false
-        oneTimeAccessAsUnauthenticatedEnabled: false
-        apiKeyExpirationEnabled: false
-        verificationEnabled: false
-      ldap:
-        enabled: false
+    # Application settings are persisted in Pocket ID's database and managed
+    # through the admin UI. Keep user signups disabled unless deliberately
+    # changed there; onboard friends through administrator-created login codes.
+    useDefaults: true
 
 secret:
   create: false

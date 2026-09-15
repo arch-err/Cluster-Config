@@ -22,8 +22,9 @@ unavailable until the node returns or the data is restored elsewhere.
 
 Wait for the Application, StatefulSet, PVC, HTTPRoute, and generated Secret to
 be healthy. Then visit `https://auth.3rr.dev/setup` and create the initial `J`
-administrator with a passkey. Leave enrollment closed and create users only on
-demand.
+administrator with a passkey. Application configuration is persisted in the
+SQLite database and editable through the admin UI. Leave user signups disabled
+and create users only on demand.
 
 Create these initial groups in the Pocket ID UI:
 
