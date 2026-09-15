@@ -18,6 +18,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [platform/networking/error-pages-apps](../kubernetes/platform/networking/error-pages-apps/service.yaml) | `apps` | yes | `error-pages` |
 | [platform/networking/external-services](../kubernetes/platform/networking/external-services/service.yaml) | `infra` | yes | Supporting resources/settings only |
 | [platform/networking/gateways](../kubernetes/platform/networking/gateways/service.yaml) | `infra` | yes | Supporting resources/settings only |
+| [platform/networking/local-git-mux](../kubernetes/platform/networking/local-git-mux/service.yaml) | `infra` | yes | LAN-only HTTPS-to-Cloudflare and Forgejo SSH protocol mux |
 | [platform/networking/public-edge](../kubernetes/platform/networking/public-edge/service.yaml) | `infra` | yes | Cloudflare connector, public Gateway isolation, and supporting resources |
 | [platform/observability/alloy](../kubernetes/platform/observability/alloy/service.yaml) | `infra` | yes | `alloy` |
 | [platform/observability/grafana](../kubernetes/platform/observability/grafana/service.yaml) | `infra` | yes | `grafana` |

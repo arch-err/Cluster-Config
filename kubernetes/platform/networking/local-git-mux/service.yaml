@@ -1,0 +1,65 @@
+owner: infra
+enabled: true
+components: []
+extras:
+  localGitMux:
+    ip: 10.10.10.203
+    publicHostname: git.3rr.dev
+    trustedCIDRs:
+      - 10.10.10.0/24
+    publicResolvers:
+      - name: cloudflare-primary
+        address: 1.1.1.1
+      - name: cloudflare-secondary
+        address: 1.0.0.1
+    clusterDNS: 10.96.0.10
+    haproxyConfig: |
+      global
+        log stdout format raw local0 info
+        maxconn 256
+        hard-stop-after 15s
+
+      defaults
+        log global
+        mode tcp
+        option tcplog
+        timeout connect 5s
+        timeout client 12h
+        timeout server 12h
+        timeout tunnel 12h
+
+      resolvers public-dns
+        nameserver cloudflare-primary 1.1.1.1:53
+        nameserver cloudflare-secondary 1.0.0.1:53
+        resolve_retries 3
+        timeout resolve 2s
+        timeout retry 1s
+        hold valid 30s
+        hold nx 10s
+
+      resolvers cluster-dns
+        nameserver coredns 10.96.0.10:53
+        resolve_retries 3
+        timeout resolve 2s
+        timeout retry 1s
+        hold valid 30s
+        hold nx 10s
+
+      frontend health
+        bind :8404
+        mode http
+        monitor-uri /healthz
+
+      frontend git-https
+        bind :8443
+        default_backend cloudflare-https
+
+      backend cloudflare-https
+        server-template cloudflare 1-4 git.3rr.dev:443 check resolvers public-dns resolve-prefer ipv4 init-addr none
+
+      frontend git-ssh
+        bind :2222
+        default_backend forgejo-ssh
+
+      backend forgejo-ssh
+        server forgejo forgejo-ssh.forgejo.svc.cluster.local:22 check resolvers cluster-dns resolve-prefer ipv4 init-addr none
