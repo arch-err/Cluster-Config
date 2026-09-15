@@ -38,7 +38,7 @@ Rollback requires checking both root and child source paths and revisions agains
 
 | Area | Finding / follow-up |
 | --- | --- |
-| Clean bootstrap | Gateway API CRDs are pinned to `v1.1.0` in the justfile while GitOps Cilium is pinned to `1.19.7`; bootstrap Helm commands are not pinned to GitOps revisions. Rebuild is unverified. |
+| Clean bootstrap | Gateway API CRDs are pinned to Cilium 1.19's supported `v1.4.1`; bootstrap Helm commands are still not pinned to GitOps revisions. Rebuild is unverified. |
 | Backup | Inventory is stale; `--quiesce` never calls the scale helpers. See [backup status](backup-manual.md). |
 | Storage | Kadalu deployment retired; the database template now defaults to local-bulk. Obsolete released PV records were removed by explicit approval; current application storage and Disk C backups remain preserved. |
 | Claim recovery | Excalidash and n8n database claims were recreated and rebound to their original retained PVs after verified backups. All storage deletion timestamps are cleared; data checks and the n8n restore test passed. See [storage review](storage-review.md). |
