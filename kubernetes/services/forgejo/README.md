@@ -1,6 +1,6 @@
 # Forgejo
 
-Git hosting for J and his agents at **https://git.apps.home**, with SSH on the same hostname, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.4-rootless** rather than the chart's LTS default.
+Git hosting for J and his agents at **https://forgejo.3rr.dev**, with SSH at **git.3rr.dev**, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.4-rootless** rather than the chart's LTS default.
 
 One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained `local-bulk` storage: 50 GiB for Forgejo and 10 GiB for PostgreSQL. The hostPath provisioner does not enforce these as disk quotas. NODE-2 downtime makes the service unavailable. Backups are managed separately by J and are outside this deployment.
 
@@ -30,7 +30,7 @@ The explicit switches are in [values.yaml](values.yaml); the [feature guide](../
 
 Projects, wikis, stars, time tracking, native file uploads, mail, federation, external avatars, feeds, metrics and other unneeded extras remain disabled. Code indexing uses embedded Bleve on the retained Forgejo volume and includes forks and mirrors. Forgejo 16's documented REST API does not expose code-content search; zgit integration for that capability remains separate. The API remains available with Swagger disabled.
 
-No webhook destinations, mirrors, runners or publishing services are created by enabling these capabilities. Actions execution needs a runner; Pages hosting and the GitHub-star collector remain separate work. Public DNS/routing, CORS and sitemap are deferred. The current HTTPS and SSH hostname remains `git.apps.home`.
+No webhook destinations, mirrors, runners or publishing services are created by enabling these capabilities. Actions execution needs a runner; Pages hosting and the GitHub-star collector remain separate work. Public DNS/routing is managed separately by J; CORS and sitemap remain unchanged. Forgejo advertises `https://forgejo.3rr.dev/` for web/HTTPS Git and `git.3rr.dev:22` for SSH. The existing internal route remains `git.apps.home` as an origin access path.
 
 Feature changes belong in Git. Render the pinned upstream chart, run `just check`, and check the running `app.ini` after rollout: upstream chart defaults and persisted secrets affect the final configuration.
 
@@ -65,3 +65,12 @@ Two API integration limits matter for zgit:
 - Forgejo 16's documented REST API has no code-content search endpoint. The code index is enabled and initialized, but that does not supply a REST search integration for zgit.
 
 Actions execution remains untested without a runner; actual user mirrors, publishing services, public routing and the star collector remain deferred.
+
+
+## Public hostnames — 2026-09-15
+
+`server.DOMAIN=forgejo.3rr.dev`, `ROOT_URL=https://forgejo.3rr.dev/` and `SSH_DOMAIN=git.3rr.dev` set the application URL and advertised clone URLs. The built-in SSH listener remains on 2222, exposed by the existing Service on 22. SSH does not use an HTTP Host header or TLS hostname certificate; clients verify the persisted server host key using the name they connect to.
+
+Pocket ID's Forgejo client callback is `https://forgejo.3rr.dev/user/oauth2/pocket-id/callback`. The identity issuer remains `https://auth.apps.home`; no identity-provider migration is implied by changing Forgejo's hostname. Routing, DNS, Cloudflare and TLS termination are managed separately by J and are unchanged here.
+
+To publish a repository, change its visibility in repository Settings, or send `PATCH /api/v1/repos/{owner}/{repo}` with `{"private": false}` using an account/token permitted to administer it. Instance settings already allow public repositories and anonymous reads. Publishing a Forgejo repository does not change a GitHub mirror's visibility.

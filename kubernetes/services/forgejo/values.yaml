@@ -127,13 +127,13 @@ gitea:
     APP_NAME: Forgejo
     APP_SLOGAN: ''
     server:
-      DOMAIN: git.apps.home
-      ROOT_URL: https://git.apps.home/
+      DOMAIN: forgejo.3rr.dev
+      ROOT_URL: https://forgejo.3rr.dev/
       PROTOCOL: http
       HTTP_PORT: 3000
       DISABLE_SSH: false
       START_SSH_SERVER: true
-      SSH_DOMAIN: git.apps.home
+      SSH_DOMAIN: git.3rr.dev
       SSH_PORT: 22
       SSH_LISTEN_PORT: 2222
       LFS_START_SERVER: true

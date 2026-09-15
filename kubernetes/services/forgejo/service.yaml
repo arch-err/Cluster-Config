@@ -27,8 +27,9 @@ components:
         enabled: false
     oidc:
       enabled: true
+      bootstrapJob: true
       callbackUrls:
-        - https://git.apps.home/user/oauth2/pocket-id/callback
+        - https://forgejo.3rr.dev/user/oauth2/pocket-id/callback
       scopes: [openid, profile, email, groups]
       groupRestriction:
         allowedGroups: [forgejo_users]
