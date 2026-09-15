@@ -1,0 +1,16 @@
+owner: apps
+enabled: true
+components:
+  - name: public-test
+    namespace: public-test
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    route:
+      hostname: edge-test.3rr.dev
+      gateway: public
+      service: public-test
+      port: 80
+      dashboard: false
+    valuesFile: values.yaml

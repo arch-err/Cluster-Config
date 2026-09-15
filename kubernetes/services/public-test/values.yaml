@@ -1,0 +1,57 @@
+defaultPodOptions:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+
+controllers:
+  main:
+    containers:
+      app:
+        image:
+          repository: ghcr.io/stefanprodan/podinfo
+          tag: "6.9.2@sha256:2ff7e09117596b13739e85bde01c8a33d56265013518910ab681df0fbea13b54"
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 9898
+              initialDelaySeconds: 10
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /readyz
+                port: 9898
+              initialDelaySeconds: 3
+              periodSeconds: 10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 9898

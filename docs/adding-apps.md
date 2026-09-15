@@ -27,6 +27,13 @@ Create `values.yaml` beside the declaration using the selected upstream chart's 
 
 Specify route gateways explicitly: `apps` or `infra`. The historical template default, `internal`, is not a configured gateway. Route configuration also supports dashboard annotations and optional gRPC routing. Set `route.syncWave` when a backend starts after the default route wave `10`; otherwise a missing backend can block later waves. The discarded Homepage discovery fix was not incorporated into this refactor.
 
+Public services use `gateway: public` and a hostname directly below `3rr.dev`.
+The Application renderer adds the required `exposure=public` and restricted Pod
+Security namespace labels automatically. That label admits the HTTPRoute to the
+public Gateway and selects the mandatory cluster-wide isolation policy. Keep all
+pods in a public component's namespace within the same trust boundary; use a
+separate namespace for private helpers or data services.
+
 ## Storage and supporting resources
 
 Put additional manifests/templates in `resources/*.yaml`. These render under the service's existing owner when `enabled: true`. The shared renderer supports the current `extras` inputs; follow a neighboring resource-only service or an existing application when extending it.

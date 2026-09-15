@@ -17,6 +17,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [platform/networking/error-pages-apps](../kubernetes/platform/networking/error-pages-apps/service.yaml) | `apps` | yes | `error-pages` |
 | [platform/networking/external-services](../kubernetes/platform/networking/external-services/service.yaml) | `infra` | yes | Supporting resources/settings only |
 | [platform/networking/gateways](../kubernetes/platform/networking/gateways/service.yaml) | `infra` | yes | Supporting resources/settings only |
+| [platform/networking/public-edge](../kubernetes/platform/networking/public-edge/service.yaml) | `infra` | yes | Cloudflare connector, public Gateway isolation, and supporting resources |
 | [platform/observability/alloy](../kubernetes/platform/observability/alloy/service.yaml) | `infra` | yes | `alloy` |
 | [platform/observability/grafana](../kubernetes/platform/observability/grafana/service.yaml) | `infra` | yes | `grafana` |
 | [platform/observability/homepage](../kubernetes/platform/observability/homepage/service.yaml) | `infra` | yes | `homepage-infra`, `homepage-admin` |
@@ -46,6 +47,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [services/ntfy](../kubernetes/services/ntfy/service.yaml) | `apps` | yes | `ntfy` |
 | [services/paperless-ngx](../kubernetes/services/paperless-ngx/service.yaml) | `apps` | no | Supporting resources/settings only |
 | [services/papra](../kubernetes/services/papra/service.yaml) | `apps` | yes | `papra` |
+| [services/public-test](../kubernetes/services/public-test/service.yaml) | `apps` | yes | `public-test` |
 | [services/rocky](../kubernetes/services/rocky/service.yaml) | `infra` | yes | Supporting resources/settings only |
 | [services/stirling-pdf](../kubernetes/services/stirling-pdf/service.yaml) | `apps` | yes | `stirling-pdf` |
 | [services/syncthing](../kubernetes/services/syncthing/service.yaml) | `apps` | no | `syncthing`, `syncthing-oauth2` |

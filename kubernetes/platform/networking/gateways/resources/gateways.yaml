@@ -159,4 +159,64 @@ spec:
           from: All
 {{- end }}
 {{- end }}
+{{- if .Values.gateway.public }}
+---
+# Public tunnel Gateway. The generated LoadBalancer has no NodePort and accepts
+# its LAN-facing VIP only from Pod CIDRs; cloudflared normally uses ClusterIP.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumGatewayClassConfig
+metadata:
+  name: public-tunnel
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  service:
+    type: LoadBalancer
+    allocateLoadBalancerNodePorts: false
+    loadBalancerSourceRanges:
+{{ toYaml .Values.gateway.public.podCIDRs | indent 6 }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium-public-tunnel
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  controllerName: io.cilium/gateway-controller
+  description: Cilium Gateway for the in-cluster Cloudflare connector
+  parametersRef:
+    group: cilium.io
+    kind: CiliumGatewayClassConfig
+    name: public-tunnel
+    namespace: gateway-system
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: public
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  gatewayClassName: cilium-public-tunnel
+  addresses:
+    - type: IPAddress
+      value: {{ .Values.gateway.public.ip }}
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      hostname: "*.{{ .Values.gateway.public.domain }}"
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              exposure: public
+{{- end }}
 {{- end }}

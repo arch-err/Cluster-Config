@@ -1,0 +1,243 @@
+{{- if .Values.extras.publicEdge }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflare-tunnel
+  labels:
+    exposure: edge
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+# Every namespace attached to the public Gateway gets this baseline. Individual
+# apps may narrow egress further, but deny rules here cannot be overridden.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: public-namespace-isolation
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.cilium.k8s.namespace.labels.exposure: public
+  ingress:
+    - fromEntities:
+        - ingress
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+  egressDeny:
+    - toEntities:
+        - host
+        - remote-node
+    - toCIDRSet:
+        # Cluster Pod and Service ranges are excluded here and remain governed
+        # by identity rules above. Everything else in 10/8 includes the LAN.
+        - cidr: 10.0.0.0/8
+          except:
+            - 10.96.0.0/12
+            - 10.244.0.0/16
+        - cidr: 0.0.0.0/8
+        - cidr: 100.64.0.0/10
+        - cidr: 127.0.0.0/8
+        - cidr: 169.254.0.0/16
+        - cidr: 172.16.0.0/12
+        - cidr: 192.0.0.0/24
+        - cidr: 192.0.2.0/24
+        - cidr: 192.168.0.0/16
+        - cidr: 198.18.0.0/15
+        - cidr: 198.51.100.0/24
+        - cidr: 203.0.113.0/24
+        - cidr: 224.0.0.0/4
+        - cidr: 240.0.0.0/4
+        - cidr: ::1/128
+        - cidr: fc00::/7
+        - cidr: fe80::/10
+        - cidr: 2001:db8::/32
+        - cidr: ff00::/8
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: cloudflare-tunnel
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cloudflared-egress
+  namespace: cloudflare-tunnel
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toServices:
+        - k8sService:
+            serviceName: cilium-gateway-public
+            namespace: gateway-system
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    # Cilium's Gateway proxy evaluates the original client identity against the
+    # chosen backend, so the connector also needs the public endpoint identity.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.exposure: public
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "7844"
+              protocol: TCP
+            - port: "7844"
+              protocol: UDP
+            - port: "443"
+              protocol: TCP
+  egressDeny:
+    - toEntities:
+        - host
+        - remote-node
+    - toCIDRSet:
+        - cidr: 10.0.0.0/8
+          except:
+            - 10.96.0.0/12
+            - 10.244.0.0/16
+        - cidr: 0.0.0.0/8
+        - cidr: 100.64.0.0/10
+        - cidr: 127.0.0.0/8
+        - cidr: 169.254.0.0/16
+        - cidr: 172.16.0.0/12
+        - cidr: 192.0.0.0/24
+        - cidr: 192.0.2.0/24
+        - cidr: 192.168.0.0/16
+        - cidr: 198.18.0.0/15
+        - cidr: 198.51.100.0/24
+        - cidr: 203.0.113.0/24
+        - cidr: 224.0.0.0/4
+        - cidr: 240.0.0.0/4
+        - cidr: ::1/128
+        - cidr: fc00::/7
+        - cidr: fe80::/10
+        - cidr: 2001:db8::/32
+        - cidr: ff00::/8
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflare-tunnel
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/component: public-edge
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.8.1@sha256:7743a8b90b6c884a08da99bf4b6de81002e32c2afdd76d10dad4e2f0dbd91b6e
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --protocol
+            - quic
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+            - --token-file
+            - /etc/cloudflared/token/token
+          ports:
+            - name: metrics
+              containerPort: 2000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: token
+              mountPath: /etc/cloudflared/token
+              readOnly: true
+      volumes:
+        - name: token
+          secret:
+            secretName: cloudflared-token
+            defaultMode: 0440
+{{- end }}

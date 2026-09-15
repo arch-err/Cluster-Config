@@ -12,6 +12,11 @@ gateway:
     ip: 10.10.10.200
     domain: apps.home
     tlsSecret: wildcard-apps-home-tls
+  public:
+    ip: 10.10.10.202
+    domain: 3rr.dev
+    podCIDRs:
+      - 10.244.0.0/16
 external:
   dockerHost: 10.10.10.160
   services:

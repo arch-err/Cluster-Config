@@ -2,6 +2,17 @@
 {{- $root := . -}}
 {{- range .Values.components }}
 {{- if not (has .name ($root.Values.disabledComponents | default (list))) }}
+{{- $namespaceLabels := dict }}
+{{- range $key, $value := .namespaceLabels | default (dict) }}
+  {{- $_ := set $namespaceLabels $key $value }}
+{{- end }}
+{{- if and .route (eq (.route.gateway | default "internal") "public") }}
+  {{- $_ := set $namespaceLabels "exposure" "public" }}
+  {{- $_ := set $namespaceLabels "pod-security.kubernetes.io/enforce" "restricted" }}
+  {{- $_ := set $namespaceLabels "pod-security.kubernetes.io/enforce-version" "latest" }}
+  {{- $_ := set $namespaceLabels "pod-security.kubernetes.io/audit" "restricted" }}
+  {{- $_ := set $namespaceLabels "pod-security.kubernetes.io/warn" "restricted" }}
+{{- end }}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -72,10 +83,10 @@ spec:
       enabled: true
       prune: false
       selfHeal: true
-    {{- if .namespaceLabels }}
+    {{- if $namespaceLabels }}
     managedNamespaceMetadata:
       labels:
-        {{- range $key, $value := .namespaceLabels }}
+        {{- range $key, $value := $namespaceLabels }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}
     {{- end }}
