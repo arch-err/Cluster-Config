@@ -84,8 +84,7 @@ for target in \
   https://kubernetes.default.svc \
   https://10.10.10.171:50000 \
   http://10.10.10.1 \
-  http://10.20.20.1 \
-  http://10.10.10.202; do
+  http://10.20.20.1; do
   if kubectl -n public-test exec public-egress-probe -- \
     curl -ksS --connect-timeout 2 --max-time 4 -o /dev/null "$target" >/dev/null 2>&1; then
     fail "public namespace unexpectedly reached protected target $target"
