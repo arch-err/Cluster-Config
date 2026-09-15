@@ -1,0 +1,126 @@
+# pocket-id-public — chart: anza-labs/pocket-id v2.2.1, app v2.14.0
+# This is an independent public identity realm; it shares no state or secrets
+# with the internal Pocket ID deployment at auth.apps.home.
+
+host: auth.3rr.dev
+timeZone: Europe/Stockholm
+trustProxy: true
+trustedPlatform: CF-Connecting-IP
+analyticsDisabled: true
+
+config:
+  core:
+    logLevel: info
+    logJson: true
+    auditLogRetentionDays: 90
+    disableRateLimiting: false
+  ui:
+    # Keep security-sensitive instance settings declarative and immutable in
+    # the UI. New users are enrolled manually by an administrator.
+    useDefaults: false
+    settings:
+      app:
+        appName: Pocket ID
+        sessionDuration: 60
+        emailsVerified: false
+        allowOwnAccountEdit: true
+        disableAnimations: false
+        homePageUrl: /settings/account
+        allowUserSignups: disabled
+        signupDefaultCustomClaims: []
+        signupDefaultUserGroupIds: []
+        accentColor: default
+      email:
+        loginNotificationEnabled: false
+        oneTimeAccessAsAdminEnabled: false
+        oneTimeAccessAsUnauthenticatedEnabled: false
+        apiKeyExpirationEnabled: false
+        verificationEnabled: false
+      ldap:
+        enabled: false
+
+secret:
+  create: false
+  name: pocket-id-public-secrets
+
+database:
+  connectionString: file:data/pocket-id.db
+
+fileBackend:
+  type: filesystem
+  uploadPath: data/uploads
+
+# Talos does not enable the alpha MaxUnavailableStatefulSet feature gate.
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: null
+    partition: 0
+
+pocketID:
+  image:
+    repository: ghcr.io/pocket-id/pocket-id
+    tag: "v2.14.0@sha256:01540977dcf4c7b41b1159f34d68e4632f2658d62790e460ca65a42722b13c4a"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+
+serviceAccount:
+  automount: false
+
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+persistence:
+  data:
+    enabled: true
+    storageClass: local-path-retain
+    accessMode: ReadWriteOnce
+    size: 1Gi
+    annotations:
+      helm.sh/resource-policy: keep
+      argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+
+ingress:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  failureThreshold: 60
+  periodSeconds: 5
+  timeoutSeconds: 3
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3

@@ -1,0 +1,12 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path-retain
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    storageclass.kubernetes.io/is-default-class: "false"
+    defaultVolumeType: hostPath
+provisioner: rancher.io/local-path
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer

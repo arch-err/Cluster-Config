@@ -1,0 +1,16 @@
+owner: apps
+enabled: true
+components:
+  - name: pocket-id-public
+    namespace: pocket-id-public
+    chart:
+      repo: https://anza-labs.github.io/charts
+      name: pocket-id
+      version: 2.2.1
+    route:
+      hostname: auth.3rr.dev
+      gateway: public
+      service: pocket-id-public
+      port: 80
+      dashboard: false
+    valuesFile: values.yaml

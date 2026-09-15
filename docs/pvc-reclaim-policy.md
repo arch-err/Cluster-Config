@@ -8,10 +8,11 @@ The current configuration uses node-local storage. Kadalu is disabled in its ser
 | --- | --- | --- | --- |
 | `local-bulk` | NODE-2, `/var/mnt/bulk` on the Talos `bulk` user volume | `Retain` | Explicit opt-in; `WaitForFirstConsumer`; NODE-2 topology restriction |
 | `local-path` | Selected node, `/opt/local-path-provisioner` | `Delete` | Explicit opt-in; `WaitForFirstConsumer`; no replication |
+| `local-path-retain` | Selected node, `/opt/local-path-provisioner` | `Retain` | Explicit opt-in for valuable node-local data; `WaitForFirstConsumer`; no replication |
 | Static local PVs | NODE-2, named paths such as `/var/mnt/bulk/media-library` and `/var/mnt/bulk/calibre-library` | Explicitly declared in each PV | Separate PV/PVC bindings expose shared directories to participating apps |
 | `kadalu.replica2*` | Legacy distributed storage configuration | Legacy policy varies | Provisioner disabled; do not select for new workloads |
 
-Sources: [local-bulk values](../kubernetes/platform/storage/local-bulk/values.yaml), [local-path values](../kubernetes/platform/storage/local-path-provisioner/values.yaml), [service resource layout](platform-chart.md), [Talos disk configuration](../talos/talconfig.yaml).
+Sources: [local-bulk values](../kubernetes/platform/storage/local-bulk/values.yaml), [local-path values and retained class](../kubernetes/platform/storage/local-path-provisioner/), [service resource layout](platform-chart.md), [Talos disk configuration](../talos/talconfig.yaml).
 
 Local storage does not fail over to another node with its data. Backups provide recovery, not storage availability. Separate PVs referencing one host directory also require coordinating all writers and consumers.
 

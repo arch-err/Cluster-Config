@@ -2,7 +2,8 @@
 
 Service-specific manual setup is documented beside the service:
 
-- [Pocket ID enrollment and bootstrap token](../kubernetes/platform/identity/pocket-id/README.md)
+- [Internal Pocket ID enrollment and bootstrap token](../kubernetes/platform/identity/pocket-id/README.md)
+- [Public Pocket ID enrollment and bootstrap token](../kubernetes/platform/identity/pocket-id-public/README.md)
 - [ArgoCD identity and recovery](../kubernetes/platform/argocd/README.md)
 - [Jellyfin setup](../kubernetes/services/jellyfin/README.md)
 - [CoreDNS ownership](../kubernetes/platform/networking/coredns/README.md)

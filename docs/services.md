@@ -9,6 +9,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [platform/hardware/zigbee-device](../kubernetes/platform/hardware/zigbee-device/service.yaml) | `infra` | yes | Supporting resources/settings only |
 | [platform/identity/cert-manager](../kubernetes/platform/identity/cert-manager/service.yaml) | `infra` | yes | `cert-manager` |
 | [platform/identity/pocket-id](../kubernetes/platform/identity/pocket-id/service.yaml) | `apps` | yes | `pocket-id` |
+| [platform/identity/pocket-id-public](../kubernetes/platform/identity/pocket-id-public/service.yaml) | `apps` | yes | `pocket-id-public` |
 | [platform/identity/sops-secrets-operator](../kubernetes/platform/identity/sops-secrets-operator/service.yaml) | `infra` | yes | `sops-secrets-operator` |
 | [platform/identity/trust-manager](../kubernetes/platform/identity/trust-manager/service.yaml) | `infra` | yes | `trust-manager` |
 | [platform/networking/cilium](../kubernetes/platform/networking/cilium/service.yaml) | `infra` | yes | `cilium` |

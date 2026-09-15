@@ -1,9 +1,11 @@
 # local-path-provisioner — dynamic node-local hostPath PVCs.
 #
-# Used for workloads where live SQLite/document IO must not sit on Kadalu/RWX
-# network storage. Volumes are persistent across normal node reboot but remain
-# tied to the node selected at provisioning time. Treat as single-node storage
-# and back up workload data separately.
+# Used for workloads where live SQLite/document IO must not sit on network
+# storage. Volumes are persistent across normal node reboot but remain tied to
+# the node selected at provisioning time. The chart owns the disposable
+# `local-path` class; resources/storageclass-retain.yaml exposes the same
+# provisioner with Retain semantics for valuable node-local data. Neither class
+# is replicated, so back up workload data separately.
 
 storageClass:
   create: true
