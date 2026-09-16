@@ -1,0 +1,72 @@
+# homepage-public — public static service directory at apps.3rr.dev
+
+image:
+  tag: v1.12.3
+
+env:
+  - name: HOMEPAGE_ALLOWED_HOSTS
+    value: "apps.3rr.dev"
+
+ingress:
+  main:
+    enabled: false
+
+# This instance has no Kubernetes integration or in-cluster credentials.
+enableRbac: false
+serviceAccount:
+  create: false
+automountServiceAccountToken: false
+enableServiceLinks: false
+
+config:
+  kubernetes:
+    mode: disable
+
+  services:
+    - Services:
+        - Forgejo:
+            href: https://forgejo.3rr.dev
+            description: Git hosting
+            icon: forgejo.png
+        - Pocket ID:
+            href: https://auth.3rr.dev
+            description: Identity and passkeys
+            icon: pocket-id.png
+
+  bookmarks: []
+  widgets: []
+
+  settings:
+    title: Apps
+    theme: dark
+    color: slate
+    headerStyle: clean
+    hideVersion: true
+    statusStyle: dot
+    cardBlur: sm
+    background:
+      image: https://raw.githubusercontent.com/arch-err/Cluster-Config/main/kubernetes/services/homepage/assets/blue_distortion_2.jpg
+      blur: sm
+      opacity: 80
+      brightness: 60
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

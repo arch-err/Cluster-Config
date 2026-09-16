@@ -14,3 +14,16 @@ components:
       port: 3000
       dashboard: false
     valuesFile: values.yaml
+  - name: homepage-public
+    namespace: homepage-public
+    chart:
+      repo: https://jameswynn.github.io/helm-charts
+      name: homepage
+      version: 2.1.0
+    route:
+      hostname: apps.3rr.dev
+      gateway: public
+      service: homepage-public
+      port: 3000
+      dashboard: false
+    valuesFile: public.values.yaml
