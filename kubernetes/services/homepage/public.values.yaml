@@ -168,7 +168,7 @@ config:
             href: https://ctf.jesber.xyz
             target: _self
             description: MyrCTF competition platform
-            icon: ctfd.png
+            icon: mdi-flag-checkered
         - GitHub:
             href: https://github.com/MyrCTFO
             target: _self
