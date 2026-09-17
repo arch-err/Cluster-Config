@@ -1,6 +1,6 @@
 # Forgejo
 
-Git hosting for J and his agents at **https://forgejo.3rr.dev**, with SSH at **git.3rr.dev**, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.4-rootless** rather than the chart's LTS default.
+Git hosting for J and his agents at **https://forgejo.3rr.dev**, with SSH at **git.3rr.dev**, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.5-rootless** rather than the chart's LTS default.
 
 One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained `local-bulk` storage: 50 GiB for Forgejo and 10 GiB for PostgreSQL. The hostPath provisioner does not enforce these as disk quotas. NODE-2 downtime makes the service unavailable. Backups are managed separately by J and are outside this deployment.
 
@@ -43,7 +43,7 @@ Feature changes belong in Git. Render the pinned upstream chart, run `just check
 
 - ArgoCD reconciled the pinned OCI chart and the supporting CNPG, OIDC and Gateway resources.
 - All four repository roots passed `just check`; the upstream chart passed server-side validation under the cluster's restricted Pod Security policy.
-- All 94 explicit application settings matched both the Forgejo 16.0.4 example configuration and the running `app.ini`.
+- All 94 explicit application settings matched the Forgejo 16.0 configuration and the running `app.ini`.
 - HTTPS Git clone/push/pull with a temporary access token and SSH clone/push/pull with a temporary key passed. Anonymous access to the private test repository was denied.
 - Issue, pull-request and Actions APIs returned 404. Package publishing returned 404; the general package-list API remains reachable and returns an empty list, so disabling the registry does not remove every related API route.
 - PostgreSQL connections used TLS 1.3 with `verify-full`. Both PVCs have retained PVs with NODE-2 affinity.

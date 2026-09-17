@@ -1,7 +1,7 @@
 image:
   registry: codeberg.org
   repository: forgejo/forgejo
-  tag: 16.0.4
+  tag: 16.0.5
   rootless: true
 replicaCount: 1
 # The upstream test Pod does not satisfy the cluster's restricted policy.
