@@ -4,6 +4,7 @@
 {{- if not (has .name ($.Values.disabledComponents | default (list))) }}
 {{- if .route }}
 {{- $name := .name }}
+{{- $route := .route }}
 {{- $isApps := eq (.route.gateway | default "internal") "apps" }}
 {{- /* Compute whether this route should appear on the gethomepage dashboard.
        - dashboard omitted (nil)  → default-SHOW only on the apps gateway
@@ -144,11 +145,19 @@ spec:
 {{- range .route.rules }}
     - matches:
         - path:
-            type: PathPrefix
+            type: {{ .pathType | default "PathPrefix" }}
             value: {{ .path }}
-{{- if $.route.timeout }}
+{{- with .rewrite }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: {{ . | quote }}
+{{- end }}
+{{- if $route.timeout }}
       timeouts:
-        request: {{ $.route.timeout | quote }}
+        request: {{ $route.timeout | quote }}
 {{- end }}
       backendRefs:
         - name: {{ .service }}

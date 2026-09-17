@@ -1,0 +1,19 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: homepage-public-static-egress
+  namespace: homepage-public
+  annotations:
+    argocd.argoproj.io/sync-wave: "11"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Deny Internet egress from the static public Homepage instance.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: homepage-public
+      app.kubernetes.io/name: homepage-public
+  # The cluster-wide public baseline still permits kube-dns. Deny takes
+  # precedence over its general TCP/80+443 world allowance.
+  egressDeny:
+    - toEntities:
+        - world

@@ -26,4 +26,27 @@ components:
       service: homepage-public
       port: 3000
       dashboard: false
+      rules:
+        # This Homepage is intentionally unauthenticated, but these server-side
+        # endpoints are unused by the static directory. Exact-match rewrites at
+        # the Gateway keep them unreachable publicly while leaving the pod-local
+        # startup revalidation available over loopback.
+        - path: /api/revalidate
+          pathType: Exact
+          rewrite: /__blocked-homepage-api
+          service: homepage-public
+          port: 3000
+        - path: /api/widgets/resources
+          pathType: Exact
+          rewrite: /__blocked-homepage-api
+          service: homepage-public
+          port: 3000
+        - path: /api/releases
+          pathType: Exact
+          rewrite: /__blocked-homepage-api
+          service: homepage-public
+          port: 3000
+        - path: /
+          service: homepage-public
+          port: 3000
     valuesFile: public.values.yaml
