@@ -15,6 +15,15 @@ spec:
   ingress:
     - fromEntities:
         - world
+        # The SSH LoadBalancer uses externalTrafficPolicy=Cluster, so traffic
+        # forwarded across a node arrives with a node identity.
+        - host
+        - remote-node
+        - kube-apiserver
+      fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: local-git-mux
+            app.kubernetes.io/name: local-git-mux
       toPorts:
         - ports:
             - port: "2222"
