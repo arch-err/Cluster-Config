@@ -45,6 +45,12 @@ spec:
         - ports:
             - port: "5432"
               protocol: TCP
+  # Prevent Forgejo from using another in-cluster Gateway as a path back into
+  # private routes. Replies to connections initiated by the public Gateway are
+  # stateful and remain allowed.
+  egressDeny:
+    - toEntities:
+        - ingress
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
