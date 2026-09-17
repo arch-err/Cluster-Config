@@ -7,6 +7,24 @@ readonly PROBE_IMAGE="curlimages/curl:8.10.1"
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 
+expect_server_dry_run_denied() {
+  local description=$1 expected_message=$2
+  local stderr_file
+  stderr_file=$(mktemp)
+  if kubectl apply --dry-run=server -f - >/dev/null 2>"$stderr_file"; then
+    rm -f "$stderr_file"
+    fail "$description was unexpectedly admitted"
+  fi
+  if rg -q "$expected_message" "$stderr_file"; then
+    rm -f "$stderr_file"
+    pass "$description is rejected by admission"
+    return
+  fi
+  sed -n '1,12p' "$stderr_file" >&2
+  rm -f "$stderr_file"
+  fail "$description did not fail with the expected admission message"
+}
+
 cleanup() {
   kubectl -n public-test delete pod public-egress-probe --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl -n cloudflare-tunnel delete pod tunnel-egress-probe --ignore-not-found --wait=false >/dev/null 2>&1 || true
@@ -65,6 +83,54 @@ done
 kubectl -n "$TEST_NAMESPACE" get httproute rejected -o json | jq -e \
   '[.status.parents[].conditions[] | select(.type == "Accepted" and .status == "False" and .reason == "NotAllowedByListeners")] | length > 0' >/dev/null \
   || fail "unlabelled route was not explicitly rejected"
+
+expect_server_dry_run_denied "selectorless public Service" "Public namespaces may only expose selector-backed Services" <<'YAML'
+apiVersion: v1
+kind: Service
+metadata:
+  name: selectorless-deny-probe
+  namespace: public-test
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+YAML
+
+expect_server_dry_run_denied "ExternalName public Service" "Public namespaces may only expose selector-backed Services" <<'YAML'
+apiVersion: v1
+kind: Service
+metadata:
+  name: externalname-deny-probe
+  namespace: public-test
+spec:
+  type: ExternalName
+  externalName: pocket-id.pocket-id.svc.cluster.local
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+YAML
+
+expect_server_dry_run_denied "manual public EndpointSlice" "Public namespace EndpointSlices must be managed by the Kubernetes endpoint-slice controller" <<'YAML'
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: endpointslice-deny-probe
+  namespace: public-test
+  labels:
+    kubernetes.io/service-name: public-test
+addressType: IPv4
+ports:
+  - name: http
+    protocol: TCP
+    port: 80
+endpoints:
+  - addresses:
+      - 10.244.2.99
+    conditions:
+      ready: true
+YAML
 
 run_probe() {
   local namespace=$1 name=$2

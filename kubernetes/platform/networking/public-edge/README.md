@@ -11,6 +11,11 @@ Cilium policy then permits ingress only from the Gateway and blocks access to
 nodes, private networks, link-local space, and other cluster workloads. Public
 pods retain DNS and outbound HTTP(S) access for ordinary application needs.
 
+Public namespaces may only expose selector-backed Services. Admission rejects
+`ExternalName`, selectorless Services, and user-managed EndpointSlices there, so
+a public route cannot smuggle the Gateway toward a private pod IP through a
+hand-written backend.
+
 The Cloudflare source-IP restriction is deliberately held at Cloudflare and is
 not injected into workloads. The tunnel token is stored as a SOPS-encrypted
 `SopsSecret` in `secrets/cloudflared.yaml`.
