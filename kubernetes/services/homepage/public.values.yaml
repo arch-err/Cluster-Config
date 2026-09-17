@@ -1,7 +1,7 @@
 # homepage-public — public static service directory at apps.3rr.dev
 
 image:
-  tag: v1.12.3
+  tag: v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
 
 env:
   - name: HOMEPAGE_ALLOWED_HOSTS
