@@ -1,11 +1,10 @@
 # cnpg — CloudNativePG postgres operator
-# chart: https://cloudnative-pg.github.io/charts (cloudnative-pg) v0.28.2
+# chart: https://cloudnative-pg.github.io/charts (cloudnative-pg) v0.29.0
 # https://artifacthub.io/packages/helm/cloudnative-pg/cloudnative-pg
-# appVersion: 1.29.1
+# appVersion: 1.30.0
 #
 # Cluster-wide postgres operator. Every future stateful app gets its DB via a
-# cnpg Cluster CR rendered by the platform chart's `db:` block (added in a
-# follow-up phase). No Cluster CRs deployed yet — operator only.
+# cnpg Cluster CR rendered by the platform chart's `db:` block.
 #
 # Chart defaults are restricted-PSS-clean out of the box:
 #   - podSecurityContext: runAsNonRoot=true, seccomp RuntimeDefault
