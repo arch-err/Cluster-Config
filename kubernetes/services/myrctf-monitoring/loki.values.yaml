@@ -2,6 +2,13 @@ fullnameOverride: myrctf-loki
 deploymentMode: SingleBinary
 loki:
   auth_enabled: true
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    runAsGroup: 10001
+    runAsNonRoot: true
+    runAsUser: 10001
+    seccompProfile: {type: RuntimeDefault}
   commonConfig:
     replication_factor: 1
   storage:

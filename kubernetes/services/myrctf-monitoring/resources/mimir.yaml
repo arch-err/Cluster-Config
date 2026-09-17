@@ -14,7 +14,7 @@ data:
       http_listen_port: 8080
       grpc_listen_port: 9095
     activity_tracker:
-      filepath: /data/activity/activity.log
+      filepath: /data/activity.log
     blocks_storage:
       backend: filesystem
       filesystem:

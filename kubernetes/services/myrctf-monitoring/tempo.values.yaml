@@ -1,6 +1,10 @@
 fullnameOverride: myrctf-tempo
 tempo:
   reportingEnabled: false
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities: {drop: [ALL]}
   retention: 168h
   receivers:
     otlp:
@@ -25,10 +29,7 @@ securityContext:
   runAsUser: 10001
   runAsGroup: 10001
   fsGroup: 10001
-containerSecurityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities: {drop: [ALL]}
+  seccompProfile: {type: RuntimeDefault}
 resources:
   requests: {cpu: 50m, memory: 128Mi}
   limits: {memory: 512Mi}
