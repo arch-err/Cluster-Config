@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myrctf.3rr.dev/schemas/ctfd-cockpit/v1/events-batch.schema.json",
+  "title": "CTFd Cockpit v1 immutable event batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_instance",
+    "stream",
+    "batch_id",
+    "sequence",
+    "checkpoint",
+    "source_event_time",
+    "event_type",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source_instance": {"$ref": "common.schema.json#/$defs/sourceInstance"},
+    "stream": {"type": "string", "pattern": "^events\\.[a-z_]+$"},
+    "batch_id": {"$ref": "common.schema.json#/$defs/batchId"},
+    "sequence": {"$ref": "common.schema.json#/$defs/checkpoint"},
+    "checkpoint": {"$ref": "common.schema.json#/$defs/checkpoint"},
+    "source_event_time": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "event_type": {
+      "enum": ["submission", "solve", "award", "hint_unlock", "tracking_event", "notification"]
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "oneOf": [
+          {"$ref": "entities.schema.json#/$defs/submission"},
+          {"$ref": "entities.schema.json#/$defs/solve"},
+          {"$ref": "entities.schema.json#/$defs/award"},
+          {"$ref": "entities.schema.json#/$defs/hintUnlock"},
+          {"$ref": "entities.schema.json#/$defs/trackingEvent"},
+          {"$ref": "entities.schema.json#/$defs/notification"}
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "submission"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/submission"}}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "solve"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/solve"}}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "award"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/award"}}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "hint_unlock"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/hintUnlock"}}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "tracking_event"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/trackingEvent"}}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "notification"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/notification"}}}}
+    }
+  ]
+}

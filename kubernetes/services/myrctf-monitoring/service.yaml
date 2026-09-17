@@ -1,0 +1,18 @@
+owner: apps
+enabled: true
+components:
+  - name: myrctf-grafana
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: grafana
+      version: 8.7.1
+    syncWave: "2"
+    route:
+      syncWave: "4"
+      hostname: myrctf-grafana.3rr.dev
+      gateway: public
+      service: myrctf-grafana
+      port: 80
+      dashboard: false
+    valuesFile: grafana.values.yaml

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myrctf.3rr.dev/schemas/ctfd-cockpit/v1/common.schema.json",
+  "title": "CTFd Cockpit v1 common types",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,18})$"
+    },
+    "checkpoint": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sourceInstance": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$"
+    },
+    "batchId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ipAddress": {
+      "type": ["string", "null"],
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "format": "ipv4"},
+        {"type": "string", "format": "ipv6"}
+      ]
+    },
+    "shortText": {
+      "type": ["string", "null"],
+      "maxLength": 1024
+    },
+    "longText": {
+      "type": ["string", "null"],
+      "maxLength": 1048576
+    },
+    "customFields": {
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": {
+        "type": ["string", "number", "integer", "boolean", "null", "array", "object"]
+      }
+    },
+    "batchMetadata": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "source_instance",
+        "stream",
+        "batch_id",
+        "sequence",
+        "checkpoint",
+        "source_event_time"
+      ],
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "source_instance": {"$ref": "#/$defs/sourceInstance"},
+        "stream": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+        },
+        "batch_id": {"$ref": "#/$defs/batchId"},
+        "sequence": {"$ref": "#/$defs/checkpoint"},
+        "checkpoint": {"$ref": "#/$defs/checkpoint"},
+        "source_event_time": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "commitResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "source_instance",
+        "stream",
+        "batch_id",
+        "committed_checkpoint",
+        "committed_sequence",
+        "replayed"
+      ],
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "source_instance": {"$ref": "#/$defs/sourceInstance"},
+        "stream": {"type": "string"},
+        "batch_id": {"$ref": "#/$defs/batchId"},
+        "committed_checkpoint": {"$ref": "#/$defs/checkpoint"},
+        "committed_sequence": {"$ref": "#/$defs/checkpoint"},
+        "replayed": {"type": "boolean"}
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error", "message", "request_id"],
+      "properties": {
+        "error": {
+          "type": "string",
+          "enum": [
+            "bad_request",
+            "unauthorized",
+            "conflict",
+            "payload_too_large",
+            "validation_failed",
+            "unavailable",
+            "internal_error"
+          ]
+        },
+        "message": {"type": "string", "maxLength": 512},
+        "request_id": {"type": "string", "format": "uuid"},
+        "expected_sequence": {"$ref": "#/$defs/checkpoint"},
+        "committed_checkpoint": {"$ref": "#/$defs/checkpoint"}
+      }
+    }
+  }
+}

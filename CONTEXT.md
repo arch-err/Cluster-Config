@@ -21,3 +21,23 @@ Terms used to distinguish repository maintenance from changes to the running sys
 **Component**: One upstream Helm chart represented by an existing Argo Application, such as a service's OAuth2 proxy. Grouping components does not merge their Applications.
 
 **zgit**: J's frontend for interacting with Forgejo through its API. It is the intended everyday interface for J's forge workflow.
+
+## MyrCTF observability
+
+**Event analytics**: Aggregate measurements and event records that describe how a MyrCTF event progresses. Participant-level records are sensitive and are not operational telemetry.
+
+**Operational telemetry**: Measurements, logs, and traces about the availability and performance of the MyrCTF platform and its dependencies.
+
+**Active participant**: A registered user who made at least one submission during a stated rolling time window. A login or an open browser session alone does not make a participant active.
+
+**Eligible team**: A registered team that made at least one submission after the event started. Completion percentages use eligible teams as their denominator unless a dashboard explicitly says otherwise.
+
+**First blood**: The earliest accepted submission for a challenge, ordered by the CTFd submission timestamp and then submission ID for a deterministic tie-break.
+
+**Source instance**: One stable CTFd installation whose identifiers and replication progress form an independent namespace.
+
+**Source event**: An immutable fact copied from a named CTFd source table while preserving that table's identifier and event time.
+
+**Durable checkpoint**: The highest source position fully committed for one source instance and stream. It is the only position from which an agent may safely resume.
+
+**Tombstone**: An explicit source deletion record. Missing data in a snapshot is not a tombstone and never implies deletion.

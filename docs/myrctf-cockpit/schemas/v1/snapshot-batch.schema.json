@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myrctf.3rr.dev/schemas/ctfd-cockpit/v1/snapshot-batch.schema.json",
+  "title": "CTFd Cockpit v1 snapshot batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_instance",
+    "stream",
+    "batch_id",
+    "sequence",
+    "checkpoint",
+    "source_event_time",
+    "entity_type",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source_instance": {"$ref": "common.schema.json#/$defs/sourceInstance"},
+    "stream": {"type": "string", "pattern": "^snapshot\\.[a-z_]+$"},
+    "batch_id": {"$ref": "common.schema.json#/$defs/batchId"},
+    "sequence": {"$ref": "common.schema.json#/$defs/checkpoint"},
+    "checkpoint": {"$ref": "common.schema.json#/$defs/checkpoint"},
+    "source_event_time": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "entity_type": {
+      "enum": ["user", "team", "team_member", "challenge", "challenge_tag", "hint", "page", "challenge_instance"]
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "oneOf": [
+          {"$ref": "entities.schema.json#/$defs/user"},
+          {"$ref": "entities.schema.json#/$defs/team"},
+          {"$ref": "entities.schema.json#/$defs/teamMember"},
+          {"$ref": "entities.schema.json#/$defs/challenge"},
+          {"$ref": "entities.schema.json#/$defs/challengeTag"},
+          {"$ref": "entities.schema.json#/$defs/hint"},
+          {"$ref": "entities.schema.json#/$defs/page"},
+          {"$ref": "entities.schema.json#/$defs/challengeInstance"}
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"entity_type": {"const": "user"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/user"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "team"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/team"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "team_member"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/teamMember"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "challenge"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/challenge"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "challenge_tag"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/challengeTag"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "hint"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/hint"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "page"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/page"}}}}
+    },
+    {
+      "if": {"properties": {"entity_type": {"const": "challenge_instance"}}},
+      "then": {"properties": {"records": {"type": "array", "items": {"$ref": "entities.schema.json#/$defs/challengeInstance"}}}}
+    }
+  ]
+}

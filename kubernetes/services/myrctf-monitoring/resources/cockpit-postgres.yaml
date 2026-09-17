@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myrctf-monitoring
+  labels:
+    exposure: public
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ctfd-cockpit-db
+  namespace: myrctf-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+  labels:
+    app.kubernetes.io/name: ctfd-cockpit-db
+    app.kubernetes.io/component: database
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.14-202605180814-system-bookworm
+  enableSuperuserAccess: false
+  inheritedMetadata:
+    labels:
+      public-edge.3rr.dev/profile: cnpg
+  bootstrap:
+    initdb:
+      database: ctfd_cockpit
+      owner: ctfd_cockpit_migrator
+      secret:
+        name: ctfd-cockpit-migrator-db
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+  managed:
+    roles:
+      - name: ctfd_cockpit_migrator
+        ensure: present
+        login: true
+        connectionLimit: 2
+        passwordSecret:
+          name: ctfd-cockpit-migrator-db
+        comment: Owns and migrates the CTFd Cockpit schema.
+      - name: ctfd_cockpit_ingest
+        ensure: present
+        login: true
+        connectionLimit: 10
+        passwordSecret:
+          name: ctfd-cockpit-ingest-db
+        comment: Writes validated Cockpit replication batches.
+      - name: ctfd_cockpit_grafana
+        ensure: present
+        login: true
+        connectionLimit: 10
+        passwordSecret:
+          name: ctfd-cockpit-grafana-db
+        comment: Read-only Grafana datasource role.
+  postgresql:
+    parameters:
+      timezone: UTC
+      max_connections: "100"
+      ssl_min_protocol_version: TLSv1.3
+  storage:
+    storageClass: local-bulk
+    size: 30Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

@@ -1,0 +1,122 @@
+fullnameOverride: myrctf-grafana
+
+replicas: 1
+
+admin:
+  existingSecret: myrctf-grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
+
+persistence:
+  enabled: true
+  storageClassName: local-path-retain
+  accessModes: [ReadWriteOnce]
+  size: 5Gi
+  annotations:
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+
+envValueFrom:
+  COCKPIT_DB_USER:
+    secretKeyRef:
+      name: ctfd-cockpit-grafana-db
+      key: username
+  COCKPIT_DB_PASSWORD:
+    secretKeyRef:
+      name: ctfd-cockpit-grafana-db
+      key: password
+
+sidecar:
+  dashboards:
+    enabled: false
+  datasources:
+    enabled: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: CTFd Cockpit
+        uid: ctfd-cockpit-postgres
+        type: postgres
+        access: proxy
+        url: ctfd-cockpit-db-ro.myrctf-monitoring.svc.cluster.local:5432
+        user: $__env{COCKPIT_DB_USER}
+        isDefault: true
+        editable: false
+        jsonData:
+          database: ctfd_cockpit
+          sslmode: verify-full
+          tlsConfigurationMethod: file-path
+          sslRootCertFile: /etc/grafana/certs/postgres/ca.crt
+          maxOpenConns: 10
+          maxIdleConns: 2
+          maxIdleConnsAuto: true
+          connMaxLifetime: 300
+          postgresVersion: 1600
+          timescaledb: false
+        secureJsonData:
+          password: $__env{COCKPIT_DB_PASSWORD}
+
+extraSecretMounts:
+  - name: myrctf-grafana-oidc
+    secretName: myrctf-grafana-oidc
+    defaultMode: 0440
+    mountPath: /etc/secrets/oidc
+    readOnly: true
+  - name: ctfd-cockpit-postgres-ca
+    secretName: ctfd-cockpit-db-ca
+    defaultMode: 0440
+    mountPath: /etc/grafana/certs/postgres
+    readOnly: true
+
+grafana.ini:
+  server:
+    root_url: https://myrctf-grafana.3rr.dev
+    enforce_domain: true
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  security:
+    disable_gravatar: true
+  auth:
+    disable_login_form: true
+    oauth_auto_login: true
+    oauth_allow_insecure_email_lookup: false
+  auth.basic:
+    enabled: false
+  auth.anonymous:
+    enabled: false
+  auth.generic_oauth:
+    enabled: true
+    name: Pocket ID
+    icon: signin
+    allow_sign_up: true
+    auto_login: true
+    client_id: $__file{/etc/secrets/oidc/client_id}
+    client_secret: $__file{/etc/secrets/oidc/client_secret}
+    scopes: openid profile email groups
+    email_attribute_name: "email:primary"
+    groups_attribute_path: groups
+    allowed_groups: myrctf-monitoring
+    role_attribute_path: "contains(groups[*], 'myrctf-monitoring') && 'Admin' || 'None'"
+    role_attribute_strict: true
+    allow_assign_grafana_admin: false
+    skip_org_role_sync: false
+    use_pkce: true
+    auth_url: https://auth.3rr.dev/authorize
+    token_url: https://auth.3rr.dev/api/oidc/token
+    api_url: https://auth.3rr.dev/api/oidc/userinfo
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+serviceAccount:
+  automountServiceAccountToken: false
+
+testFramework:
+  enabled: false

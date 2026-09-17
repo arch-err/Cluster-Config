@@ -9,6 +9,8 @@ The documents describe committed configuration, not a live cluster inventory. Th
 | [Talos](talos.md) | Nodes, generation, bootstrap boundaries, and host storage |
 | [Platform chart](platform-chart.md) | Chart inputs, templates, and reconciliation behavior |
 | [Adding applications](adding-apps.md) | Values, routing, identity, storage, and validation |
+| [MyrCTF observability](myrctf-observability.md) | Proposed LGTM architecture, telemetry contracts, access boundaries, and rollout stages |
+| [CTFd Cockpit backend](myrctf-cockpit/README.md) | PostgreSQL model, ingest contract, sensitive-data boundary, and cockpit views |
 | [Forgejo preparation](forgejo-preparation.md) | Current upstream research, proposed minimal features, and open deployment decisions |
 | [Secrets](secrets.md) | SOPS/age and generated or manually supplied credentials |
 | [Storage](pvc-reclaim-policy.md) | Local storage, retained data, and legacy configuration |

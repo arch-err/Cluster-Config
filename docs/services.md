@@ -44,6 +44,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [services/it-tools](../kubernetes/services/it-tools/service.yaml) | `apps` | yes | `it-tools` |
 | [services/jellyfin](../kubernetes/services/jellyfin/service.yaml) | `apps` | yes | `jellyfin` |
 | [services/metube](../kubernetes/services/metube/service.yaml) | `apps` | yes | `metube`, `metube-oauth2` |
+| [services/myrctf-monitoring](../kubernetes/services/myrctf-monitoring/service.yaml) | `apps` | yes | `myrctf-grafana` plus Cockpit PostgreSQL supporting resources |
 | [services/n8n](../kubernetes/services/n8n/service.yaml) | `infra` | yes | `n8n`, `n8n-oauth2` |
 | [services/navidrome](../kubernetes/services/navidrome/service.yaml) | `apps` | yes | `navidrome`, `navidrome-oauth2` |
 | [services/ntfy](../kubernetes/services/ntfy/service.yaml) | `apps` | yes | `ntfy` |
