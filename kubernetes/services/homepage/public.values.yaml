@@ -61,14 +61,17 @@ config:
     - Services:
         - Forgejo:
             href: https://forgejo.3rr.dev
+            target: _self
             description: Git hosting
             icon: forgejo.png
         - Pocket ID:
             href: https://auth.3rr.dev
+            target: _self
             description: Identity and passkeys
             icon: pocket-id.png
         - CyberChef:
             href: https://cyberchef.3rr.dev
+            target: _self
             description: Data transform workbench
             icon: cyberchef.png
 
