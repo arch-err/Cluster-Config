@@ -96,6 +96,11 @@ metadata:
     app.kubernetes.io/component: db-postgres
     db-postgres/app: {{ $app | quote }}
 spec:
+  {{- with $component.db.inheritedLabels }}
+  inheritedMetadata:
+    labels:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
   instances: {{ $instances }}
   imageName: {{ $imageName | quote }}
   # Bootstrap an empty DB named after the app, owned by an app-named role.

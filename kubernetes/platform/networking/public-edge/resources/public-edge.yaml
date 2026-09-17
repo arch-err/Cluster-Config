@@ -25,6 +25,13 @@ spec:
   endpointSelector:
     matchLabels:
       k8s:io.cilium.k8s.namespace.labels.exposure: public
+    matchExpressions:
+      # CNPG instances need Kubernetes API access. Opted-in instances use a
+      # dedicated least-privilege policy instead of this general profile.
+      - key: public-edge.3rr.dev/profile
+        operator: NotIn
+        values:
+          - cnpg
   ingress:
     - fromEntities:
         - ingress

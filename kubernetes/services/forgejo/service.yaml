@@ -14,6 +14,8 @@ components:
       enabled: true
       version: "16"
       instances: 1
+      inheritedLabels:
+        public-edge.3rr.dev/profile: cnpg
       storage:
         size: 10Gi
         storageClass: local-bulk
