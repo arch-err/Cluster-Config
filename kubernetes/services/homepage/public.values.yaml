@@ -165,10 +165,10 @@ config:
                 - field: version
                   label: Version
         - CTFd:
-            href: https://ctf.jesber.xyz
+            href: https://ctf.myriaden.se
             target: _self
             description: MyrCTF competition platform
-            icon: mdi-flag-checkered
+            icon: https://avatars.githubusercontent.com/u/201907573?s=200&v=4
         - GitHub:
             href: https://github.com/MyrCTFO
             target: _self
