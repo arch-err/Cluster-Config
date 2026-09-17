@@ -52,6 +52,78 @@ persistence:
     mountPath: /app/config/custom.css
     subPath: custom.css
     readOnly: true
+  tmp:
+    enabled: true
+    type: emptyDir
+    mountPath: /tmp
+  next-pages:
+    enabled: true
+    type: emptyDir
+    mountPath: /app/.next/server/pages
+
+# Next.js ISR rewrites the prerendered page. Seed only that writable directory
+# from the image so the rest of the container filesystem can remain read-only.
+initContainers:
+  seed-next-pages:
+    image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+    imagePullPolicy: IfNotPresent
+    command:
+      - /bin/sh
+      - -c
+      - cp -R /app/.next/server/pages/. /work/pages/
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    volumeMounts:
+      - name: next-pages
+        mountPath: /work/pages
+
+probes:
+  liveness:
+    enabled: true
+    custom: true
+    spec:
+      httpGet:
+        path: /api/healthcheck
+        port: 3000
+        scheme: HTTP
+        httpHeaders:
+          - name: Host
+            value: apps.3rr.dev
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+  readiness:
+    enabled: true
+    custom: true
+    spec:
+      httpGet:
+        path: /api/healthcheck
+        port: 3000
+        scheme: HTTP
+        httpHeaders:
+          - name: Host
+            value: apps.3rr.dev
+      periodSeconds: 10
+      timeoutSeconds: 1
+      failureThreshold: 3
+  startup:
+    enabled: true
+    custom: true
+    spec:
+      httpGet:
+        path: /api/healthcheck
+        port: 3000
+        scheme: HTTP
+        httpHeaders:
+          - name: Host
+            value: apps.3rr.dev
+      periodSeconds: 5
+      timeoutSeconds: 1
+      failureThreshold: 30
 
 config:
   kubernetes:
@@ -99,6 +171,7 @@ resources:
     cpu: 50m
     memory: 64Mi
   limits:
+    cpu: 250m
     memory: 256Mi
 
 podSecurityContext:
@@ -110,7 +183,7 @@ podSecurityContext:
     type: RuntimeDefault
 securityContext:
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
