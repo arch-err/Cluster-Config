@@ -111,7 +111,6 @@ dashboardProviders:
       - name: ctfd-cockpit
         orgId: 1
         folder: CTFd Cockpit
-        folderUid: ctfd-cockpit
         type: file
         disableDeletion: true
         allowUiUpdates: false
