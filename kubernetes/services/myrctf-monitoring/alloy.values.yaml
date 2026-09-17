@@ -1,6 +1,10 @@
 controller:
   type: deployment
   replicas: 1
+  volumes:
+    extra:
+      - name: alloy-data
+        emptyDir: {sizeLimit: 256Mi}
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65534
@@ -8,6 +12,10 @@ podSecurityContext:
   fsGroup: 65534
   seccompProfile: {type: RuntimeDefault}
 alloy:
+  mounts:
+    extra:
+      - name: alloy-data
+        mountPath: /tmp/alloy
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
