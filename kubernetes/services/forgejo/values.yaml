@@ -79,8 +79,8 @@ deployment:
           name: forgejo-oidc-client
           key: client_secret
 gitea:
-  # Forgejo 16 initializes Goth lazily: its first OIDC call omits PKCE.
-  # Consume that redirect locally, without following it, before readiness.
+  # Public isolation intentionally blocks the former private Pocket ID issuer.
+  # Keep startup independent of OIDC until the public provider is connected.
   startupProbe:
     enabled: true
     tcpSocket: null
@@ -88,7 +88,7 @@ gitea:
       command:
         - sh
         - -ec
-        - 'test "$(curl --silent --show-error --max-time 3 --output /dev/null --write-out "%{http_code}" http://127.0.0.1:3000/user/oauth2/pocket-id)" = 307'
+        - 'test "$(curl --silent --show-error --max-time 3 --output /dev/null --write-out "%{http_code}" http://127.0.0.1:3000/api/healthz)" = 200'
     initialDelaySeconds: 0
     periodSeconds: 2
     timeoutSeconds: 4

@@ -6,9 +6,9 @@ One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained
 
 ## Access
 
-Use the **pocket-id** login button. Pocket ID controls eligibility through access to client `forgejo`, currently restricted to group `forgejo_users`. Eligible identities are automatically provisioned without an additional subject allowlist in Forgejo. Local password self-registration and automatic account linking remain disabled; the existing local recovery account remains usable. J's existing account stays linked to his Pocket ID subject. No Pocket ID group membership is changed by this feature rollout.
+The existing local recovery account remains usable. Local password self-registration and automatic account linking are disabled. The configured `pocket-id` source still refers to the former private issuer, which is intentionally unreachable from the public workload policy; J will replace it with the independent public Pocket ID instance. Until then, use local recovery rather than the OIDC button.
 
-Forgejo 16's first OIDC request after a cold start initializes the provider without PKCE. A startup probe consumes that redirect locally without following it; subsequent login requests include S256 PKCE. Recheck whether this workaround is needed on upgrades. Pocket ID still requires PKCE.
+The startup probe checks Forgejo health without contacting OIDC, so an identity-provider change cannot prevent the pod from starting. Recheck Forgejo 16's lazy OIDC/PKCE initialization behavior when connecting the public provider.
 
 Local recovery username: `forgejo-recovery`. Retrieve its generated password privately with:
 
@@ -20,7 +20,11 @@ The bootstrap password is encrypted in `secrets/forgejo.yaml`; `initialOnlyNoRes
 
 ## Networking and startup
 
-The apps gateway serves HTTPS on `10.10.10.200:443`. The Forgejo SSH LoadBalancer shares that address on port 22, forwarding to the rootless listener on 2222. Reciprocal Cilium sharing annotations are declared here and in the apps Gateway. SSH routing is by IP/port: other names resolving to the same IP reach the same SSH server.
+The `forgejo.3rr.dev` HTTPRoute attaches to the HTTP-only public Gateway. Selecting that gateway labels the namespace `exposure=public` and activates the public-edge isolation policy. External routing, Cloudflare and DNS remain managed separately by J.
+
+The Forgejo SSH LoadBalancer remains on port 22 and forwards to the rootless listener on 2222. A workload-specific policy permits world ingress only to that listener. SSH routing is by IP/port and clients verify the persisted SSH host key; it is independent of the HTTPS hostname and certificate.
+
+CNPG uses a dedicated policy profile rather than the general public-workload profile. Its only allowed ingress is Forgejo to PostgreSQL on TCP 5432 and the CNPG operator to the instance manager on TCP 8000. Its only allowed egress is DNS and the Kubernetes API. Forgejo retains the public baseline of DNS and outbound HTTP(S), plus PostgreSQL 5432. The database profile was deployed and verified before the namespace was made public.
 
 The namespace has sync wave -20; CNPG is wave 0, the optional OIDC bootstrap Job wave 11, the application wave 12, and its HTTPRoute wave 13. OIDC provisioning is a one-time operation: remove `oidc.bootstrapJob: true` after success, retaining its configuration and RBAC. The group must exist in Pocket ID before running that job, following the platform's existing manually managed group convention. CNPG and OIDC generate their respective credential Secrets. The home CA bundle is supplied by trust-manager; CNPG supplies its own CA for verified database TLS.
 
@@ -30,7 +34,7 @@ The explicit switches are in [values.yaml](values.yaml); the [feature guide](../
 
 Projects, wikis, stars, time tracking, native file uploads, mail, federation, external avatars, feeds, metrics and other unneeded extras remain disabled. Code indexing uses embedded Bleve on the retained Forgejo volume and includes forks and mirrors. Forgejo 16's documented REST API does not expose code-content search; zgit integration for that capability remains separate. The API remains available with Swagger disabled.
 
-No webhook destinations, mirrors, runners or publishing services are created by enabling these capabilities. Actions execution needs a runner; Pages hosting and the GitHub-star collector remain separate work. Public DNS/routing is managed separately by J; CORS and sitemap remain unchanged. Forgejo advertises `https://forgejo.3rr.dev/` for web/HTTPS Git and `git.3rr.dev:22` for SSH. The existing internal route remains `git.apps.home` as an origin access path.
+No webhook destinations, mirrors, runners or publishing services are created by enabling these capabilities. Actions execution needs a runner; Pages hosting and the GitHub-star collector remain separate work. Public DNS/routing is managed separately by J; CORS and sitemap remain unchanged. Forgejo advertises `https://forgejo.3rr.dev/` for web/HTTPS Git and `git.3rr.dev:22` for SSH. The HTTPRoute is attached only to the public Gateway.
 
 Feature changes belong in Git. Render the pinned upstream chart, run `just check`, and check the running `app.ini` after rollout: upstream chart defaults and persisted secrets affect the final configuration.
 
@@ -71,8 +75,8 @@ Actions execution remains untested without a runner; actual user mirrors, publis
 
 `server.DOMAIN=forgejo.3rr.dev`, `ROOT_URL=https://forgejo.3rr.dev/` and `SSH_DOMAIN=git.3rr.dev` set the application URL and advertised clone URLs. The built-in SSH listener remains on 2222, exposed by the existing Service on 22. SSH does not use an HTTP Host header or TLS hostname certificate; clients verify the persisted server host key using the name they connect to.
 
-Pocket ID's Forgejo client callback is `https://forgejo.3rr.dev/user/oauth2/pocket-id/callback`. The identity issuer remains `https://auth.apps.home`; no identity-provider migration is implied by changing Forgejo's hostname. Routing, DNS, Cloudflare and TLS termination are managed separately by J and are unchanged here.
+Pocket ID's Forgejo client callback is `https://forgejo.3rr.dev/user/oauth2/pocket-id/callback`. The old identity source still names `https://auth.apps.home`, but public isolation blocks that private destination. J will connect the independent public Pocket ID instance. Routing, DNS, Cloudflare and TLS termination are managed separately by J.
 
 To publish a repository, change its visibility in repository Settings, or send `PATCH /api/v1/repos/{owner}/{repo}` with `{"private": false}` using an account/token permitted to administer it. Instance settings already allow public repositories and anonymous reads. Publishing a Forgejo repository does not change a GitHub mirror's visibility.
 
-The hostname rollout passed `just check` and upstream chart server-side dry-run validation. Live app.ini and repository API responses advertise the new HTTPS and SSH URLs. Pocket ID client registration and the S256 OIDC redirect both use the new callback. The one-time callback update Job completed successfully and its execution flag was removed. No repository visibility was changed. Public routing and external end-to-end access are outside this verification.
+The hostname rollout passed `just check` and upstream chart server-side dry-run validation. Live app.ini and repository API responses advertise the new HTTPS and SSH URLs. No repository visibility was changed.

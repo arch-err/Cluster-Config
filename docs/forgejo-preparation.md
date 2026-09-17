@@ -68,7 +68,7 @@ Earlier advice to select one primary host for all active repositories is superse
 
 ## Public hostname update — 2026-09-15
 
-J subsequently requested `https://forgejo.3rr.dev/` for Forgejo and `git.3rr.dev:22` for SSH. These application hostnames and the corresponding Pocket ID client callback are deployed and verified. This supersedes earlier hostname deferral; public routing, Cloudflare and DNS remain explicitly J's scope. The internal `git.apps.home` HTTPRoute is unchanged. CORS and sitemap remain unchanged. No repository visibility change was requested with an identified target.
+J subsequently requested `https://forgejo.3rr.dev/` for Forgejo and `git.3rr.dev:22` for SSH. These application hostnames are deployed. The Forgejo HTTPRoute now uses the public Gateway, which marks the namespace public and activates public-edge isolation; Cloudflare and DNS remain explicitly J's scope. CORS and sitemap remain unchanged. No repository visibility change was requested with an identified target. The former private Pocket ID source is intentionally unreachable under the public policy and will be replaced by J with the independent public issuer.
 
 ## Implemented feature rollout — 2026-09-15
 
