@@ -44,3 +44,6 @@ lokiCanary: {enabled: false}
 gateway: {enabled: false}
 serviceAccount:
   automountServiceAccountToken: false
+sidecar:
+  rules:
+    enabled: false

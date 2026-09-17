@@ -1,5 +1,7 @@
 defaultPodOptions:
   automountServiceAccountToken: false
+  annotations:
+    myrctf.3rr.dev/config-version: "2"
   securityContext:
     runAsNonRoot: true
     runAsUser: 10001
