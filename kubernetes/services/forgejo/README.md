@@ -22,6 +22,8 @@ The bootstrap password is encrypted in `secrets/forgejo.yaml`; `initialOnlyNoRes
 
 The `forgejo.3rr.dev` HTTPRoute attaches to the HTTP-only public Gateway. Selecting that gateway labels the namespace `exposure=public` and activates the public-edge isolation policy. External routing, Cloudflare and DNS remain managed separately by J.
 
+The Forgejo workload uses a dedicated ServiceAccount with token automounting disabled. It has no Kubernetes RBAC and receives no API credential.
+
 The Forgejo SSH Service is ClusterIP-only on port 22 and forwards to the rootless listener on 2222. Only `local-git-mux` may reach that listener; the mux provides the LAN-only `git.3rr.dev:22` entry point without a Forgejo NodePort or direct LoadBalancer. SSH routing is by IP/port and clients verify the persisted SSH host key; it is independent of the HTTPS hostname and certificate.
 
 CNPG uses a dedicated policy profile rather than the general public-workload profile. Its only allowed ingress is Forgejo to PostgreSQL on TCP 5432 and the CNPG operator to the instance manager on TCP 8000. Its only allowed egress is DNS and the Kubernetes API. Forgejo retains the public baseline of DNS and outbound HTTP(S), plus PostgreSQL 5432. The database profile was deployed and verified before the namespace was made public.
