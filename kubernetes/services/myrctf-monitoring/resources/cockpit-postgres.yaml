@@ -43,6 +43,7 @@ spec:
     roles:
       - name: ctfd_cockpit_migrator
         ensure: present
+        inherit: true
         login: true
         connectionLimit: 2
         passwordSecret:
@@ -50,6 +51,7 @@ spec:
         comment: Owns and migrates the CTFd Cockpit schema.
       - name: ctfd_cockpit_ingest
         ensure: present
+        inherit: true
         login: true
         connectionLimit: 10
         passwordSecret:
@@ -57,6 +59,7 @@ spec:
         comment: Writes validated Cockpit replication batches.
       - name: ctfd_cockpit_grafana
         ensure: present
+        inherit: true
         login: true
         connectionLimit: 10
         passwordSecret:
