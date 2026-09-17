@@ -50,6 +50,10 @@ config:
             href: https://auth.3rr.dev
             description: Identity and passkeys
             icon: pocket-id.png
+        - CyberChef:
+            href: https://cyberchef.3rr.dev
+            description: Data transform workbench
+            icon: cyberchef.png
 
   bookmarks: []
   widgets: []

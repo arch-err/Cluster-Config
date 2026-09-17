@@ -148,7 +148,7 @@ config:
             description: Dev/sysadmin utilities
             icon: it-tools.png
         - CyberChef:
-            href: https://cyberchef.apps.home
+            href: https://cyberchef.3rr.dev
             description: Data transform workbench
             icon: cyberchef.png
         - Syncthing:

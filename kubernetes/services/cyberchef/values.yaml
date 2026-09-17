@@ -41,7 +41,7 @@ controllers:
             memory: 256Mi
         securityContext:
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false   # nginx writes to /var/cache/nginx, /var/run
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
               - ALL
@@ -62,3 +62,25 @@ service:
       http:
         port: 80
         targetPort: 8000
+
+# nginx needs writable cache, run, and tmp directories at runtime. Keep those
+# ephemeral so the public workload can retain a read-only root filesystem.
+persistence:
+  cache:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /var/cache/nginx
+  run:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /var/run
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - path: /tmp

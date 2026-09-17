@@ -8,14 +8,9 @@ components:
       name: app-template
       version: 4.6.2
     route:
-      hostname: cyberchef.apps.home
-      gateway: apps
+      hostname: cyberchef.3rr.dev
+      gateway: public
       service: cyberchef
       port: 80
-      dashboard:
-        name: CyberChef
-        group: Tools
-        icon: cyberchef.png
-        description: Cyber Swiss Army Knife — encode/decode/crypto
-        app: cyberchef
+      dashboard: false
     valuesFile: values.yaml
