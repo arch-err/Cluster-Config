@@ -100,9 +100,6 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
-          resources:
-            requests: {cpu: 10m, memory: 32Mi, ephemeral-storage: 8Mi}
-            limits: {cpu: 100m, memory: 64Mi, ephemeral-storage: 64Mi}
           volumeMounts:
             - {name: backups, mountPath: /backups}
       volumes:
