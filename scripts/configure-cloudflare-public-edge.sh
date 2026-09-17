@@ -13,7 +13,7 @@ readonly SECRET_FILE="$ROOT/kubernetes/platform/networking/public-edge/secrets/c
 readonly AGE_RECIPIENT="age1sjrw9cudya5fhnucvlhqsrfpv8g6zn56tvffx3ns5rr935z3v3aq7hydlz"
 readonly RULE_DESCRIPTION="Public edge: block non-allowlisted source IPs"
 readonly OLD_RULE_DESCRIPTION="Public isolation PoC: block non-allowlisted source IPs"
-readonly RATE_LIMIT_DESCRIPTION="Public edge: challenge rapid login requests"
+readonly RATE_LIMIT_DESCRIPTION="Public edge: block rapid login requests"
 
 if [[ ! -s $TOKEN_FILE ]]; then
   echo "Cloudflare API token file is missing or empty: $TOKEN_FILE" >&2
@@ -66,14 +66,14 @@ configure_rate_limit() {
   # on the interactive login path so Git HTTP, LFS, API and asset traffic are
   # never throttled. Host matching is unavailable in Free-plan expressions.
   rule_payload=$(jq -nc --arg description "$RATE_LIMIT_DESCRIPTION" '{
-    action:"managed_challenge",
+    action:"block",
     description:$description,
     expression:"(http.request.uri.path eq \"/user/login\")",
     ratelimit:{
       characteristics:["cf.colo.id","ip.src"],
       period:10,
       requests_per_period:5,
-      mitigation_timeout:0
+      mitigation_timeout:10
     },
     enabled:true
   }')

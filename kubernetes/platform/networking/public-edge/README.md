@@ -52,7 +52,7 @@ tunnel is healthy and the WAF still matches the current address. `disable`
 removes only DNS owned by this tunnel.
 
 `prepare` also reconciles the Free-plan rate-limit slot: more than five requests
-to `/user/login` from one source in ten seconds triggers a Managed Challenge.
+to `/user/login` from one source in ten seconds triggers a ten-second block.
 The rule is deliberately path-only because the Free plan cannot use hostname in
 its rate-limit expression; Git HTTP, LFS, API, and static traffic are excluded.
 Run `scripts/configure-cloudflare-public-edge.sh rate-limit` to reconcile only
