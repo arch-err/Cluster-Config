@@ -58,9 +58,15 @@ the receiver overwrites caller-supplied tenant headers.
 `ctfd_cockpit_migrator` owns schema objects, `ctfd_cockpit_ingest` can mutate
 replication tables but cannot run DDL, and `ctfd_cockpit_grafana` has SELECT
 only. Grafana receives only the final role. Database storage is 30 GiB retained
-local-bulk. A daily `pg_dump` is kept 35 days on a 20 GiB retained PVC pinned to
+local-bulk. A daily `pg_dump` is kept 14 days on a 20 GiB retained PVC pinned to
 node-3, separate from the database on node-2. Mimir keeps 90 days, Loki 30 days,
 and Tempo 7 days on retained local PVCs.
+
+Every workload has CPU, memory, and ephemeral-storage requests and limits. A
+namespace `ResourceQuota` provides a final 6 CPU, 8 GiB memory, 120 GiB requested
+persistent-storage, 8 PVC, and 20-pod ceiling; a `LimitRange` supplies bounded
+defaults to any future sidecar that omits them. Current persistent allocation is
+105 GiB. Increasing these ceilings is an explicit Git change.
 
 ## Operations runbook
 

@@ -50,9 +50,9 @@ data:
           store: inmemory
     limits:
       compactor_blocks_retention_period: 90d
-      max_global_series_per_user: 100000
-      ingestion_rate: 10000
-      ingestion_burst_size: 200000
+      max_global_series_per_user: 25000
+      ingestion_rate: 5000
+      ingestion_burst_size: 50000
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -100,6 +100,9 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi, ephemeral-storage: 8Mi}
+            limits: {cpu: 100m, memory: 64Mi, ephemeral-storage: 64Mi}
           volumeMounts:
             - {name: backups, mountPath: /backups}
       volumes:
@@ -149,7 +152,7 @@ spec:
                   export PGSSLMODE=verify-full
                   export PGSSLROOTCERT=/etc/postgresql/ca/ca.crt
                   pg_dump --host=ctfd-cockpit-db-rw --username="${COCKPIT_DB_USER}" --dbname=ctfd_cockpit --format=custom --compress=9 --file="/backups/ctfd-cockpit-${stamp}.dump"
-                  find /backups -type f -name 'ctfd-cockpit-*.dump' -mtime +35 -delete
+                  find /backups -type f -name 'ctfd-cockpit-*.dump' -mtime +14 -delete
               env:
                 - name: COCKPIT_DB_USER
                   valueFrom: {secretKeyRef: {name: ctfd-cockpit-migrator-db, key: username}}
@@ -160,8 +163,8 @@ spec:
                 readOnlyRootFilesystem: true
                 capabilities: {drop: [ALL]}
               resources:
-                requests: {cpu: 25m, memory: 64Mi}
-                limits: {cpu: 500m, memory: 256Mi}
+                requests: {cpu: 25m, memory: 64Mi, ephemeral-storage: 16Mi}
+                limits: {cpu: 500m, memory: 256Mi, ephemeral-storage: 128Mi}
               volumeMounts:
                 - {name: backups, mountPath: /backups}
                 - {name: postgres-ca, mountPath: /etc/postgresql/ca, readOnly: true}

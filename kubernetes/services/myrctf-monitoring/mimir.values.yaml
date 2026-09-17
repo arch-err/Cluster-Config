@@ -35,8 +35,8 @@ controllers:
           readOnlyRootFilesystem: true
           capabilities: {drop: [ALL]}
         resources:
-          requests: {cpu: 100m, memory: 384Mi}
-          limits: {cpu: "1", memory: 1Gi}
+          requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 32Mi}
+          limits: {cpu: 750m, memory: 768Mi, ephemeral-storage: 256Mi}
 
 service:
   main:
@@ -67,6 +67,7 @@ persistence:
   tmp:
     enabled: true
     type: emptyDir
+    sizeLimit: 256Mi
     advancedMounts:
       main:
         app:

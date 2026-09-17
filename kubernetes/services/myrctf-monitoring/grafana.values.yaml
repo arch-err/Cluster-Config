@@ -260,8 +260,11 @@ resources:
   requests:
     cpu: 100m
     memory: 256Mi
+    ephemeral-storage: 64Mi
   limits:
+    cpu: 500m
     memory: 512Mi
+    ephemeral-storage: 512Mi
 
 serviceAccount:
   automountServiceAccountToken: false
