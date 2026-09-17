@@ -22,7 +22,7 @@ The bootstrap password is encrypted in `secrets/forgejo.yaml`; `initialOnlyNoRes
 
 The `forgejo.3rr.dev` HTTPRoute attaches to the HTTP-only public Gateway. Selecting that gateway labels the namespace `exposure=public` and activates the public-edge isolation policy. External routing, Cloudflare and DNS remain managed separately by J.
 
-The Forgejo SSH LoadBalancer remains on port 22 and forwards to the rootless listener on 2222. A workload-specific policy permits world ingress only to that listener. SSH routing is by IP/port and clients verify the persisted SSH host key; it is independent of the HTTPS hostname and certificate.
+The Forgejo SSH Service is ClusterIP-only on port 22 and forwards to the rootless listener on 2222. Only `local-git-mux` may reach that listener; the mux provides the LAN-only `git.3rr.dev:22` entry point without a Forgejo NodePort or direct LoadBalancer. SSH routing is by IP/port and clients verify the persisted SSH host key; it is independent of the HTTPS hostname and certificate.
 
 CNPG uses a dedicated policy profile rather than the general public-workload profile. Its only allowed ingress is Forgejo to PostgreSQL on TCP 5432 and the CNPG operator to the instance manager on TCP 8000. Its only allowed egress is DNS and the Kubernetes API. Forgejo retains the public baseline of DNS and outbound HTTP(S), plus PostgreSQL 5432. The database profile was deployed and verified before the namespace was made public.
 
@@ -87,4 +87,4 @@ The namespace is labelled `exposure=public` with restricted Pod Security and the
 
 CNPG remained ready under its dedicated profile. Runtime probes verified Forgejo-to-PostgreSQL access, CNPG operator-to-instance-manager access on TCP 8000, and database egress to the Kubernetes API. Probes also verified that the database cannot reach the LAN or Internet. The former private Pocket ID discovery route returns Envoy `403 Access denied` from the isolated workload; no private application response is available.
 
-SSH remained available on the existing LoadBalancer with the same RSA host-key fingerprint. The repository's LAN `git.3rr.dev` protocol-mux verification passed for HTTPS and SSH, including its negative egress tests. Public DNS and upstream SSH forwarding remain J's separately managed routing scope.
+SSH remains available through the LAN-only `local-git-mux` with the same RSA host-key fingerprint. The Forgejo SSH backend itself is ClusterIP-only, has no NodePort, and accepts only the mux identity. The repository's protocol-mux verification covers HTTPS and SSH, including its negative egress tests.

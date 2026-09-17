@@ -39,13 +39,10 @@ persistence:
     argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
 service:
   ssh:
-    type: LoadBalancer
+    # SSH is local-only through local-git-mux. Keeping this ClusterIP avoids a
+    # node-wide NodePort and a second LAN LoadBalancer entry point.
+    type: ClusterIP
     port: 22
-    externalTrafficPolicy: Cluster
-    annotations:
-      lbipam.cilium.io/ips: 10.10.10.200
-      lbipam.cilium.io/sharing-key: apps-gateway-forgejo
-      lbipam.cilium.io/sharing-cross-namespace: gateway-system
 extraVolumes:
   - name: home-ca
     configMap:

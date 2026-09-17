@@ -7,23 +7,12 @@ metadata:
     argocd.argoproj.io/sync-wave: "11"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  description: Permit only Forgejo's database dependency and public SSH listener.
+  description: Permit only Forgejo's database dependency and local Git mux SSH.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: forgejo
       k8s:io.cilium.k8s.namespace.labels.exposure: public
   ingress:
-    - fromEntities:
-        - world
-        # The SSH LoadBalancer uses externalTrafficPolicy=Cluster, so traffic
-        # forwarded across a node arrives with a node identity.
-        - host
-        - remote-node
-        - kube-apiserver
-      toPorts:
-        - ports:
-            - port: "2222"
-              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: local-git-mux
