@@ -90,6 +90,7 @@ extraSecretMounts:
 
 grafana.ini:
   server:
+    domain: myrctf-grafana.3rr.dev
     root_url: https://myrctf-grafana.3rr.dev
     enforce_domain: true
   analytics:
