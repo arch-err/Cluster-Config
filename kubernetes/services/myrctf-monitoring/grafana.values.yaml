@@ -28,7 +28,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-securityContext:
+containerSecurityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
   capabilities:
@@ -58,7 +58,7 @@ datasources:
         uid: ctfd-cockpit-postgres
         type: postgres
         access: proxy
-        url: ctfd-cockpit-db-ro.myrctf-monitoring.svc.cluster.local:5432
+        url: ctfd-cockpit-db-r.myrctf-monitoring.svc.cluster.local:5432
         user: $__env{COCKPIT_DB_USER}
         isDefault: true
         editable: false
