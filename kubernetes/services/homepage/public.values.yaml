@@ -146,7 +146,9 @@ config:
             target: _self
             description: Data transform workbench
             icon: cyberchef.png
-        - MyrCTF Grafana:
+
+    - MyrCTF 2026:
+        - Grafana:
             href: https://myrctf-grafana.3rr.dev
             target: _self
             description: Public CTF monitoring
@@ -162,6 +164,16 @@ config:
                   label: Database
                 - field: version
                   label: Version
+        - CTFd:
+            href: https://ctf.jesber.xyz
+            target: _self
+            description: MyrCTF competition platform
+            icon: ctfd.png
+        - GitHub:
+            href: https://github.com/MyrCTFO
+            target: _self
+            description: MyrCTF organization
+            icon: github.png
 
   bookmarks: []
   widgets: []
