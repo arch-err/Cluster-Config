@@ -1,6 +1,6 @@
 [project]
 name = "ctfd-cockpit-ingest"
-version = "0.1.0"
+version = "0.1.1"
 description = "Authenticated cluster-side receiver for the MyrCTF CTFd Cockpit"
 requires-python = ">=3.13"
 dependencies = [

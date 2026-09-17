@@ -20,7 +20,7 @@ controllers:
       migrate:
         image:
           repository: ghcr.io/arch-err/ctfd-cockpit-ingest
-          tag: "0.1.0@sha256:32c8b8d2b54fbdab48b3cd78edb8fb94b89ec08e75ef1983803a36d0342118af"
+          tag: "0.1.1@sha256:6bb708bbcd284cc373a745d83cf8f730eb743331b11bb8b2e28295aa612e7538"
         command: ["/bin/sh", "-ec"]
         args:
           - |
@@ -52,7 +52,7 @@ controllers:
       app:
         image:
           repository: ghcr.io/arch-err/ctfd-cockpit-ingest
-          tag: "0.1.0@sha256:32c8b8d2b54fbdab48b3cd78edb8fb94b89ec08e75ef1983803a36d0342118af"
+          tag: "0.1.1@sha256:6bb708bbcd284cc373a745d83cf8f730eb743331b11bb8b2e28295aa612e7538"
         command: ["/bin/sh", "-ec"]
         args:
           - |
