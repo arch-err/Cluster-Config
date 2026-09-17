@@ -13,6 +13,12 @@ spec:
       app.kubernetes.io/name: forgejo
       k8s:io.cilium.k8s.namespace.labels.exposure: public
   ingress:
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: local-git-mux
@@ -32,12 +38,13 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
-    - toEntities:
-        - world
+    # Public Pocket ID is the only Internet dependency. Imports, mirrors,
+    # webhooks, packages and Actions remain disabled while this profile is in
+    # use, so Forgejo does not need general-purpose Internet egress.
+    - toFQDNs:
+        - matchName: auth.3rr.dev
       toPorts:
         - ports:
-            - port: "80"
-              protocol: TCP
             - port: "443"
               protocol: TCP
     - toEndpoints:

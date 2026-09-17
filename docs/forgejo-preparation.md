@@ -8,24 +8,24 @@ Start with authenticated Git hosting and the web interface. Preserve account sec
 
 ## Revised feature direction — after initial deployment
 
-J uses Forgejo with his agents as an alternative to GitHub, with **zgit**, his own API-based frontend, as the everyday interface. Separate agent user accounts are not currently required. Later, public repositories should be available read-only to Internet visitors, with a separate public-facing Pocket ID managed by J. The scope here remains strictly Forgejo configuration; external exposure, identity-provider deployment, security infrastructure and backups are handled separately. This section supersedes the earlier private-only target; the initial deployment descriptions below remain the historical baseline. J subsequently approved implementation of these choices; the managed values now implement the agreed feature set. Historical deployment checks below describe the original minimal setup.
+J uses Forgejo with his agents as an alternative to GitHub, with **zgit**, his own API-based frontend, as the everyday interface. Separate agent user accounts are not currently required. Later, public repositories should be available read-only to Internet visitors, with a separate public-facing Pocket ID managed by J. The scope here remains strictly Forgejo configuration; external exposure, identity-provider deployment, security infrastructure and backups are handled separately. This section records the broader feature direction, while the public-exposure hardening below keeps outbound integrations disabled until their isolated dependencies exist. Historical deployment checks below describe earlier states.
 
 | Capability | Requested direction |
 | --- | --- |
 | Issues | Enable. |
 | Code search | Confirmed: enable repository code indexing for cross-repository file-content search. Embedded Bleve indexes sources, forks, mirrors and templates. Implementation review found no code-content search endpoint in Forgejo 16's documented REST API; zgit search integration remains separate. |
-| Webhooks | Confirmed: enable the capability. Configure no webhook destinations until a concrete integration needs them. Custom server-side Git hooks remain disabled. |
+| Webhooks | Desired later for concrete integrations; disabled while Forgejo uses its restricted public egress profile. Custom server-side Git hooks remain disabled. |
 | Forks | Confirmed: enable Forgejo repository forks, including writable forks for work on mirrored upstream repositories. |
 | Source archive downloads | Confirmed: enable ZIP/tar source downloads, subject to repository access permissions. |
 | Stars | Confirmed: keep Forgejo stars disabled. The proposed GitHub-star mirror collector does not depend on Forgejo stars. |
 | Time tracking | Keep disabled; J declined it and requested grouped recommendations for the remaining review. |
 | Pull requests | Confirmed: enable; agents should work through PRs on writable Forgejo repositories. Separate agent users are not required. Leave branch protection and required reviews unset initially; this is a workflow expectation, not enforced prevention of direct pushes. |
 | Projects and wikis | Keep disabled for now. |
-| GitHub mirroring | Full native pull/push mirror capability desired. Resolve the authoritative writable location per repository before configuring mirrors. |
+| GitHub mirroring | Full native pull/push mirror capability remains desired, but is disabled until explicit outbound Git destinations are designed. |
 | Public and private repositories | Confirmed: private by default for newly created repositories, including push-to-create in personal and organization namespaces. J explicitly selects when to publish a repository. Allow public repositories rather than forcing all repositories private. |
 | Anonymous browsing | Enable for public content. This does not publish the instance to the Internet by itself. |
 | Pocket ID registration | Confirmed: Pocket ID controls eligibility through access to the Forgejo OIDC client. Automatically provision eligible OIDC users without an additional J-only subject restriction in Forgejo. Keep local password self-registration disabled and retain local administrator recovery. This selects the intended Forgejo behavior; it does not authorize broadening the Pocket ID client audience or making newly provisioned users administrators. |
-| Packages, Actions, LFS and attachments | Enable Forgejo capabilities. Runner execution is a separate dependency from enabling Actions. |
+| Packages, Actions, LFS and attachments | Keep LFS enabled. Packages, Actions and attachments are disabled until storage, retention and an isolated runner are ready. |
 | Push-to-create | Desired; personal and organization repositories are relevant, including locally originated CTF repositories. |
 | Organizations | Desired for grouping repositories, e.g. one CTF organization. This does not require additional users or enabling project boards. Current restrictions limit regular-user organization creation; they do not disable organizations themselves. |
 | Pages equivalent | Desired, but not a native Forgejo configuration toggle. Track the integration requirement without deploying a separate service under the current scope. |
@@ -72,7 +72,7 @@ J subsequently requested `https://forgejo.3rr.dev/` for Forgejo and `git.3rr.dev
 
 ## Implemented feature rollout — 2026-09-15
 
-J approved the grouped feature recommendations and authorized deployment. The agreed settings are now deployed; see the [service verification record](../kubernetes/services/forgejo/README.md#feature-rollout-verification--2026-09-15) for runtime checks and deferred dependencies. Existing `J/test` remains private with its agreed feature units enabled.
+J approved the grouped feature recommendations and authorized their initial deployment; see the [service verification record](../kubernetes/services/forgejo/README.md#feature-rollout-verification--2026-09-15). After public exposure, unused outbound integrations were disabled again until their isolated dependencies are ready. Existing repository data was retained.
 
 Private-by-default applies to native creation defaults and personal/organization push-to-create. Forgejo's REST repository-creation API instead defaults an omitted `private` field to false, verified against the running release. zgit must explicitly send `"private": true`; no zgit changes were made in this Forgejo-only scope. Code indexing is initialized, but the documented REST API has no code-content search endpoint.
 

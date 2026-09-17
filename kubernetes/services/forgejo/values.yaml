@@ -140,7 +140,7 @@ gitea:
     security:
       INSTALL_LOCK: true
       DISABLE_GIT_HOOKS: true
-      DISABLE_WEBHOOKS: false
+      DISABLE_WEBHOOKS: true
       IMPORT_LOCAL_PATHS: false
       REVERSE_PROXY_LIMIT: 1
       REVERSE_PROXY_TRUSTED_PROXIES: 10.244.0.0/16,10.10.10.171/32,10.10.10.172/32,10.10.10.173/32
@@ -166,10 +166,10 @@ gitea:
       DEFAULT_PUSH_CREATE_PRIVATE: true
       DISABLE_HTTP_GIT: false
       DISABLED_REPO_UNITS: repo.ext_issues,repo.wiki,repo.ext_wiki,repo.projects
-      DEFAULT_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls,repo.packages,repo.actions
-      DEFAULT_FORK_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls,repo.packages,repo.actions
+      DEFAULT_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls
+      DEFAULT_FORK_REPO_UNITS: repo.code,repo.releases,repo.issues,repo.pulls
       DEFAULT_MIRROR_REPO_UNITS: repo.code,repo.releases
-      DISABLE_MIGRATIONS: false
+      DISABLE_MIGRATIONS: true
       DISABLE_STARS: true
       DISABLE_FORKS: false
       DISABLE_DOWNLOAD_SOURCE_ARCHIVES: false
@@ -192,20 +192,20 @@ gitea:
       ENABLE_OPENID_SIGNIN: false
       ENABLE_OPENID_SIGNUP: false
     actions:
-      ENABLED: true
+      ENABLED: false
     packages:
-      ENABLED: true
+      ENABLED: false
     mirror:
-      ENABLED: true
+      ENABLED: false
     f3:
       ENABLED: false
     attachment:
-      ENABLED: true
+      ENABLED: false
     indexer:
       REPO_INDEXER_ENABLED: true
       REPO_INDEXER_TYPE: bleve
       REPO_INDEXER_PATH: /data/gitea/indexers/repos.bleve
-      REPO_INDEXER_REPO_TYPES: sources,forks,mirrors,templates
+      REPO_INDEXER_REPO_TYPES: sources,forks,templates
       ISSUE_INDEXER_TYPE: db
     mailer:
       ENABLED: false

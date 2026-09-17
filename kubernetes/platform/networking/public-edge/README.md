@@ -10,6 +10,8 @@ public exposure and restricted Pod Security namespace labels. A cluster-wide
 Cilium policy then permits ingress only from the Gateway and blocks access to
 nodes, private networks, link-local space, and other cluster workloads. Public
 pods retain DNS and outbound HTTP(S) access for ordinary application needs.
+Workloads with a dedicated policy can opt out of that general egress; Forgejo
+uses one to permit only DNS, its PostgreSQL instance, and public Pocket ID.
 
 Public namespaces may only expose selector-backed Services. Admission rejects
 `ExternalName`, selectorless Services, and user-managed EndpointSlices there, so

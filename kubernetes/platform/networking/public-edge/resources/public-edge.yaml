@@ -32,6 +32,13 @@ spec:
         operator: NotIn
         values:
           - cnpg
+      # Forgejo has a workload-specific policy with narrower egress. Use its
+      # stable chart label because deployment.labels would mutate the chart's
+      # immutable Deployment selector during an upgrade.
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values:
+          - forgejo
   ingress:
     - fromEntities:
         - ingress
