@@ -18,6 +18,24 @@ serviceAccount:
 automountServiceAccountToken: false
 enableServiceLinks: false
 
+configMaps:
+  custom-css:
+    enabled: true
+    data:
+      custom.css: |
+        #footer {
+          display: none !important;
+        }
+
+persistence:
+  custom-css:
+    enabled: true
+    type: configMap
+    name: homepage-public-custom-css
+    mountPath: /app/config/custom.css
+    subPath: custom.css
+    readOnly: true
+
 config:
   kubernetes:
     mode: disable
