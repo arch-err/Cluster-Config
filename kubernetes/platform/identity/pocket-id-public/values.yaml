@@ -63,6 +63,12 @@ pocketID:
 serviceAccount:
   automount: false
 
+# The chart does not hash its ConfigMap into the StatefulSet template. Bump
+# this revision whenever environment-backed configuration changes so the pod
+# actually reloads it instead of remaining on the previous process environment.
+podAnnotations:
+  cluster-config.arch-err/config-revision: "2"
+
 podSecurityContext:
   fsGroup: 1000
   fsGroupChangePolicy: OnRootMismatch
