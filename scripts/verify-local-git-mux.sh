@@ -55,7 +55,16 @@ banner=$(timeout 10 bash -c 'exec 3<>/dev/tcp/"$1"/22; IFS= read -r -t 5 line <&
   && pass "SSH reaches Forgejo through the same hostname VIP" \
   || fail "Unexpected SSH banner: $banner"
 
-forgejo_ip=$(kubectl -n forgejo get service forgejo-ssh -o jsonpath='{.spec.clusterIP}')
+forgejo_service_json=$(kubectl -n forgejo get service forgejo-ssh -o json)
+jq -e '
+  .spec.type == "ClusterIP" and
+  ([.spec.ports[].nodePort // empty] | length == 0) and
+  ((.status.loadBalancer.ingress // []) | length == 0)
+' >/dev/null <<<"$forgejo_service_json" \
+  && pass "Forgejo SSH backend is ClusterIP-only with no NodePort" \
+  || fail "Forgejo SSH backend has an unintended direct exposure"
+
+forgejo_ip=$(jq -r '.spec.clusterIP' <<<"$forgejo_service_json")
 kubectl -n "$NAMESPACE" exec deployment/local-git-mux -- \
   nc -z -w 5 "$forgejo_ip" 22 >/dev/null \
   && pass "proxy can reach only the declared Forgejo SSH service" \
