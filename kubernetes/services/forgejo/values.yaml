@@ -31,8 +31,21 @@ resources:
   requests:
     cpu: 100m
     memory: 256Mi
+    ephemeral-storage: 256Mi
   limits:
+    cpu: "1"
     memory: 1Gi
+    ephemeral-storage: 2Gi
+initContainers:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+      ephemeral-storage: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+      ephemeral-storage: 512Mi
 persistence:
   enabled: true
   claimName: forgejo-data

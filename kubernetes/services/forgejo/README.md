@@ -24,6 +24,8 @@ The `forgejo.3rr.dev` HTTPRoute attaches to the HTTP-only public Gateway. Select
 
 The Forgejo workload uses a dedicated ServiceAccount with token automounting disabled. It has no Kubernetes RBAC and receives no API credential.
 
+The application and chart init containers have explicit CPU, memory, and ephemeral-storage requests and limits. A namespace ResourceQuota leaves rollout headroom while bounding aggregate compute, storage, and object counts; it also forbids direct LoadBalancer and NodePort Services so public HTTPS must remain behind the isolated Gateway and SSH behind `local-git-mux`.
+
 The Forgejo SSH Service is ClusterIP-only on port 22 and forwards to the rootless listener on 2222. Only `local-git-mux` may reach that listener; the mux provides the LAN-only `git.3rr.dev:22` entry point without a Forgejo NodePort or direct LoadBalancer. SSH routing is by IP/port and clients verify the persisted SSH host key; it is independent of the HTTPS hostname and certificate.
 
 CNPG uses a dedicated policy profile rather than the general public-workload profile. Its only allowed ingress is Forgejo to PostgreSQL on TCP 5432 and the CNPG operator to the instance manager on TCP 8000. Its only allowed egress is DNS and the Kubernetes API. Forgejo also has a dedicated workload policy: DNS, PostgreSQL 5432, and HTTPS to `auth.3rr.dev` are its only egress paths. The database profile was deployed and verified before the namespace was made public.
