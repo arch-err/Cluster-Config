@@ -18,6 +18,23 @@ serviceAccount:
 automountServiceAccountToken: false
 enableServiceLinks: false
 
+# Homepage ships a statically generated default page. Revalidate it against the
+# mounted config after the local server starts so first-time visitors do not see
+# the image's sample services. This only calls the same container over loopback.
+lifecycle:
+  postStart:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          attempts=0
+          until wget -qO- http://127.0.0.1:3000/api/revalidate >/dev/null; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -ge 60 ] && exit 1
+            sleep 1
+          done
+
 configMaps:
   custom-css:
     enabled: true
