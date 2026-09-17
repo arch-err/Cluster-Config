@@ -143,7 +143,14 @@ spec:
         resources:
           - endpointslices
   validations:
-    - expression: request.userInfo.username == "system:kube-controller-manager"
+    # Talos enables per-controller service-account credentials, so the
+    # EndpointSlice controller does not authenticate as the generic
+    # system:kube-controller-manager user.
+    - expression: >-
+        request.userInfo.username in [
+          "system:kube-controller-manager",
+          "system:serviceaccount:kube-system:endpointslice-controller"
+        ]
       message: Public namespace EndpointSlices must be managed by the Kubernetes endpoint-slice controller.
 ---
 apiVersion: admissionregistration.k8s.io/v1

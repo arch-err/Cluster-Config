@@ -132,6 +132,27 @@ endpoints:
       ready: true
 YAML
 
+kubectl create --dry-run=server \
+  --as=system:serviceaccount:kube-system:endpointslice-controller \
+  -f - >/dev/null <<'YAML' \
+  && pass "EndpointSlice controller can manage public backends" \
+  || fail "EndpointSlice controller is blocked from managing public backends"
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: endpointslice-controller-allow-probe
+  namespace: public-test
+  labels:
+    kubernetes.io/service-name: public-test
+    endpointslice.kubernetes.io/managed-by: endpointslice-controller.k8s.io
+addressType: IPv4
+ports:
+  - name: http
+    protocol: TCP
+    port: 9898
+endpoints: []
+YAML
+
 run_probe() {
   local namespace=$1 name=$2
   local overrides
