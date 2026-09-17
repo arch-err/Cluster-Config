@@ -1,6 +1,8 @@
 controller:
   type: deployment
   replicas: 1
+  podLabels:
+    public-edge.3rr.dev/profile: cluster-api
   volumes:
     extra:
       - name: alloy-data

@@ -26,12 +26,14 @@ spec:
     matchLabels:
       k8s:io.cilium.k8s.namespace.labels.exposure: public
     matchExpressions:
-      # CNPG instances need Kubernetes API access. Opted-in instances use a
-      # dedicated least-privilege policy instead of this general profile.
+      # CNPG instances and selected controllers need Kubernetes API access.
+      # Opted-in workloads use dedicated least-privilege policies instead of
+      # this general profile.
       - key: public-edge.3rr.dev/profile
         operator: NotIn
         values:
           - cnpg
+          - cluster-api
       # Forgejo has a workload-specific policy with narrower egress. Use its
       # stable chart label because deployment.labels would mutate the chart's
       # immutable Deployment selector during an upgrade.
