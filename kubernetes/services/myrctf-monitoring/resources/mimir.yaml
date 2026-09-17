@@ -146,7 +146,9 @@ spec:
                 - |
                   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
                   export PGPASSWORD="${COCKPIT_DB_PASSWORD}"
-                  pg_dump --host=ctfd-cockpit-db-rw --username="${COCKPIT_DB_USER}" --dbname=ctfd_cockpit --format=custom --compress=9 --sslmode=verify-full --sslrootcert=/etc/postgresql/ca/ca.crt --file="/backups/ctfd-cockpit-${stamp}.dump"
+                  export PGSSLMODE=verify-full
+                  export PGSSLROOTCERT=/etc/postgresql/ca/ca.crt
+                  pg_dump --host=ctfd-cockpit-db-rw --username="${COCKPIT_DB_USER}" --dbname=ctfd_cockpit --format=custom --compress=9 --file="/backups/ctfd-cockpit-${stamp}.dump"
                   find /backups -type f -name 'ctfd-cockpit-*.dump' -mtime +35 -delete
               env:
                 - name: COCKPIT_DB_USER
