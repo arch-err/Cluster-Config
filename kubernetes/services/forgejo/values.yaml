@@ -97,16 +97,6 @@ gitea:
     existingSecret: forgejo-admin
     email: forgejo-recovery@git.apps.home
     passwordMode: initialOnlyNoReset
-  oauth:
-    - name: pocket-id
-      provider: openidConnect
-      key: forgejo
-      secret: ${FORGEJO_OIDC_SECRET}
-      autoDiscoverUrl: https://auth.apps.home/.well-known/openid-configuration
-      scopes: "openid,profile,email,groups"
-      # Explicit empty flags clear the existing provider restriction on update.
-      requiredClaimName: ""
-      requiredClaimValue: ""
   additionalConfigFromEnvs:
     - name: FORGEJO__DATABASE__PASSWD
       valueFrom:
