@@ -80,3 +80,11 @@ Pocket ID's Forgejo client callback is `https://forgejo.3rr.dev/user/oauth2/pock
 To publish a repository, change its visibility in repository Settings, or send `PATCH /api/v1/repos/{owner}/{repo}` with `{"private": false}` using an account/token permitted to administer it. Instance settings already allow public repositories and anonymous reads. Publishing a Forgejo repository does not change a GitHub mirror's visibility.
 
 The hostname rollout passed `just check` and upstream chart server-side dry-run validation. Live app.ini and repository API responses advertise the new HTTPS and SSH URLs. No repository visibility was changed.
+
+## Public exposure verification — 2026-09-17
+
+The namespace is labelled `exposure=public` with restricted Pod Security and the `forgejo.3rr.dev` HTTPRoute is accepted by the public Gateway. The external health endpoint returned `pass`, including `database:ping`. The complete public-edge isolation test passed after the change.
+
+CNPG remained ready under its dedicated profile. Runtime probes verified Forgejo-to-PostgreSQL access, CNPG operator-to-instance-manager access on TCP 8000, and database egress to the Kubernetes API. Probes also verified that the database cannot reach the LAN or Internet. The former private Pocket ID discovery route returns Envoy `403 Access denied` from the isolated workload; no private application response is available.
+
+SSH remained available on the existing LoadBalancer with the same RSA host-key fingerprint. The repository's LAN `git.3rr.dev` protocol-mux verification passed for HTTPS and SSH, including its negative egress tests. Public DNS and upstream SSH forwarding remain J's separately managed routing scope.
