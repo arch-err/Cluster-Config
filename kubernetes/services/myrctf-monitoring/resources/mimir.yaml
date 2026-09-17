@@ -70,6 +70,43 @@ spec:
       storage: 20Gi
 ---
 apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ctfd-cockpit-backup-volume-init
+  namespace: myrctf-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: ctfd-cockpit-backup-volume-init}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      nodeSelector: {kubernetes.io/hostname: node-3}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: initialize
+          image: docker.io/library/postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74
+          command: [/bin/sh, -ec]
+          args: ["touch /backups/.initialized"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: backups, mountPath: /backups}
+      volumes:
+        - name: backups
+          persistentVolumeClaim: {claimName: ctfd-cockpit-backups}
+---
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: ctfd-cockpit-backup
