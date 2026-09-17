@@ -13,6 +13,7 @@ readonly SECRET_FILE="$ROOT/kubernetes/platform/networking/public-edge/secrets/c
 readonly AGE_RECIPIENT="age1sjrw9cudya5fhnucvlhqsrfpv8g6zn56tvffx3ns5rr935z3v3aq7hydlz"
 readonly RULE_DESCRIPTION="Public edge: block non-allowlisted source IPs"
 readonly OLD_RULE_DESCRIPTION="Public isolation PoC: block non-allowlisted source IPs"
+readonly RATE_LIMIT_DESCRIPTION="Public edge: challenge rapid login requests"
 
 if [[ ! -s $TOKEN_FILE ]]; then
   echo "Cloudflare API token file is missing or empty: $TOKEN_FILE" >&2
@@ -47,6 +48,73 @@ get_tunnel() {
     return 1
   fi
   jq -c '.result[0]' <<<"$response"
+}
+
+configure_rate_limit() {
+  local rulesets phase_rulesets ruleset_id ruleset rules matching rule_id
+  local rule_payload ruleset_payload response
+
+  rulesets=$(api "$API/zones/$ZONE_ID/rulesets")
+  require_success "listing zone rulesets for rate limiting" "$rulesets"
+  phase_rulesets=$(jq '[.result[] | select(.phase == "http_ratelimit" and .kind == "zone")]' <<<"$rulesets")
+  if (( $(jq 'length' <<<"$phase_rulesets") > 1 )); then
+    echo "Multiple zone rate-limit entry points exist; refusing to choose one." >&2
+    exit 1
+  fi
+
+  # The Free plan permits one rule with a 10-second counting period. Keep it
+  # on the interactive login path so Git HTTP, LFS, API and asset traffic are
+  # never throttled. Host matching is unavailable in Free-plan expressions.
+  rule_payload=$(jq -nc --arg description "$RATE_LIMIT_DESCRIPTION" '{
+    action:"managed_challenge",
+    description:$description,
+    expression:"(http.request.uri.path eq \"/user/login\")",
+    ratelimit:{
+      characteristics:["cf.colo.id","ip.src"],
+      period:10,
+      requests_per_period:5,
+      mitigation_timeout:0
+    },
+    enabled:true
+  }')
+
+  if [[ $(jq 'length' <<<"$phase_rulesets") == 0 ]]; then
+    ruleset_payload=$(jq -nc --argjson rule "$rule_payload" '{
+      name:"default",
+      description:"Zone-level login abuse protection",
+      kind:"zone",
+      phase:"http_ratelimit",
+      rules:[$rule]
+    }')
+    response=$(api -X POST "$API/zones/$ZONE_ID/rulesets" --data "$ruleset_payload")
+    require_success "creating the zone login rate limit" "$response"
+    echo "Login rate limiting is configured."
+    return
+  fi
+
+  ruleset_id=$(jq -r '.[0].id' <<<"$phase_rulesets")
+  ruleset=$(api "$API/zones/$ZONE_ID/rulesets/$ruleset_id")
+  require_success "reading the zone rate-limit entry point" "$ruleset"
+  rules=$(jq '.result.rules // []' <<<"$ruleset")
+  matching=$(jq --arg description "$RATE_LIMIT_DESCRIPTION" \
+    '[.[] | select(.description == $description)]' <<<"$rules")
+  if (( $(jq 'length' <<<"$matching") > 1 )); then
+    echo "Multiple managed login rate-limit rules exist; refusing to update them." >&2
+    exit 1
+  fi
+  if [[ $(jq 'length' <<<"$matching") == 1 ]]; then
+    rule_id=$(jq -r '.[0].id' <<<"$matching")
+    response=$(api -X PATCH "$API/zones/$ZONE_ID/rulesets/$ruleset_id/rules/$rule_id" \
+      --data "$rule_payload")
+  elif [[ $(jq 'length' <<<"$rules") == 0 ]]; then
+    response=$(api -X POST "$API/zones/$ZONE_ID/rulesets/$ruleset_id/rules" \
+      --data "$rule_payload")
+  else
+    echo "The Free-plan rate-limit slot is owned by an unmanaged rule; refusing to replace it." >&2
+    exit 1
+  fi
+  require_success "configuring the zone login rate limit" "$response"
+  echo "Login rate limiting is configured."
 }
 
 prepare() {
@@ -133,9 +201,10 @@ prepare() {
       --data "$waf_payload")
   fi
   require_success "installing the source-IP WAF rule" "$waf_response"
+  configure_rate_limit
 
   echo "Prepared tunnel $TUNNEL_NAME and encrypted its connector token."
-  echo "WAF now blocks 3rr.dev traffic outside public IPv4 $public_ip."
+  echo "WAF now blocks 3rr.dev traffic outside the current public IPv4."
   echo "DNS is unchanged; run '$0 publish' only after cluster verification passes."
 }
 
@@ -214,7 +283,8 @@ disable() {
 
 case ${1:-} in
   prepare) prepare ;;
+  rate-limit) configure_rate_limit ;;
   publish) publish ;;
   disable) disable ;;
-  *) echo "usage: $0 prepare|publish|disable" >&2; exit 2 ;;
+  *) echo "usage: $0 prepare|rate-limit|publish|disable" >&2; exit 2 ;;
 esac

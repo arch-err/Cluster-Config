@@ -50,3 +50,10 @@ ingress, encrypts the connector token, and limits the whole zone to the current
 public IPv4 through WAF. `publish` refuses to create wildcard DNS unless the
 tunnel is healthy and the WAF still matches the current address. `disable`
 removes only DNS owned by this tunnel.
+
+`prepare` also reconciles the Free-plan rate-limit slot: more than five requests
+to `/user/login` from one source in ten seconds triggers a Managed Challenge.
+The rule is deliberately path-only because the Free plan cannot use hostname in
+its rate-limit expression; Git HTTP, LFS, API, and static traffic are excluded.
+Run `scripts/configure-cloudflare-public-edge.sh rate-limit` to reconcile only
+that rule without rewriting the tunnel connector configuration.
