@@ -4,3 +4,7 @@ platform/observability/homepage/assets/
 platform/observability/grafana/dashboards/
 # This retained CA copy is deliberately outside the managed secret set.
 platform/identity/cert-manager/reference/
+# Build/test state for the Cockpit ingest image is not part of the umbrella chart.
+services/myrctf-monitoring/ingest/.venv/
+services/myrctf-monitoring/ingest/.pytest_cache/
+services/myrctf-monitoring/ingest/.ruff_cache/

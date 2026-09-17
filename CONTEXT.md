@@ -34,10 +34,17 @@ Terms used to distinguish repository maintenance from changes to the running sys
 
 **First blood**: The earliest accepted submission for a challenge, ordered by the CTFd submission timestamp and then submission ID for a deterministic tie-break.
 
-**Source instance**: One stable CTFd installation whose identifiers and replication progress form an independent namespace.
+**Source**: One stable CTFd installation whose identifiers and replication progress form an independent namespace.
+_Avoid_: Source instance
 
 **Source event**: An immutable fact copied from a named CTFd source table while preserving that table's identifier and event time.
 
-**Durable checkpoint**: The highest source position fully committed for one source instance and stream. It is the only position from which an agent may safely resume.
+**Durable checkpoint**: The highest source record identifier fully committed for one source and entity event stream. It is the only position from which an agent may safely resume.
 
-**Tombstone**: An explicit source deletion record. Missing data in a snapshot is not a tombstone and never implies deletion.
+**Snapshot**: An authoritative point-in-time enumeration of one source entity, delivered as a contiguous sequence of chunks under one snapshot identifier.
+
+**Completed snapshot**: A snapshot whose contiguous final chunk has `complete=true`. Only a completed snapshot may mark source rows absent from its accumulated membership as deleted.
+
+**Abandoned snapshot**: A snapshot that never receives its contiguous final chunk. It has no deletion authority and may be discarded after a bounded staging period.
+
+**Tombstone**: A replicated row's soft-deleted state. It may result from explicit deletion input or authoritative absence from a completed snapshot; incomplete snapshots never create tombstones.

@@ -1,0 +1,39 @@
+fullnameOverride: myrctf-loki
+deploymentMode: SingleBinary
+loki:
+  auth_enabled: true
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index: {prefix: index_, period: 24h}
+  limits_config:
+    retention_period: 30d
+    ingestion_rate_mb: 8
+    ingestion_burst_size_mb: 16
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: local-path-retain
+    size: 20Gi
+backend: {replicas: 0}
+read: {replicas: 0}
+write: {replicas: 0}
+minio: {enabled: false}
+chunksCache: {enabled: false}
+resultsCache: {enabled: false}
+test: {enabled: false}
+lokiCanary: {enabled: false}
+gateway: {enabled: false}
+serviceAccount:
+  automountServiceAccountToken: false

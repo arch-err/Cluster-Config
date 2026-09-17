@@ -2,311 +2,93 @@ openapi: 3.1.0
 info:
   title: CTFd Cockpit Ingest API
   version: 1.0.0
-  license:
-    name: Internal use
-    identifier: LicenseRef-Internal
-  description: >-
-    Idempotent, resumable replication API used by ctfd-cockpit-agent. POST
-    request bodies contain sensitive participant and attempted-flag data and
-    must never be logged. All POST bodies are gzip-compressed JSON.
+  description: Sensitive, gzip-only replication API. Request bodies and credentials must never be logged.
 servers:
-  - url: https://myrctf-telemetry.3rr.dev/cockpit
+  - url: https://myrctf-telemetry.3rr.dev
 security:
   - bearerAuth: []
-tags:
-  - name: replication
-    description: Authenticated, idempotent source replication operations.
-  - name: status
-    description: Cluster-local health and metrics operations.
 paths:
-  /api/v1/snapshot:
-    post:
-      operationId: ingestSnapshot
-      tags: [replication]
-      summary: Upsert one batch of mutable entities
-      parameters:
-        - $ref: '#/components/parameters/ContentEncoding'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: schemas/v1/snapshot-batch.schema.json
-      responses:
-        '200':
-          $ref: '#/components/responses/Committed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
-        '503':
-          $ref: '#/components/responses/Unavailable'
   /api/v1/events:
     post:
       operationId: ingestEvents
-      tags: [replication]
-      summary: Append one batch of immutable source events
-      parameters:
-        - $ref: '#/components/parameters/ContentEncoding'
+      parameters: [{$ref: '#/components/parameters/Gzip'}]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: schemas/v1/events-batch.schema.json
+            schema: {$ref: schemas/v1/event-batch.schema.json}
       responses:
-        '200':
-          $ref: '#/components/responses/Committed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-  /api/v1/tombstones:
+        '200': {$ref: '#/components/responses/EventCommitted'}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/v1/snapshot:
     post:
-      operationId: ingestTombstones
-      tags: [replication]
-      summary: Apply explicit source deletion tombstones
-      parameters:
-        - $ref: '#/components/parameters/ContentEncoding'
+      operationId: ingestSnapshotChunk
+      parameters: [{$ref: '#/components/parameters/Gzip'}]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: schemas/v1/tombstones-batch.schema.json
+            schema: {$ref: schemas/v1/snapshot-batch.schema.json}
       responses:
         '200':
-          $ref: '#/components/responses/Committed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-  /api/v1/scoreboard-snapshots:
-    post:
-      operationId: ingestScoreboardSnapshot
-      tags: [replication]
-      summary: Append one complete scoreboard snapshot
-      parameters:
-        - $ref: '#/components/parameters/ContentEncoding'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: schemas/v1/scoreboard-snapshots-batch.schema.json
-      responses:
-        '200':
-          $ref: '#/components/responses/Committed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-  /api/v1/checkpoints/{source}:
-    get:
-      operationId: getCheckpoints
-      tags: [replication]
-      summary: Get durably committed stream checkpoints for a source instance
-      parameters:
-        - name: source
-          in: path
-          required: true
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/sourceInstance
-        - name: stream
-          in: query
-          required: false
-          schema:
-            type: string
-            pattern: ^[a-z][a-z0-9_.-]{0,63}$
-      responses:
-        '200':
-          description: Committed checkpoint state
+          description: Chunk committed; reconciliation occurs only after a contiguous complete chunk.
           content:
             application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [schema_version, source_instance, checkpoints]
-                properties:
-                  schema_version:
-                    const: '1.0'
-                  source_instance:
-                    $ref: schemas/v1/common.schema.json#/$defs/sourceInstance
-                  checkpoints:
-                    type: array
-                    maxItems: 64
-                    items:
-                      type: object
-                      additionalProperties: false
-                      required:
-                        - stream
-                        - committed_checkpoint
-                        - committed_sequence
-                      properties:
-                        stream:
-                          type: string
-                        committed_checkpoint:
-                          $ref: schemas/v1/common.schema.json#/$defs/checkpoint
-                        committed_sequence:
-                          $ref: schemas/v1/common.schema.json#/$defs/checkpoint
-                        last_batch_id:
-                          oneOf:
-                            - $ref: schemas/v1/common.schema.json#/$defs/batchId
-                            - type: 'null'
-                        last_source_event_time:
-                          oneOf:
-                            - $ref: schemas/v1/common.schema.json#/$defs/timestamp
-                            - type: 'null'
-                        last_ingested_at:
-                          oneOf:
-                            - $ref: schemas/v1/common.schema.json#/$defs/timestamp
-                            - type: 'null'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /metrics:
-    get:
-      operationId: prometheusMetrics
-      tags: [status]
-      summary: Prometheus metrics for cluster-local scraping
-      security: []
-      responses:
-        '200':
-          description: Prometheus text exposition
-          content:
-            text/plain:
-              schema:
-                type: string
-        4XX:
-          description: Client error.
+              schema: {type: object, additionalProperties: false}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
   /healthz:
     get:
-      operationId: health
-      tags: [status]
-      summary: Process liveness
       security: []
-      responses:
-        '200':
-          description: Process is alive
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Status'
-        4XX:
-          description: Client error.
+      responses: {'200': {description: Process alive}}
   /readyz:
     get:
-      operationId: readiness
-      tags: [status]
-      summary: Database and migration readiness
+      security: []
+      responses:
+        '200': {description: Database and schema ready}
+        '503': {description: Not ready}
+  /metrics:
+    get:
       security: []
       responses:
         '200':
-          description: Ready to accept replication batches
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Status'
-        '503':
-          $ref: '#/components/responses/Unavailable'
-        4XX:
-          description: Client error.
+          description: Prometheus exposition
+          content: {text/plain: {schema: {type: string}}}
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: opaque-256-bit-token
-      description: Scoped credential for one configured source instance.
+    bearerAuth: {type: http, scheme: bearer}
   parameters:
-    ContentEncoding:
+    Gzip:
       name: Content-Encoding
       in: header
       required: true
-      schema:
-        const: gzip
-      description: Required gzip content coding. Compressed limit 8 MiB; expanded limit 32 MiB.
-  schemas:
-    Status:
-      type: object
-      additionalProperties: false
-      required: [status]
-      properties:
-        status:
-          const: ok
-        version:
-          type: string
-        schema_version:
-          const: '1.0'
+      schema: {type: string, const: gzip}
   responses:
-    Committed:
-      description: Batch was committed, or an already committed batch was replayed.
+    EventCommitted:
+      description: Transaction committed. The checkpoint is exactly the received integer.
       content:
         application/json:
           schema:
-            $ref: schemas/v1/common.schema.json#/$defs/commitResponse
-    BadRequest:
-      description: Invalid encoding, media type, gzip stream, or JSON syntax.
+            type: object
+            additionalProperties: false
+            required: [checkpoint]
+            properties: {checkpoint: {type: integer, minimum: 1}}
+    Error:
+      description: Request rejected without partial writes.
       content:
         application/json:
           schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
-    Unauthorized:
-      description: Missing or invalid scoped credential.
-      content:
-        application/json:
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
-    Conflict:
-      description: Sequence gap, stale checkpoint, reused batch ID with different bytes, or wrong source scope.
-      content:
-        application/json:
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
-    PayloadTooLarge:
-      description: Compressed body, expanded body, record count, or bounded field exceeded its limit.
-      content:
-        application/json:
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
-    ValidationFailed:
-      description: JSON did not satisfy the versioned schema or a domain constraint.
-      content:
-        application/json:
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
-    Unavailable:
-      description: PostgreSQL or a required migration is unavailable.
-      content:
-        application/json:
-          schema:
-            $ref: schemas/v1/common.schema.json#/$defs/errorResponse
+            type: object
+            additionalProperties: false
+            required: [error]
+            properties: {error: {type: string}}

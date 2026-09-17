@@ -1,0 +1,34 @@
+fullnameOverride: myrctf-tempo
+tempo:
+  reportingEnabled: false
+  retention: 168h
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+persistence:
+  enabled: true
+  storageClassName: local-path-retain
+  size: 10Gi
+serviceAccount:
+  automountServiceAccountToken: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: {drop: [ALL]}
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {memory: 512Mi}

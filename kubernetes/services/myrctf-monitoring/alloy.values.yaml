@@ -1,0 +1,84 @@
+controller:
+  type: deployment
+  replicas: 1
+alloy:
+  configMap:
+    create: true
+    content: |-
+      discovery.kubernetes "pods" {
+        role = "pod"
+        namespaces { names = ["myrctf-monitoring"] }
+      }
+
+      discovery.relabel "cockpit_metrics" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+          regex = "true"
+          action = "keep"
+        }
+        rule {
+          source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+          regex = "([^:]+)(?::\\d+)?;(\\d+)"
+          replacement = "$1:$2"
+          target_label = "__address__"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+          regex = "(.+)"
+          target_label = "__metrics_path__"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label = "pod"
+        }
+      }
+
+      prometheus.scrape "cockpit" {
+        targets = discovery.relabel.cockpit_metrics.output
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "15s"
+      }
+
+      discovery.relabel "cockpit_cnpg" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_cnpg_io_cluster"]
+          regex = "ctfd-cockpit-db"
+          action = "keep"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_port_name"]
+          regex = "metrics"
+          action = "keep"
+        }
+      }
+
+      prometheus.scrape "cockpit_cnpg" {
+        job_name = "ctfd-cockpit-cnpg"
+        targets = discovery.relabel.cockpit_cnpg.output
+        forward_to = [prometheus.remote_write.mimir.receiver]
+        scrape_interval = "15s"
+      }
+
+      prometheus.remote_write "mimir" {
+        endpoint {
+          url = "http://myrctf-mimir:8080/api/v1/push"
+          headers = { "X-Scope-OrgID" = "myrctf-analytics" }
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets = discovery.kubernetes.pods.targets
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      loki.write "loki" {
+        endpoint {
+          url = "http://myrctf-loki:3100/loki/api/v1/push"
+          tenant_id = "myrctf-operations"
+        }
+      }
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {memory: 384Mi}

@@ -1,0 +1,169 @@
+defaultPodOptions:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: /metrics
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+
+controllers:
+  main:
+    strategy: Recreate
+    initContainers:
+      migrate:
+        image:
+          repository: ghcr.io/arch-err/ctfd-cockpit-ingest
+          tag: "0.1.0@sha256:32c8b8d2b54fbdab48b3cd78edb8fb94b89ec08e75ef1983803a36d0342118af"
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            export COCKPIT_DATABASE_URL="host=ctfd-cockpit-db-rw.myrctf-monitoring.svc.cluster.local port=5432 dbname=ctfd_cockpit user=${COCKPIT_DB_USER} password=${COCKPIT_DB_PASSWORD} sslmode=verify-full sslrootcert=/etc/postgresql/ca/ca.crt"
+            exec /app/.venv/bin/ctfd-cockpit-migrate
+        env:
+          COCKPIT_DB_USER:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-migrator-db
+                key: username
+          COCKPIT_DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-migrator-db
+                key: password
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests:
+            cpu: 20m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+    containers:
+      app:
+        image:
+          repository: ghcr.io/arch-err/ctfd-cockpit-ingest
+          tag: "0.1.0@sha256:32c8b8d2b54fbdab48b3cd78edb8fb94b89ec08e75ef1983803a36d0342118af"
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            export COCKPIT_DATABASE_URL="host=ctfd-cockpit-db-rw.myrctf-monitoring.svc.cluster.local port=5432 dbname=ctfd_cockpit user=${COCKPIT_DB_USER} password=${COCKPIT_DB_PASSWORD} sslmode=verify-full sslrootcert=/etc/postgresql/ca/ca.crt"
+            exec /app/.venv/bin/ctfd-cockpit-ingest
+        env:
+          COCKPIT_ALLOWED_SOURCE: myrctf
+          COCKPIT_DB_USER:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-db
+                key: username
+          COCKPIT_DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-db
+                key: password
+          COCKPIT_INGEST_TOKEN:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-auth
+                key: ingest-token
+          MIMIR_BEARER_TOKEN:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-auth
+                key: mimir-token
+          LOKI_BEARER_TOKEN:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-auth
+                key: loki-token
+          MIMIR_TENANT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-auth
+                key: mimir-tenant-id
+          LOKI_TENANT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: ctfd-cockpit-ingest-auth
+                key: loki-tenant-id
+          MIMIR_INTERNAL_WRITE_URL: http://myrctf-mimir:8080/api/v1/push
+          LOKI_INTERNAL_WRITE_URL: http://myrctf-loki:3100/loki/api/v1/push
+        probes:
+          startup:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 8080
+              failureThreshold: 30
+              periodSeconds: 2
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 8080
+              periodSeconds: 20
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /readyz
+                port: 8080
+              periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+service:
+  main:
+    controller: main
+    ports:
+      http:
+        port: 80
+        targetPort: 8080
+
+persistence:
+  postgres-ca:
+    enabled: true
+    type: secret
+    name: ctfd-cockpit-db-ca
+    advancedMounts:
+      main:
+        migrate:
+          - path: /etc/postgresql/ca
+            readOnly: true
+        app:
+          - path: /etc/postgresql/ca
+            readOnly: true
+  tmp:
+    enabled: true
+    type: emptyDir
+    sizeLimit: 32Mi
+    advancedMounts:
+      main:
+        migrate:
+          - path: /tmp
+        app:
+          - path: /tmp

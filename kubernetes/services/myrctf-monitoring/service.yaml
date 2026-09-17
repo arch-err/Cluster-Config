@@ -1,6 +1,64 @@
 owner: apps
 enabled: true
 components:
+  - name: myrctf-mimir
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "2"
+    valuesFile: mimir.values.yaml
+  - name: myrctf-loki
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: loki
+      version: 7.3.0
+    syncWave: "2"
+    valuesFile: loki.values.yaml
+  - name: myrctf-tempo
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: tempo
+      version: 1.24.4
+    syncWave: "2"
+    valuesFile: tempo.values.yaml
+  - name: myrctf-alloy
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://grafana.github.io/helm-charts
+      name: alloy
+      version: 1.12.1
+    syncWave: "3"
+    valuesFile: alloy.values.yaml
+  - name: ctfd-cockpit-ingest
+    namespace: myrctf-monitoring
+    chart:
+      repo: https://bjw-s-labs.github.io/helm-charts
+      name: app-template
+      version: 4.6.2
+    syncWave: "3"
+    route:
+      syncWave: "4"
+      hostname: myrctf-telemetry.3rr.dev
+      gateway: public
+      dashboard: false
+      rules:
+        - path: /api/v1/events
+          service: ctfd-cockpit-ingest
+          port: 80
+        - path: /api/v1/snapshot
+          service: ctfd-cockpit-ingest
+          port: 80
+        - path: /mimir/api/v1/push
+          service: ctfd-cockpit-ingest
+          port: 80
+        - path: /loki/loki/api/v1/push
+          service: ctfd-cockpit-ingest
+          port: 80
+    valuesFile: ingest.values.yaml
   - name: myrctf-grafana
     namespace: myrctf-monitoring
     chart:

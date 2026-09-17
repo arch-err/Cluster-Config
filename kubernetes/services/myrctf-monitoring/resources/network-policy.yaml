@@ -45,6 +45,21 @@ spec:
         - ports:
             - port: "5432"
               protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/instance: myrctf-mimir
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/instance: myrctf-loki
+      toPorts:
+        - ports: [{port: "3100", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/instance: myrctf-tempo
+      toPorts:
+        - ports: [{port: "3200", protocol: TCP}]
   egressDeny:
     - toEntities:
         - ingress
@@ -72,11 +87,27 @@ spec:
               protocol: TCP
     - fromEndpoints:
         - matchLabels:
+            app.kubernetes.io/instance: ctfd-cockpit-ingest
+        - matchLabels:
+            app.kubernetes.io/name: ctfd-cockpit-backup
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
             k8s:io.kubernetes.pod.namespace: cnpg-system
             app.kubernetes.io/name: cloudnative-pg
       toPorts:
         - ports:
             - port: "8000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/instance: myrctf-alloy
+      toPorts:
+        - ports:
+            - port: "9187"
               protocol: TCP
   egress:
     - toEndpoints:
@@ -97,3 +128,91 @@ spec:
               protocol: TCP
             - port: "6443"
               protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ctfd-cockpit-ingest
+  namespace: myrctf-monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ctfd-cockpit-ingest
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/instance: myrctf-alloy}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+  egress:
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s:k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: ctfd-cockpit-db}
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/instance: myrctf-mimir}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {app.kubernetes.io/instance: myrctf-loki}
+      toPorts:
+        - ports: [{port: "3100", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: myrctf-alloy
+  namespace: myrctf-monitoring
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/instance: myrctf-alloy}
+  egress:
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s:k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}, {port: "6443", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: myrctf-monitoring}
+      toPorts:
+        - ports: [{port: "8080", protocol: TCP}, {port: "9187", protocol: TCP}, {port: "3100", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: myrctf-telemetry-backends
+  namespace: myrctf-monitoring
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/instance
+        operator: In
+        values: [myrctf-mimir, myrctf-loki, myrctf-tempo]
+  ingress:
+    - fromEndpoints:
+        - matchLabels: {app.kubernetes.io/instance: ctfd-cockpit-ingest}
+        - matchLabels: {app.kubernetes.io/instance: myrctf-alloy}
+        - matchLabels: {app.kubernetes.io/name: grafana}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ctfd-cockpit-backup
+  namespace: myrctf-monitoring
+spec:
+  endpointSelector:
+    matchLabels: {app.kubernetes.io/name: ctfd-cockpit-backup}
+  egress:
+    - toEndpoints:
+        - matchLabels: {k8s:io.kubernetes.pod.namespace: kube-system, k8s:k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: UDP}, {port: "53", protocol: TCP}]
+    - toEndpoints:
+        - matchLabels: {cnpg.io/cluster: ctfd-cockpit-db}
+      toPorts:
+        - ports: [{port: "5432", protocol: TCP}]

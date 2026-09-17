@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myrctf-mimir
+  namespace: myrctf-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  mimir.yaml: |
+    multitenancy_enabled: true
+    usage_stats:
+      enabled: false
+    server:
+      http_listen_port: 8080
+      grpc_listen_port: 9095
+    activity_tracker:
+      filepath: /data/activity/activity.log
+    blocks_storage:
+      backend: filesystem
+      filesystem:
+        dir: /data/blocks
+      bucket_store:
+        sync_dir: /data/tsdb-sync
+      tsdb:
+        dir: /data/tsdb
+    compactor:
+      data_dir: /data/compactor
+      sharding_ring:
+        kvstore:
+          store: inmemory
+    distributor:
+      ring:
+        kvstore:
+          store: inmemory
+    ingester:
+      ring:
+        kvstore:
+          store: inmemory
+        replication_factor: 1
+    ruler:
+      rule_path: /data/rules-tmp
+    ruler_storage:
+      backend: filesystem
+      filesystem:
+        dir: /data/rules
+    store_gateway:
+      sharding_ring:
+        replication_factor: 1
+        kvstore:
+          store: inmemory
+    limits:
+      compactor_blocks_retention_period: 90d
+      max_global_series_per_user: 100000
+      ingestion_rate: 10000
+      ingestion_burst_size: 200000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ctfd-cockpit-backups
+  namespace: myrctf-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: Prune=confirm,Delete=confirm
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ctfd-cockpit-backup
+  namespace: myrctf-monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ctfd-cockpit-backup
+            app.kubernetes.io/component: backup
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/hostname: node-3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: pg-dump
+              image: docker.io/library/postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74
+              command: [/bin/sh, -ec]
+              args:
+                - |
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  export PGPASSWORD="${COCKPIT_DB_PASSWORD}"
+                  pg_dump --host=ctfd-cockpit-db-rw --username="${COCKPIT_DB_USER}" --dbname=ctfd_cockpit --format=custom --compress=9 --sslmode=verify-full --sslrootcert=/etc/postgresql/ca/ca.crt --file="/backups/ctfd-cockpit-${stamp}.dump"
+                  find /backups -type f -name 'ctfd-cockpit-*.dump' -mtime +35 -delete
+              env:
+                - name: COCKPIT_DB_USER
+                  valueFrom: {secretKeyRef: {name: ctfd-cockpit-migrator-db, key: username}}
+                - name: COCKPIT_DB_PASSWORD
+                  valueFrom: {secretKeyRef: {name: ctfd-cockpit-migrator-db, key: password}}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: {drop: [ALL]}
+              resources:
+                requests: {cpu: 25m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 256Mi}
+              volumeMounts:
+                - {name: backups, mountPath: /backups}
+                - {name: postgres-ca, mountPath: /etc/postgresql/ca, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: backups
+              persistentVolumeClaim: {claimName: ctfd-cockpit-backups}
+            - name: postgres-ca
+              secret: {secretName: ctfd-cockpit-db-ca, defaultMode: 0440}
+            - name: tmp
+              emptyDir: {sizeLimit: 64Mi}

@@ -1,0 +1,71 @@
+defaultPodOptions:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+controllers:
+  main:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/grafana/mimir
+          tag: "2.17.3@sha256:e648c344d8d3c46ab04174c9b1d9fdc76836e6ead6335980081f8ee34ede9f14"
+        args: ["-config.file=/etc/mimir/mimir.yaml", "-target=all"]
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet: {path: /ready, port: 8080}
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet: {path: /ready, port: 8080}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: {drop: [ALL]}
+        resources:
+          requests: {cpu: 100m, memory: 384Mi}
+          limits: {cpu: "1", memory: 1Gi}
+
+service:
+  main:
+    controller: main
+    ports:
+      http: {port: 8080}
+
+persistence:
+  config:
+    enabled: true
+    type: configMap
+    name: myrctf-mimir
+    advancedMounts:
+      main:
+        app:
+          - {path: /etc/mimir, readOnly: true}
+  data:
+    enabled: true
+    type: persistentVolumeClaim
+    storageClass: local-path-retain
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    retain: true
+    advancedMounts:
+      main:
+        app:
+          - {path: /data}
+  tmp:
+    enabled: true
+    type: emptyDir
+    advancedMounts:
+      main:
+        app:
+          - {path: /tmp}

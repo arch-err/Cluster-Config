@@ -1,0 +1,37 @@
+[project]
+name = "ctfd-cockpit-ingest"
+version = "0.1.0"
+description = "Authenticated cluster-side receiver for the MyrCTF CTFd Cockpit"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi==0.116.1",
+  "httpx==0.28.1",
+  "jsonschema[format]==4.25.1",
+  "prometheus-client==0.22.1",
+  "psycopg[binary,pool]==3.2.10",
+  "uvicorn==0.35.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==8.4.2",
+  "ruff==0.12.12",
+]
+
+[project.scripts]
+ctfd-cockpit-ingest = "ctfd_cockpit_ingest.main:run"
+ctfd-cockpit-migrate = "ctfd_cockpit_ingest.migrate:run"
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ctfd_cockpit_ingest"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
