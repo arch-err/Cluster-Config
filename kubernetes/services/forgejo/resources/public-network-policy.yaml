@@ -20,7 +20,11 @@ spec:
         - host
         - remote-node
         - kube-apiserver
-      fromEndpoints:
+      toPorts:
+        - ports:
+            - port: "2222"
+              protocol: TCP
+    - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: local-git-mux
             app.kubernetes.io/name: local-git-mux
