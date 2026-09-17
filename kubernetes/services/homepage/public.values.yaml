@@ -146,6 +146,22 @@ config:
             target: _self
             description: Data transform workbench
             icon: cyberchef.png
+        - MyrCTF Grafana:
+            href: https://myrctf-grafana.3rr.dev
+            target: _self
+            description: Public CTF monitoring
+            icon: grafana.png
+            widget:
+              # The built-in Grafana widget requires server-admin credentials.
+              # Only expose Grafana's already-public, unauthenticated health API.
+              type: customapi
+              url: http://myrctf-grafana.myrctf-monitoring.svc.cluster.local:80/api/health
+              refreshInterval: 300000
+              mappings:
+                - field: database
+                  label: Database
+                - field: version
+                  label: Version
 
   bookmarks: []
   widgets: []

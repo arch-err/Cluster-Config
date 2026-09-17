@@ -7,10 +7,20 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  description: Permit Grafana's public identity and read-only Cockpit database dependencies.
+  description: Permit Grafana's public identity, health consumer and read-only database dependency.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: grafana
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: homepage-public
+            app.kubernetes.io/instance: homepage-public
+            app.kubernetes.io/name: homepage-public
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
   egress:
     - toEndpoints:
         - matchLabels:

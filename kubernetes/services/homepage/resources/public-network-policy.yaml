@@ -7,11 +7,21 @@ metadata:
     argocd.argoproj.io/sync-wave: "11"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  description: Deny Internet egress from the static public Homepage instance.
+  description: Deny Internet egress and permit only the public Grafana health dependency.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/instance: homepage-public
       app.kubernetes.io/name: homepage-public
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: myrctf-monitoring
+            app.kubernetes.io/instance: myrctf-grafana
+            app.kubernetes.io/name: grafana
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
   # The cluster-wide public baseline still permits kube-dns. Deny takes
   # precedence over its general TCP/80+443 world allowance.
   egressDeny:
