@@ -1,6 +1,9 @@
 fullnameOverride: myrctf-tempo
 tempo:
   reportingEnabled: false
+  resources:
+    requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
+    limits: {cpu: 500m, memory: 512Mi, ephemeral-storage: 256Mi}
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
@@ -30,6 +33,3 @@ securityContext:
   runAsGroup: 10001
   fsGroup: 10001
   seccompProfile: {type: RuntimeDefault}
-resources:
-  requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
-  limits: {cpu: 500m, memory: 512Mi, ephemeral-storage: 256Mi}

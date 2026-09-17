@@ -14,6 +14,9 @@ podSecurityContext:
   fsGroup: 65534
   seccompProfile: {type: RuntimeDefault}
 alloy:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
+    limits: {cpu: 500m, memory: 384Mi, ephemeral-storage: 512Mi}
   mounts:
     extra:
       - name: alloy-data
@@ -103,6 +106,3 @@ alloy:
           tenant_id = "myrctf-operations"
         }
       }
-resources:
-  requests: {cpu: 50m, memory: 128Mi, ephemeral-storage: 32Mi}
-  limits: {cpu: 500m, memory: 384Mi, ephemeral-storage: 512Mi}
