@@ -18,9 +18,11 @@ Public namespaces may only expose selector-backed Services. Admission rejects
 a public route cannot smuggle the Gateway toward a private pod IP through a
 hand-written backend.
 
-The Cloudflare source-IP restriction is deliberately held at Cloudflare and is
-not injected into workloads. The tunnel token is stored as a SOPS-encrypted
-`SopsSecret` in `secrets/cloudflared.yaml`.
+Cloudflare blocks the whole zone outside the EU member states and United
+States. The restriction stays at the edge and is not injected into workloads.
+Cloudflare's Free Managed Ruleset is deployed as the baseline WAF and the
+minimum accepted client TLS version is 1.2. The tunnel token is stored as a
+SOPS-encrypted `SopsSecret` in `secrets/cloudflared.yaml`.
 
 Add a public service through the normal component route shape:
 
@@ -46,14 +48,21 @@ scripts/configure-cloudflare-public-edge.sh publish
 ```
 
 `prepare` creates or reuses the `homelab-public` tunnel, updates its wildcard
-ingress, encrypts the connector token, and limits the whole zone to the current
-public IPv4 through WAF. `publish` refuses to create wildcard DNS unless the
-tunnel is healthy and the WAF still matches the current address. `disable`
-removes only DNS owned by this tunnel.
+ingress, encrypts the connector token, and reconciles the edge hardening.
+`harden` (or `waf`) reconciles the geographic rule, Cloudflare Free Managed
+Ruleset, login rate limit, and minimum TLS version without rewriting the tunnel
+configuration. `publish` refuses to create wildcard DNS unless the tunnel is
+healthy and the geographic rule exactly matches the declared country set.
+`disable` removes only DNS owned by this tunnel.
 
-`prepare` also reconciles the Free-plan rate-limit slot: more than five requests
-to `/user/login` from one source in ten seconds triggers a ten-second block.
-The rule is deliberately path-only because the Free plan cannot use hostname in
-its rate-limit expression; Git HTTP, LFS, API, and static traffic are excluded.
-Run `scripts/configure-cloudflare-public-edge.sh rate-limit` to reconcile only
-that rule without rewriting the tunnel connector configuration.
+The Free-plan rate-limit slot protects Pocket ID's passkey login exchange. More
+than ten requests from one source to `/api/webauthn/login/…` in ten seconds
+triggers a ten-second block. The rule is deliberately path-only because the
+Free plan cannot use hostname in its rate-limit expression; ordinary app, API,
+and static traffic is excluded. Run
+`scripts/configure-cloudflare-public-edge.sh rate-limit` to reconcile only that
+rule.
+
+Bot Fight Mode is deliberately disabled. It applies to the whole zone and
+cannot be skipped with a WAF rule, which makes it unsafe for machine-to-machine
+endpoints such as MyrCTF telemetry.

@@ -1,5 +1,5 @@
 owner: apps
-enabled: true
+enabled: false
 components:
   - name: public-test
     namespace: public-test

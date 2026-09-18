@@ -1,6 +1,6 @@
 # Forgejo
 
-Git hosting for J and his agents at **https://forgejo.3rr.dev**, with SSH at **git.3rr.dev**, port 22. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.5-rootless** rather than the chart's LTS default.
+Git hosting for J and his agents, with LAN-only SSH at **git.3rr.dev**, port 22. Public web and HTTPS Git exposure at `forgejo.3rr.dev` is deferred. ArgoCD owns the Forgejo 17.1.6 chart, explicitly running Forgejo **16.0.5-rootless** rather than the chart's LTS default.
 
 One Forgejo pod and one CNPG PostgreSQL 16 instance run on NODE-2 using retained `local-bulk` storage: 50 GiB for Forgejo and 10 GiB for PostgreSQL. The hostPath provisioner does not enforce these as disk quotas. NODE-2 downtime makes the service unavailable. Backups are managed separately by J and are outside this deployment.
 
@@ -20,7 +20,7 @@ The bootstrap password is encrypted in `secrets/forgejo.yaml`; `initialOnlyNoRes
 
 ## Networking and startup
 
-The `forgejo.3rr.dev` HTTPRoute attaches to the HTTP-only public Gateway. Selecting that gateway labels the namespace `exposure=public` and activates the public-edge isolation policy. External routing, Cloudflare and DNS remain managed separately by J.
+Forgejo has no HTTPRoute, so neither its web UI nor HTTPS Git is reachable through the public Gateway. The namespace deliberately retains `exposure=public` and the public-edge isolation policy as defense in depth for its eventual return. The existing local HTTPS mux also traverses Cloudflare, so web/HTTPS Git is unavailable locally while the route is absent; LAN-only SSH remains available.
 
 The Forgejo workload uses a dedicated ServiceAccount with token automounting disabled. It has no Kubernetes RBAC and receives no API credential.
 
@@ -38,7 +38,7 @@ The explicit switches are in [values.yaml](values.yaml); the [feature guide](../
 
 Projects, wikis, stars, time tracking, native file uploads, mail, federation, external avatars, feeds, metrics and other unneeded extras remain disabled. Code indexing uses embedded Bleve on the retained Forgejo volume and includes sources, forks and templates. Forgejo 16's documented REST API does not expose code-content search; zgit integration for that capability remains separate. The API remains available with Swagger disabled.
 
-Actions and webhooks can be re-enabled when the isolated runner and Pages deployment exist. Mirrors/imports can be re-enabled when their required outbound Git destinations are explicitly allowed. Public DNS/routing is managed separately by J; CORS and sitemap remain unchanged. Forgejo advertises `https://forgejo.3rr.dev/` for web/HTTPS Git and `git.3rr.dev:22` for SSH. The HTTPRoute is attached only to the public Gateway.
+Actions and webhooks can be re-enabled when the isolated runner and Pages deployment exist. Mirrors/imports can be re-enabled when their required outbound Git destinations are explicitly allowed. CORS and sitemap remain unchanged. Forgejo still advertises the reserved `https://forgejo.3rr.dev/` URL for future web/HTTPS Git and `git.3rr.dev:22` for SSH, but no HTTPRoute currently publishes the HTTPS URL.
 
 Feature changes belong in Git. Render the pinned upstream chart, run `just check`, and check the running `app.ini` after rollout: upstream chart defaults and persisted secrets affect the final configuration.
 
@@ -92,3 +92,7 @@ The namespace is labelled `exposure=public` with restricted Pod Security and the
 CNPG remained ready under its dedicated profile. Runtime probes verified Forgejo-to-PostgreSQL access, CNPG operator-to-instance-manager access on TCP 8000, and database egress to the Kubernetes API. Probes also verified that the database cannot reach the LAN or Internet. The former private Pocket ID discovery route returns Envoy `403 Access denied` from the isolated workload; no private application response is available.
 
 SSH remains available through the LAN-only `local-git-mux` with the same RSA host-key fingerprint. The Forgejo SSH backend itself is ClusterIP-only, has no NodePort, and accepts only the mux identity. The repository's protocol-mux verification covers HTTPS and SSH, including its negative egress tests.
+
+## Public route deferred — 2026-09-18
+
+The `forgejo.3rr.dev` HTTPRoute was removed before the wider public edge opened. The application, database, isolation policies, reserved hostname, and LAN-only SSH path remain deployed; restoring web exposure requires an explicit future route and completion of the public Pocket ID integration.

@@ -11,9 +11,13 @@ readonly TUNNEL_ORIGIN="http://cilium-gateway-public.gateway-system.svc.cluster.
 readonly TOKEN_FILE="${CF_API_TOKEN_FILE:-/home/j/cf_better_token}"
 readonly SECRET_FILE="$ROOT/kubernetes/platform/networking/public-edge/secrets/cloudflared.yaml"
 readonly AGE_RECIPIENT="age1sjrw9cudya5fhnucvlhqsrfpv8g6zn56tvffx3ns5rr935z3v3aq7hydlz"
-readonly RULE_DESCRIPTION="Public edge: block non-allowlisted source IPs"
-readonly OLD_RULE_DESCRIPTION="Public isolation PoC: block non-allowlisted source IPs"
-readonly RATE_LIMIT_DESCRIPTION="Public edge: block rapid login requests"
+readonly GEO_RULE_DESCRIPTION="Public edge: block traffic outside EU and US"
+readonly SOURCE_RULE_DESCRIPTION="Public edge: block non-allowlisted source IPs"
+readonly OLD_SOURCE_RULE_DESCRIPTION="Public isolation PoC: block non-allowlisted source IPs"
+readonly RATE_LIMIT_DESCRIPTION="Public edge: block rapid Pocket ID passkey requests"
+readonly OLD_RATE_LIMIT_DESCRIPTION="Public edge: block rapid login requests"
+readonly MANAGED_WAF_DESCRIPTION="Public edge: execute Cloudflare Free Managed Ruleset"
+readonly ALLOWED_COUNTRY_SET='{"AT" "BE" "BG" "HR" "CY" "CZ" "DK" "EE" "FI" "FR" "DE" "GR" "HU" "IE" "IT" "LV" "LT" "LU" "MT" "NL" "PL" "PT" "RO" "SK" "SI" "ES" "SE" "US"}'
 
 if [[ ! -s $TOKEN_FILE ]]; then
   echo "Cloudflare API token file is missing or empty: $TOKEN_FILE" >&2
@@ -50,6 +54,11 @@ get_tunnel() {
   jq -c '.result[0]' <<<"$response"
 }
 
+geographic_expression() {
+  printf '((http.host eq "3rr.dev" or ends_with(http.host, ".3rr.dev")) and not (ip.src.country in %s))' \
+    "$ALLOWED_COUNTRY_SET"
+}
+
 configure_rate_limit() {
   local rulesets phase_rulesets ruleset_id ruleset rules matching rule_id
   local rule_payload ruleset_payload response
@@ -62,17 +71,17 @@ configure_rate_limit() {
     exit 1
   fi
 
-  # The Free plan permits one rule with a 10-second counting period. Keep it
-  # on the interactive login path so Git HTTP, LFS, API and asset traffic are
-  # never throttled. Host matching is unavailable in Free-plan expressions.
+  # The Free plan permits one rule with a 10-second counting period. Spend it
+  # on Pocket ID's actual passkey exchange. A successful login uses start and
+  # finish, so ten requests still permit several legitimate retries.
   rule_payload=$(jq -nc --arg description "$RATE_LIMIT_DESCRIPTION" '{
     action:"block",
     description:$description,
-    expression:"(http.request.uri.path eq \"/user/login\")",
+    expression:"(starts_with(http.request.uri.path, \"/api/webauthn/login/\"))",
     ratelimit:{
       characteristics:["cf.colo.id","ip.src"],
       period:10,
-      requests_per_period:5,
+      requests_per_period:10,
       mitigation_timeout:10
     },
     enabled:true
@@ -96,8 +105,8 @@ configure_rate_limit() {
   ruleset=$(api "$API/zones/$ZONE_ID/rulesets/$ruleset_id")
   require_success "reading the zone rate-limit entry point" "$ruleset"
   rules=$(jq '.result.rules // []' <<<"$ruleset")
-  matching=$(jq --arg description "$RATE_LIMIT_DESCRIPTION" \
-    '[.[] | select(.description == $description)]' <<<"$rules")
+  matching=$(jq --arg description "$RATE_LIMIT_DESCRIPTION" --arg old "$OLD_RATE_LIMIT_DESCRIPTION" \
+    '[.[] | select(.description == $description or .description == $old)]' <<<"$rules")
   if (( $(jq 'length' <<<"$matching") > 1 )); then
     echo "Multiple managed login rate-limit rules exist; refusing to update them." >&2
     exit 1
@@ -117,13 +126,106 @@ configure_rate_limit() {
   echo "Login rate limiting is configured."
 }
 
-prepare() {
-  local public_ip tunnels tunnel tunnel_id config token_response tunnel_token
-  public_ip=$(curl -4fsS --max-time 10 https://api.ipify.org)
-  if [[ ! $public_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-    echo "Could not determine a valid public IPv4 address; refusing WAF setup." >&2
+configure_geographic_waf() {
+  local ruleset rules geo_matching legacy_matching rule_id expression
+  local waf_payload waf_response delete_response
+  ruleset=$(api "$API/zones/$ZONE_ID/rulesets/phases/http_request_firewall_custom/entrypoint")
+  require_success "reading the zone WAF entry point" "$ruleset"
+  rules=$(jq '.result.rules // []' <<<"$ruleset")
+  geo_matching=$(jq --arg description "$GEO_RULE_DESCRIPTION" \
+    '[.[] | select(.description == $description)]' <<<"$rules")
+  legacy_matching=$(jq --arg current "$SOURCE_RULE_DESCRIPTION" --arg old "$OLD_SOURCE_RULE_DESCRIPTION" \
+    '[.[] | select(.description == $current or .description == $old)]' <<<"$rules")
+  if (( $(jq 'length' <<<"$geo_matching") > 1 || $(jq 'length' <<<"$legacy_matching") > 1 )); then
+    echo "Multiple managed geographic or legacy source-IP WAF rules exist; refusing to choose." >&2
     exit 1
   fi
+  expression=$(geographic_expression)
+  waf_payload=$(jq -nc --arg description "$GEO_RULE_DESCRIPTION" --arg expression "$expression" \
+    '{action:"block",description:$description,expression:$expression,enabled:true}')
+  if [[ $(jq 'length' <<<"$geo_matching") == 1 ]]; then
+    rule_id=$(jq -r '.[0].id' <<<"$geo_matching")
+    waf_response=$(api -X PATCH "$API/zones/$ZONE_ID/rulesets/$(jq -r '.result.id' <<<"$ruleset")/rules/$rule_id" \
+      --data "$waf_payload")
+  else
+    waf_response=$(api -X POST "$API/zones/$ZONE_ID/rulesets/$(jq -r '.result.id' <<<"$ruleset")/rules" \
+      --data "$waf_payload")
+  fi
+  require_success "installing the EU and US geographic WAF rule" "$waf_response"
+
+  # Create and verify the broader steady-state rule before removing the old
+  # source-IP gate, so there is no unprotected transition window.
+  if [[ $(jq 'length' <<<"$legacy_matching") == 1 ]]; then
+    rule_id=$(jq -r '.[0].id' <<<"$legacy_matching")
+    delete_response=$(api -X DELETE "$API/zones/$ZONE_ID/rulesets/$(jq -r '.result.id' <<<"$ruleset")/rules/$rule_id")
+    require_success "removing the legacy source-IP WAF rule" "$delete_response"
+  fi
+  echo "WAF now limits 3rr.dev to EU member states and the United States."
+}
+
+configure_managed_waf() {
+  local rulesets managed matching_entry entry_id entry rules execute_rules
+  local matching_rule rule_id payload ruleset_payload response
+  rulesets=$(api "$API/zones/$ZONE_ID/rulesets")
+  require_success "listing zone rulesets for managed WAF" "$rulesets"
+  managed=$(jq '[.result[] | select(.kind == "managed" and .phase == "http_request_firewall_managed" and .name == "Cloudflare Managed Free Ruleset")]' <<<"$rulesets")
+  if [[ $(jq 'length' <<<"$managed") != 1 ]]; then
+    echo "Expected exactly one Cloudflare Managed Free Ruleset; refusing to guess." >&2
+    exit 1
+  fi
+  matching_entry=$(jq '[.result[] | select(.kind == "zone" and .phase == "http_request_firewall_managed")]' <<<"$rulesets")
+  if (( $(jq 'length' <<<"$matching_entry") > 1 )); then
+    echo "Multiple managed-WAF entry points exist; refusing to choose one." >&2
+    exit 1
+  fi
+  payload=$(jq -nc --arg description "$MANAGED_WAF_DESCRIPTION" --arg id "$(jq -r '.[0].id' <<<"$managed")" \
+    '{action:"execute",action_parameters:{id:$id},expression:"true",description:$description,enabled:true}')
+  if [[ $(jq 'length' <<<"$matching_entry") == 0 ]]; then
+    ruleset_payload=$(jq -nc --argjson rule "$payload" '{name:"default",description:"Zone-level managed WAF",kind:"zone",phase:"http_request_firewall_managed",rules:[$rule]}')
+    response=$(api -X POST "$API/zones/$ZONE_ID/rulesets" --data "$ruleset_payload")
+    require_success "deploying the Cloudflare Managed Free Ruleset" "$response"
+    echo "Cloudflare Managed Free Ruleset is deployed."
+    return
+  fi
+  entry_id=$(jq -r '.[0].id' <<<"$matching_entry")
+  entry=$(api "$API/zones/$ZONE_ID/rulesets/$entry_id")
+  require_success "reading the managed-WAF entry point" "$entry"
+  rules=$(jq '.result.rules // []' <<<"$entry")
+  matching_rule=$(jq --arg description "$MANAGED_WAF_DESCRIPTION" '[.[] | select(.description == $description)]' <<<"$rules")
+  execute_rules=$(jq '[.[] | select(.action == "execute")]' <<<"$rules")
+  if (( $(jq 'length' <<<"$matching_rule") > 1 )); then
+    echo "Multiple managed Free WAF deployment rules exist; refusing to update them." >&2
+    exit 1
+  fi
+  if [[ $(jq 'length' <<<"$matching_rule") == 1 ]]; then
+    rule_id=$(jq -r '.[0].id' <<<"$matching_rule")
+    response=$(api -X PATCH "$API/zones/$ZONE_ID/rulesets/$entry_id/rules/$rule_id" --data "$payload")
+  elif [[ $(jq 'length' <<<"$execute_rules") == 0 ]]; then
+    response=$(api -X POST "$API/zones/$ZONE_ID/rulesets/$entry_id/rules" --data "$payload")
+  else
+    echo "An unmanaged managed-WAF deployment already exists; refusing to replace it." >&2
+    exit 1
+  fi
+  require_success "deploying the Cloudflare Managed Free Ruleset" "$response"
+  echo "Cloudflare Managed Free Ruleset is deployed."
+}
+
+configure_zone_security() {
+  local response
+  response=$(api -X PATCH "$API/zones/$ZONE_ID/settings/min_tls_version" --data '{"value":"1.2"}')
+  require_success "setting the minimum TLS version to 1.2" "$response"
+  echo "Cloudflare minimum TLS version is 1.2."
+}
+
+configure_edge_hardening() {
+  configure_geographic_waf
+  configure_managed_waf
+  configure_rate_limit
+  configure_zone_security
+}
+
+prepare() {
+  local tunnels tunnel tunnel_id config token_response tunnel_token
 
   tunnels=$(api --get "$API/accounts/$ACCOUNT_ID/cfd_tunnel" \
     --data-urlencode "name=$TUNNEL_NAME" \
@@ -176,40 +278,15 @@ prepare() {
   trap - EXIT
   unset tunnel_token TUNNEL_TOKEN
 
-  local ruleset rules matching rule_id waf_payload waf_response
-  ruleset=$(api "$API/zones/$ZONE_ID/rulesets/phases/http_request_firewall_custom/entrypoint")
-  require_success "reading the zone WAF entry point" "$ruleset"
-  rules=$(jq '.result.rules // []' <<<"$ruleset")
-  matching=$(jq --arg current "$RULE_DESCRIPTION" --arg old "$OLD_RULE_DESCRIPTION" \
-    '[.[] | select(.description == $current or .description == $old)]' <<<"$rules")
-  if (( $(jq 'length' <<<"$matching") > 1 )); then
-    echo "Multiple managed source-IP WAF rules exist; refusing to update them." >&2
-    exit 1
-  fi
-  waf_payload=$(jq -nc --arg description "$RULE_DESCRIPTION" --arg ip "$public_ip" '{
-    action:"block",
-    description:$description,
-    expression:("((http.host eq \"3rr.dev\" or ends_with(http.host, \".3rr.dev\")) and ip.src ne " + $ip + ")"),
-    enabled:true
-  }')
-  if [[ $(jq 'length' <<<"$matching") == 1 ]]; then
-    rule_id=$(jq -r '.[0].id' <<<"$matching")
-    waf_response=$(api -X PATCH "$API/zones/$ZONE_ID/rulesets/$(jq -r '.result.id' <<<"$ruleset")/rules/$rule_id" \
-      --data "$waf_payload")
-  else
-    waf_response=$(api -X POST "$API/zones/$ZONE_ID/rulesets/$(jq -r '.result.id' <<<"$ruleset")/rules" \
-      --data "$waf_payload")
-  fi
-  require_success "installing the source-IP WAF rule" "$waf_response"
-  configure_rate_limit
+  configure_edge_hardening
 
   echo "Prepared tunnel $TUNNEL_NAME and encrypted its connector token."
-  echo "WAF now blocks 3rr.dev traffic outside the current public IPv4."
+  echo "WAF now blocks 3rr.dev traffic outside the EU and United States."
   echo "DNS is unchanged; run '$0 publish' only after cluster verification passes."
 }
 
 publish() {
-  local tunnel tunnel_id tunnel_status ruleset matching expression expected_ip records count record_id response
+  local tunnel tunnel_id tunnel_status ruleset matching expected_expression records count record_id response
   tunnel=$(get_tunnel) || {
     echo "Expected exactly one active tunnel named $TUNNEL_NAME." >&2
     exit 1
@@ -221,13 +298,13 @@ publish() {
     exit 1
   fi
 
-  expected_ip=$(curl -4fsS --max-time 10 https://api.ipify.org)
   ruleset=$(api "$API/zones/$ZONE_ID/rulesets/phases/http_request_firewall_custom/entrypoint")
   require_success "checking the WAF before publication" "$ruleset"
-  matching=$(jq --arg description "$RULE_DESCRIPTION" '[.result.rules[] | select(.description == $description and .enabled == true)]' <<<"$ruleset")
-  expression=$(jq -r 'if length == 1 then .[0].expression else "" end' <<<"$matching")
-  if [[ $expression != *"ip.src ne $expected_ip"* ]]; then
-    echo "The enabled WAF rule does not match current public IPv4 $expected_ip; refusing DNS publication." >&2
+  expected_expression=$(geographic_expression)
+  matching=$(jq --arg description "$GEO_RULE_DESCRIPTION" --arg expression "$expected_expression" \
+    '[.result.rules[] | select(.description == $description and .enabled == true and .expression == $expression)]' <<<"$ruleset")
+  if [[ $(jq 'length' <<<"$matching") != 1 ]]; then
+    echo "The enabled EU and US geographic WAF rule is missing or drifted; refusing DNS publication." >&2
     exit 1
   fi
 
@@ -283,8 +360,9 @@ disable() {
 
 case ${1:-} in
   prepare) prepare ;;
+  harden|waf) configure_edge_hardening ;;
   rate-limit) configure_rate_limit ;;
   publish) publish ;;
   disable) disable ;;
-  *) echo "usage: $0 prepare|rate-limit|publish|disable" >&2; exit 2 ;;
+  *) echo "usage: $0 prepare|harden|waf|rate-limit|publish|disable" >&2; exit 2 ;;
 esac

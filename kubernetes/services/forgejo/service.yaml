@@ -19,14 +19,6 @@ components:
       storage:
         size: 10Gi
         storageClass: local-bulk
-    route:
-      syncWave: "13"
-      hostname: forgejo.3rr.dev
-      gateway: public
-      service: forgejo-http
-      port: 3000
-      dashboard:
-        enabled: false
     oidc:
       enabled: true
       callbackUrls:

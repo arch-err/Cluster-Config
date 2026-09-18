@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly TEST_NAMESPACE="public-route-rejection-test"
+readonly PUBLIC_TEST_NAMESPACE="public-edge-verification"
+readonly REJECTION_TEST_NAMESPACE="public-route-rejection-test"
+readonly PUBLIC_TEST_HOST="edge-verify.3rr.dev"
 readonly PROBE_IMAGE="curlimages/curl:8.10.1"
+readonly BACKEND_IMAGE="ghcr.io/stefanprodan/podinfo:6.9.2@sha256:2ff7e09117596b13739e85bde01c8a33d56265013518910ab681df0fbea13b54"
 
 pass() { printf 'PASS  %s\n' "$1"; }
 fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
@@ -26,11 +29,18 @@ expect_server_dry_run_denied() {
 }
 
 cleanup() {
-  kubectl -n public-test delete pod public-egress-probe --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kubectl -n cloudflare-tunnel delete pod tunnel-egress-probe --ignore-not-found --wait=false >/dev/null 2>&1 || true
-  kubectl delete namespace "$TEST_NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  kubectl delete namespace "$PUBLIC_TEST_NAMESPACE" "$REJECTION_TEST_NAMESPACE" \
+    --ignore-not-found --wait=false >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+for namespace in "$PUBLIC_TEST_NAMESPACE" "$REJECTION_TEST_NAMESPACE"; do
+  if kubectl get namespace "$namespace" >/dev/null 2>&1; then
+    kubectl delete namespace "$namespace" --wait=true --timeout=90s >/dev/null \
+      || fail "stale verification namespace $namespace could not be removed"
+  fi
+done
 
 kubectl -n gateway-system wait --for=condition=Programmed gateway/public --timeout=2m >/dev/null \
   && pass "public Gateway is programmed" \
@@ -43,20 +53,98 @@ jq -e '.spec.type == "LoadBalancer" and .spec.allocateLoadBalancerNodePorts == f
   && pass "public Gateway has no NodePort and only accepts Pod CIDRs on its LB address" \
   || fail "public Gateway Service exposure does not match the hardened shape"
 
-[[ $(kubectl get namespace public-test -o jsonpath='{.metadata.labels.exposure}') == public ]] \
-  && pass "public-test namespace carries the public exposure label" \
-  || fail "public-test namespace is not labelled public"
-[[ $(kubectl get namespace public-test -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}') == restricted ]] \
-  && pass "public-test namespace enforces restricted Pod Security" \
-  || fail "public-test namespace does not enforce restricted Pod Security"
+kubectl create namespace "$PUBLIC_TEST_NAMESPACE" >/dev/null
+kubectl label namespace "$PUBLIC_TEST_NAMESPACE" \
+  exposure=public \
+  pod-security.kubernetes.io/enforce=restricted \
+  pod-security.kubernetes.io/enforce-version=latest \
+  pod-security.kubernetes.io/audit=restricted \
+  pod-security.kubernetes.io/warn=restricted >/dev/null
+kubectl -n "$PUBLIC_TEST_NAMESPACE" apply -f - >/dev/null <<YAML
+apiVersion: v1
+kind: Pod
+metadata:
+  name: public-backend
+  labels:
+    app.kubernetes.io/name: public-backend
+spec:
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: ${BACKEND_IMAGE}
+      ports:
+        - name: http
+          containerPort: 9898
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-backend
+spec:
+  selector:
+    app.kubernetes.io/name: public-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 9898
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: public-backend
+spec:
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+  hostnames:
+    - ${PUBLIC_TEST_HOST}
+  rules:
+    - backendRefs:
+        - name: public-backend
+          port: 80
+YAML
+kubectl -n "$PUBLIC_TEST_NAMESPACE" wait --for=condition=Ready pod/public-backend --timeout=90s >/dev/null
 
-kubectl -n public-test get httproute public-test -o json | jq -e \
+[[ $(kubectl get namespace "$PUBLIC_TEST_NAMESPACE" -o jsonpath='{.metadata.labels.exposure}') == public ]] \
+  && pass "ephemeral namespace carries the public exposure label" \
+  || fail "ephemeral namespace is not labelled public"
+[[ $(kubectl get namespace "$PUBLIC_TEST_NAMESPACE" -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}') == restricted ]] \
+  && pass "ephemeral namespace enforces restricted Pod Security" \
+  || fail "ephemeral namespace does not enforce restricted Pod Security"
+
+for _ in {1..30}; do
+  if kubectl -n "$PUBLIC_TEST_NAMESPACE" get httproute public-backend -o json 2>/dev/null | jq -e \
+    '[.status.parents[].conditions[] | select(.type == "Accepted" and .status == "True")] | length > 0' >/dev/null; then
+    pass "ephemeral public HTTPRoute is accepted"
+    break
+  fi
+  sleep 1
+done
+kubectl -n "$PUBLIC_TEST_NAMESPACE" get httproute public-backend -o json | jq -e \
   '[.status.parents[].conditions[] | select(.type == "Accepted" and .status == "True")] | length > 0' >/dev/null \
-  && pass "public test HTTPRoute is accepted" \
-  || fail "public test HTTPRoute is not accepted"
+  || fail "ephemeral public HTTPRoute is not accepted"
 
-kubectl create namespace "$TEST_NAMESPACE" >/dev/null
-kubectl -n "$TEST_NAMESPACE" apply -f - >/dev/null <<'YAML'
+kubectl create namespace "$REJECTION_TEST_NAMESPACE" >/dev/null
+kubectl -n "$REJECTION_TEST_NAMESPACE" apply -f - >/dev/null <<'YAML'
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -73,14 +161,14 @@ spec:
           port: 80
 YAML
 for _ in {1..30}; do
-  if kubectl -n "$TEST_NAMESPACE" get httproute rejected -o json 2>/dev/null | jq -e \
+  if kubectl -n "$REJECTION_TEST_NAMESPACE" get httproute rejected -o json 2>/dev/null | jq -e \
     '[.status.parents[].conditions[] | select(.type == "Accepted" and .status == "False" and .reason == "NotAllowedByListeners")] | length > 0' >/dev/null; then
     pass "unlabelled namespace cannot attach a route to the public Gateway"
     break
   fi
   sleep 1
 done
-kubectl -n "$TEST_NAMESPACE" get httproute rejected -o json | jq -e \
+kubectl -n "$REJECTION_TEST_NAMESPACE" get httproute rejected -o json | jq -e \
   '[.status.parents[].conditions[] | select(.type == "Accepted" and .status == "False" and .reason == "NotAllowedByListeners")] | length > 0' >/dev/null \
   || fail "unlabelled route was not explicitly rejected"
 
@@ -89,7 +177,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: selectorless-deny-probe
-  namespace: public-test
+  namespace: public-edge-verification
 spec:
   ports:
     - name: http
@@ -102,7 +190,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: externalname-deny-probe
-  namespace: public-test
+  namespace: public-edge-verification
 spec:
   type: ExternalName
   externalName: pocket-id.pocket-id.svc.cluster.local
@@ -117,9 +205,9 @@ apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
   name: endpointslice-deny-probe
-  namespace: public-test
+  namespace: public-edge-verification
   labels:
-    kubernetes.io/service-name: public-test
+    kubernetes.io/service-name: public-backend
 addressType: IPv4
 ports:
   - name: http
@@ -141,9 +229,9 @@ apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
   name: endpointslice-controller-allow-probe
-  namespace: public-test
+  namespace: public-edge-verification
   labels:
-    kubernetes.io/service-name: public-test
+    kubernetes.io/service-name: public-backend
     endpointslice.kubernetes.io/managed-by: endpointslice-controller.k8s.io
 addressType: IPv4
 ports:
@@ -161,8 +249,8 @@ run_probe() {
   kubectl -n "$namespace" wait --for=condition=Ready "pod/$name" --timeout=90s >/dev/null
 }
 
-run_probe public-test public-egress-probe
-kubectl -n public-test exec public-egress-probe -- curl -4fsS --connect-timeout 5 --max-time 15 https://example.com >/dev/null \
+run_probe "$PUBLIC_TEST_NAMESPACE" public-egress-probe
+kubectl -n "$PUBLIC_TEST_NAMESPACE" exec public-egress-probe -- curl -4fsS --connect-timeout 5 --max-time 15 https://example.com >/dev/null \
   && pass "public namespace retains HTTPS Internet egress" \
   || fail "public namespace cannot reach the Internet over HTTPS"
 
@@ -172,7 +260,7 @@ for target in \
   https://10.10.10.171:50000 \
   http://10.10.10.1 \
   http://10.20.20.1; do
-  if kubectl -n public-test exec public-egress-probe -- \
+  if kubectl -n "$PUBLIC_TEST_NAMESPACE" exec public-egress-probe -- \
     curl -ksS --connect-timeout 2 --max-time 4 -o /dev/null "$target" >/dev/null 2>&1; then
     fail "public namespace unexpectedly reached protected target $target"
   fi
@@ -181,7 +269,7 @@ done
 
 run_probe cloudflare-tunnel tunnel-egress-probe
 kubectl -n cloudflare-tunnel exec tunnel-egress-probe -- \
-  curl -fsS --connect-timeout 3 --max-time 10 -H 'Host: edge-test.3rr.dev' \
+  curl -fsS --connect-timeout 3 --max-time 10 -H "Host: $PUBLIC_TEST_HOST" \
   http://cilium-gateway-public.gateway-system.svc.cluster.local/readyz >/dev/null \
   && pass "tunnel namespace can reach the public Gateway and selected backend" \
   || fail "tunnel namespace cannot reach the public Gateway"

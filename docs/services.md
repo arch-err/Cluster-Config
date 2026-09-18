@@ -50,7 +50,7 @@ This lists desired source configuration, not live health. Directory placement gr
 | [services/ntfy](../kubernetes/services/ntfy/service.yaml) | `apps` | yes | `ntfy` |
 | [services/paperless-ngx](../kubernetes/services/paperless-ngx/service.yaml) | `apps` | no | Supporting resources/settings only |
 | [services/papra](../kubernetes/services/papra/service.yaml) | `apps` | yes | `papra` |
-| [services/public-test](../kubernetes/services/public-test/service.yaml) | `apps` | yes | `public-test` |
+| [services/public-test](../kubernetes/services/public-test/service.yaml) | `apps` | no | Ephemeral verification fixture only; not deployed persistently |
 | [services/rocky](../kubernetes/services/rocky/service.yaml) | `infra` | yes | Supporting resources/settings only |
 | [services/stirling-pdf](../kubernetes/services/stirling-pdf/service.yaml) | `apps` | yes | `stirling-pdf` |
 | [services/syncthing](../kubernetes/services/syncthing/service.yaml) | `apps` | no | `syncthing`, `syncthing-oauth2` |

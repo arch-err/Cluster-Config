@@ -70,6 +70,8 @@ Earlier advice to select one primary host for all active repositories is superse
 
 J subsequently requested `https://forgejo.3rr.dev/` for Forgejo and `git.3rr.dev:22` for SSH. These application hostnames are deployed. The Forgejo HTTPRoute now uses the public Gateway, which marks the namespace public and activates public-edge isolation; Cloudflare and DNS remain explicitly J's scope. CORS and sitemap remain unchanged. No repository visibility change was requested with an identified target. The former private Pocket ID source is intentionally unreachable under the public policy and will be replaced by J with the independent public issuer.
 
+Before opening the wider public edge on 2026-09-18, J deferred Forgejo web exposure and its public Pocket ID integration. The `forgejo.3rr.dev` HTTPRoute is therefore absent; the application keeps its public-isolation namespace profile and LAN-only SSH path for a future explicit rollout.
+
 ## Implemented feature rollout — 2026-09-15
 
 J approved the grouped feature recommendations and authorized their initial deployment; see the [service verification record](../kubernetes/services/forgejo/README.md#feature-rollout-verification--2026-09-15). After public exposure, unused outbound integrations were disabled again until their isolated dependencies are ready. Existing repository data was retained.
